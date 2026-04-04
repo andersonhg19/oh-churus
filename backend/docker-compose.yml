@@ -1,0 +1,100 @@
+networks:
+  oh-churus-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+
+services:
+  postgres:
+    image: postgres:14
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init-db/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql
+    networks:
+      - oh-churus-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  discovery-service:
+    image: oh-churus-discovery
+    build:
+      context: ./discovery-service
+    ports:
+      - "8760:8760"
+    networks:
+      - oh-churus-network
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8760/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  gateway-service:
+    image: oh-churus-gateway
+    build:
+      context: ./gateway-service
+    ports:
+      - "8820:8820"
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+    networks:
+      - oh-churus-network
+
+  auth-service:
+    image: oh-churus-auth
+    build:
+      context: ./auth-service
+    ports:
+      - "8821:8821"
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/auth_db
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      SECRET: ${SECRET}
+      EXP_TIME: ${EXP_TIME}
+    networks:
+      - oh-churus-network
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8821/oh-churus/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  budget-service:
+    image: oh-churus-budget
+    build:
+      context: ./budget-service
+    ports:
+      - "8823:8823"
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/budget_db
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      SECRET: ${SECRET}
+    networks:
+      - oh-churus-network
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8823/oh-churus/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10

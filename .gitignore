@@ -1,0 +1,52 @@
+# === Build artifacts ===
+**/target/
+frontend/dist/
+frontend/web-build/
+
+# === Dependencies ===
+frontend/node_modules/
+
+# === Environment / Secrets ===
+.env
+.env.*
+backend/.env
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+
+# === IDE ===
+.idea/
+**/.idea/
+*.iml
+.classpath
+.project
+.settings/
+.vscode/
+
+# === Archives / Large files ===
+*.rar
+*.zip
+*.7z
+
+# === OS ===
+.DS_Store
+Thumbs.db
+
+# === Expo / React Native ===
+frontend/.expo/
+frontend/coverage/
+*.jks
+*.key
+*.p8
+*.p12
+*.pem
+*.mobileprovision
+
+# === Logs ===
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# === Claude Code ===
+.claude/

@@ -1,0 +1,1461 @@
+{
+	"info": {
+		"_postman_id": "oh-churus-collection-v1",
+		"name": "Oh Churus!",
+		"description": "Colección completa de endpoints para el proyecto Oh Churus! - Sistema de presupuesto personal.\n\nGateway: http://localhost:8820\nContext path: /oh-churus",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Auth Service",
+			"item": [
+				{
+					"name": "Authentication",
+					"item": [
+						{
+							"name": "Login",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"if (pm.response.code === 200) {",
+											"    var jsonData = pm.response.json();",
+											"    if (jsonData.correct && jsonData.object && jsonData.object.token) {",
+											"        pm.collectionVariables.set(\"token\", jsonData.object.token);",
+											"    }",
+											"}"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"email\": \"demo@ohchurus.com\",\n    \"password\": \"Demo123!\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/AUTH-SERVICE/oh-churus/v1/auth/login",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"AUTH-SERVICE",
+										"oh-churus",
+										"v1",
+										"auth",
+										"login"
+									]
+								},
+								"description": "Iniciar sesión. El token se guarda automáticamente en la variable de colección {{token}}."
+							},
+							"response": []
+						},
+						{
+							"name": "Register",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"name\": \"Nuevo Usuario\",\n    \"email\": \"nuevo@ohchurus.com\",\n    \"password\": \"Pass123!\",\n    \"budgetStartDay\": 1\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/AUTH-SERVICE/oh-churus/v1/auth/register",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"AUTH-SERVICE",
+										"oh-churus",
+										"v1",
+										"auth",
+										"register"
+									]
+								},
+								"description": "Registrar un nuevo usuario en el sistema."
+							},
+							"response": []
+						}
+					],
+					"description": "Endpoints de autenticación: login y registro."
+				},
+				{
+					"name": "Users",
+					"item": [
+						{
+							"name": "Save/Update User",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"name\": \"Updated Name\",\n    \"email\": \"demo@ohchurus.com\",\n    \"budgetStartDay\": 15\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/AUTH-SERVICE/oh-churus/v1/users/save",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"AUTH-SERVICE",
+										"oh-churus",
+										"v1",
+										"users",
+										"save"
+									]
+								},
+								"description": "Crear o actualizar un usuario."
+							},
+							"response": []
+						},
+						{
+							"name": "Get User by ID",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/AUTH-SERVICE/oh-churus/v1/users/get/1",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"AUTH-SERVICE",
+										"oh-churus",
+										"v1",
+										"users",
+										"get",
+										"1"
+									]
+								},
+								"description": "Obtener un usuario por su ID."
+							},
+							"response": []
+						},
+						{
+							"name": "Get All Users",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"name\": null,\n    \"email\": null,\n    \"page\": 0,\n    \"size\": 10\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/AUTH-SERVICE/oh-churus/v1/users/all",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"AUTH-SERVICE",
+										"oh-churus",
+										"v1",
+										"users",
+										"all"
+									]
+								},
+								"description": "Listar todos los usuarios con filtros y paginación."
+							},
+							"response": []
+						},
+						{
+							"name": "Delete User",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/AUTH-SERVICE/oh-churus/v1/users/delete/3",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"AUTH-SERVICE",
+										"oh-churus",
+										"v1",
+										"users",
+										"delete",
+										"3"
+									]
+								},
+								"description": "Eliminar un usuario por su ID."
+							},
+							"response": []
+						}
+					],
+					"description": "Endpoints de gestión de usuarios (requieren autenticación)."
+				}
+			],
+			"description": "Auth Service - Autenticación y gestión de usuarios."
+		},
+		{
+			"name": "Budget Service - Categories",
+			"item": [
+				{
+					"name": "Save Category",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"userId\": 2,\n    \"name\": \"Ahorro\",\n    \"description\": \"Categoría de ahorro\",\n    \"parentId\": null,\n    \"icon\": \"piggy-bank\",\n    \"color\": \"#4CAF50\",\n    \"type\": \"INCOME\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/BUDGET-SERVICE/oh-churus/v1/categories/save",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"BUDGET-SERVICE",
+								"oh-churus",
+								"v1",
+								"categories",
+								"save"
+							]
+						},
+						"description": "Crear o actualizar una categoría."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Category by ID",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/BUDGET-SERVICE/oh-churus/v1/categories/get/1",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"BUDGET-SERVICE",
+								"oh-churus",
+								"v1",
+								"categories",
+								"get",
+								"1"
+							]
+						},
+						"description": "Obtener una categoría por su ID."
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Categories",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"userId\": 2,\n    \"name\": null,\n    \"type\": null,\n    \"page\": 0,\n    \"size\": 20\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/BUDGET-SERVICE/oh-churus/v1/categories/all",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"BUDGET-SERVICE",
+								"oh-churus",
+								"v1",
+								"categories",
+								"all"
+							]
+						},
+						"description": "Listar todas las categorías con filtros y paginación."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Category Tree",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"userId\": 2\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/BUDGET-SERVICE/oh-churus/v1/categories/tree",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"BUDGET-SERVICE",
+								"oh-churus",
+								"v1",
+								"categories",
+								"tree"
+							]
+						},
+						"description": "Obtener el árbol jerárquico de categorías de un usuario."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Category",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/BUDGET-SERVICE/oh-churus/v1/categories/delete/25",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"BUDGET-SERVICE",
+								"oh-churus",
+								"v1",
+								"categories",
+								"delete",
+								"25"
+							]
+						},
+						"description": "Eliminar una categoría por su ID."
+					},
+					"response": []
+				},
+				{
+					"name": "Category Type List",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/BUDGET-SERVICE/oh-churus/v1/categories/type-list",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"BUDGET-SERVICE",
+								"oh-churus",
+								"v1",
+								"categories",
+								"type-list"
+							]
+						},
+						"description": "Obtener la lista de tipos de categoría disponibles (INCOME, EXPENSE, etc.)."
+					},
+					"response": []
+				}
+			],
+			"description": "Budget Service - Gestión de categorías de presupuesto."
+		},
+		{
+			"name": "Budget Service - Movements",
+			"item": [
+				{
+					"name": "Save Movement",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"userId\": 2,\n    \"categoryId\": 1,\n    \"date\": \"2026-03-17\",\n    \"amount\": 3500000,\n    \"description\": \"Salario marzo\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/BUDGET-SERVICE/oh-churus/v1/movements/save",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"BUDGET-SERVICE",
+								"oh-churus",
+								"v1",
+								"movements",
+								"save"
+							]
+						},
+						"description": "Crear o actualizar un movimiento."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Movement by ID",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/BUDGET-SERVICE/oh-churus/v1/movements/get/1",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"BUDGET-SERVICE",
+								"oh-churus",
+								"v1",
+								"movements",
+								"get",
+								"1"
+							]
+						},
+						"description": "Obtener un movimiento por su ID."
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Movements",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"userId\": 2,\n    \"categoryId\": null,\n    \"startDate\": null,\n    \"endDate\": null,\n    \"confirmed\": null,\n    \"page\": 0,\n    \"size\": 10\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/BUDGET-SERVICE/oh-churus/v1/movements/all",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"BUDGET-SERVICE",
+								"oh-churus",
+								"v1",
+								"movements",
+								"all"
+							]
+						},
+						"description": "Listar todos los movimientos con filtros y paginación."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Movement",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/BUDGET-SERVICE/oh-churus/v1/movements/delete/1",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"BUDGET-SERVICE",
+								"oh-churus",
+								"v1",
+								"movements",
+								"delete",
+								"1"
+							]
+						},
+						"description": "Eliminar un movimiento por su ID."
+					},
+					"response": []
+				},
+				{
+					"name": "Confirm Movement",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/BUDGET-SERVICE/oh-churus/v1/movements/confirm/1",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"BUDGET-SERVICE",
+								"oh-churus",
+								"v1",
+								"movements",
+								"confirm",
+								"1"
+							]
+						},
+						"description": "Confirmar un movimiento pendiente."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Movements by Period",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"userId\": 2,\n    \"startDate\": \"2026-03-01\",\n    \"endDate\": \"2026-03-31\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/BUDGET-SERVICE/oh-churus/v1/movements/by-period",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"BUDGET-SERVICE",
+								"oh-churus",
+								"v1",
+								"movements",
+								"by-period"
+							]
+						},
+						"description": "Obtener movimientos filtrados por período de fechas."
+					},
+					"response": []
+				}
+			],
+			"description": "Budget Service - Gestión de movimientos (ingresos y gastos)."
+		},
+		{
+			"name": "Budget Service - Scheduled Movements",
+			"item": [
+				{
+					"name": "Save Scheduled",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"userId\": 2,\n    \"categoryId\": 7,\n    \"name\": \"Arriendo\",\n    \"amount\": 1500000,\n    \"frequency\": \"MONTHLY\",\n    \"durationMonths\": null,\n    \"startDate\": \"2026-01-01\",\n    \"dayOfMonth\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/BUDGET-SERVICE/oh-churus/v1/scheduled/save",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"BUDGET-SERVICE",
+								"oh-churus",
+								"v1",
+								"scheduled",
+								"save"
+							]
+						},
+						"description": "Crear o actualizar un movimiento programado."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Scheduled by ID",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/BUDGET-SERVICE/oh-churus/v1/scheduled/get/1",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"BUDGET-SERVICE",
+								"oh-churus",
+								"v1",
+								"scheduled",
+								"get",
+								"1"
+							]
+						},
+						"description": "Obtener un movimiento programado por su ID."
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Scheduled",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"userId\": 2,\n    \"name\": null,\n    \"frequency\": null,\n    \"page\": 0,\n    \"size\": 10\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/BUDGET-SERVICE/oh-churus/v1/scheduled/all",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"BUDGET-SERVICE",
+								"oh-churus",
+								"v1",
+								"scheduled",
+								"all"
+							]
+						},
+						"description": "Listar todos los movimientos programados con filtros y paginación."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Scheduled",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/BUDGET-SERVICE/oh-churus/v1/scheduled/delete/1",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"BUDGET-SERVICE",
+								"oh-churus",
+								"v1",
+								"scheduled",
+								"delete",
+								"1"
+							]
+						},
+						"description": "Eliminar un movimiento programado por su ID."
+					},
+					"response": []
+				},
+				{
+					"name": "Generate Pending",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"userId\": 2,\n    \"budgetStartDay\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/BUDGET-SERVICE/oh-churus/v1/scheduled/generate-pending",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"BUDGET-SERVICE",
+								"oh-churus",
+								"v1",
+								"scheduled",
+								"generate-pending"
+							]
+						},
+						"description": "Generar movimientos pendientes a partir de los movimientos programados."
+					},
+					"response": []
+				},
+				{
+					"name": "Frequency List",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/BUDGET-SERVICE/oh-churus/v1/scheduled/frequency-list",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"BUDGET-SERVICE",
+								"oh-churus",
+								"v1",
+								"scheduled",
+								"frequency-list"
+							]
+						},
+						"description": "Obtener la lista de frecuencias disponibles (MONTHLY, WEEKLY, etc.)."
+					},
+					"response": []
+				}
+			],
+			"description": "Budget Service - Gestión de movimientos programados/recurrentes."
+		},
+		{
+			"name": "Dashboard",
+			"item": [
+				{
+					"name": "Summary",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"userId\": 2,\n    \"budgetStartDay\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/BUDGET-SERVICE/oh-churus/v1/dashboard/summary",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"BUDGET-SERVICE",
+								"oh-churus",
+								"v1",
+								"dashboard",
+								"summary"
+							]
+						},
+						"description": "Obtener el resumen del dashboard: totales de ingresos, gastos y balance del período actual."
+					},
+					"response": []
+				},
+				{
+					"name": "By Category",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"userId\": 2,\n    \"budgetStartDay\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/BUDGET-SERVICE/oh-churus/v1/dashboard/by-category",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"BUDGET-SERVICE",
+								"oh-churus",
+								"v1",
+								"dashboard",
+								"by-category"
+							]
+						},
+						"description": "Obtener el desglose de movimientos agrupados por categoría."
+					},
+					"response": []
+				},
+				{
+					"name": "Trend",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"userId\": 2,\n    \"budgetStartDay\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/BUDGET-SERVICE/oh-churus/v1/dashboard/trend",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"BUDGET-SERVICE",
+								"oh-churus",
+								"v1",
+								"dashboard",
+								"trend"
+							]
+						},
+						"description": "Obtener la tendencia histórica de ingresos y gastos por período."
+					},
+					"response": []
+				},
+				{
+					"name": "Pending",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"userId\": 2,\n    \"budgetStartDay\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/BUDGET-SERVICE/oh-churus/v1/dashboard/pending",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"BUDGET-SERVICE",
+								"oh-churus",
+								"v1",
+								"dashboard",
+								"pending"
+							]
+						},
+						"description": "Obtener los movimientos pendientes de confirmación del período actual."
+					},
+					"response": []
+				}
+			],
+			"description": "Dashboard - Resúmenes, tendencias y análisis del presupuesto."
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8820",
+			"type": "string"
+		},
+		{
+			"key": "token",
+			"value": "",
+			"type": "string"
+		}
+	]
+}

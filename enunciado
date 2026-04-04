@@ -1,0 +1,84 @@
+Proyecto: Oh Churus!
+Descripción General
+
+Este proyecto es un sistema de control de finanzas personales con énfasis en presupuestos. El backend será en Spring Boot, el frontend en React Native (híbrido web/móvil) y la base de datos será PostgreSQL. El objetivo es tener una aplicación simple pero de alta calidad, para presentar en la universidad.
+
+Estructura de Carpetas
+
+backend/
+
+frontend/
+
+recursos/
+
+documentación/
+
+seguimiento/
+
+Condiciones Generales
+
+Todas las tablas deben tener: id, createdAt, updatedAt y activo (borrado lógico).
+
+Se utilizarán las condiciones de negocio definidas en el archivo cloud.md (se ubicará en la raíz del proyecto).
+
+Se utilizará Docker para contenerizar el backend.
+
+El backend se construirá como un microservicio, utilizando componentes de gateway, discovery, y autenticación basados en tu arquitectura de referencia.
+
+Entidades
+
+Usuario:
+
+id, nombre, correo, contraseña, activo.
+
+Autenticación será necesaria.
+
+Categoría (estructura tipo árbol):
+
+id, nombre, descripción, parentId (nulo si es categoría principal), activo.
+
+Movimiento:
+
+id, usuarioId, categoriaId, fecha, monto, descripción (opcional), activo.
+
+Movimiento Programado (presupuesto):
+
+id, usuarioId, categoriaId, nombre, monto (opcional), frecuencia (ENUM: mensual, etc.), duración (meses o indefinido), activo.
+
+Al inicio del mes (día configurable), la lógica listará estos como pendientes.
+
+Configuraciones
+
+Propiedades en un archivo properties:
+
+Moneda: ejemplo, pesos colombianos.
+
+Cantidad de decimales a mostrar.
+
+Día de inicio del presupuesto (ej.: día 30 del mes).
+
+Fases de Desarrollo
+
+Fase 1:
+
+Implementar CRUD de usuario con autenticación.
+
+Fase 2:
+
+Implementar CRUD de categorías con estructura de árbol (parentId).
+
+Fase 3:
+
+CRUD de movimientos con borrado lógico.
+
+Fase 4:
+
+CRUD de movimientos programados (presupuesto), con lógica que al inicio del mes muestre los pendientes según la fecha configurada.
+
+Fase 5:
+
+Dashboard que tenga: presupuesto tentativo al inicio del mes, gastos confirmados, y los pendientes por confirmar.
+
+Validación
+
+Considerar si la arquitectura de backend (con conexión a internet) es adecuada para el uso móvil, o si se necesita algún modo offline.

@@ -1,0 +1,117 @@
+============================================================
+  Oh Churus! - Comandos para ejecutar pruebas
+============================================================
+
+PREREQUISITOS:
+  - Java 17 instalado
+  - Maven instalado
+  - Docker Desktop corriendo
+  - Node.js instalado (para frontend)
+
+============================================================
+1. COMPILAR EL PROYECTO
+============================================================
+
+  cd backend
+  mvn clean package -DskipTests
+
+============================================================
+2. LEVANTAR SERVICIOS CON DOCKER
+============================================================
+
+  cd ..
+  docker-compose up --build -d
+
+  Verificar que esten saludables:
+  docker-compose ps
+
+  Servicios:
+    - PostgreSQL      → localhost:5432
+    - Discovery       → localhost:8760
+    - Gateway         → localhost:8820
+    - Auth Service    → localhost:8821
+    - Budget Service  → localhost:8823
+    - Frontend Web    → localhost:3000
+
+============================================================
+3. PRUEBAS UNITARIAS (Mockito + JUnit)
+   No requieren Docker, son independientes
+============================================================
+
+  cd backend
+
+  Todos los servicios:
+  mvn test
+
+  Solo auth-service (80 tests):
+  mvn test -pl auth-service
+
+  Solo budget-service (190 tests):
+  mvn test -pl budget-service
+
+============================================================
+4. COBERTURA DE CODIGO (JaCoCo)
+   Se genera automaticamente al correr los tests
+============================================================
+
+  cd backend
+  mvn test
+
+  Abrir reportes en el navegador:
+  start auth-service\target\site\jacoco\index.html
+  start budget-service\target\site\jacoco\index.html
+
+  Cobertura esperada:
+    - auth-service:   97.4%
+    - budget-service:  95.9%
+
+============================================================
+5. PRUEBAS DE INTEGRACION / ACEPTACION (Karate)
+   REQUIEREN Docker corriendo (docker-compose up -d)
+============================================================
+
+  cd backend
+
+  Auth service (10 escenarios):
+  mvn test -pl auth-service -Pkarate
+
+  Budget service (21 escenarios):
+  mvn test -pl budget-service -Pkarate
+
+  Abrir reportes Karate en el navegador:
+  start auth-service\target\karate-reports\karate-summary.html
+  start budget-service\target\karate-reports\karate-summary.html
+
+============================================================
+6. PRUEBAS DEL FRONTEND (Jest)
+============================================================
+
+  cd frontend
+
+  Todos los tests (178 tests):
+  npm test
+
+  Con reporte de cobertura:
+  npx jest --coverage
+
+  Cobertura esperada: 74.3%
+
+============================================================
+7. LEVANTAR FRONTEND CON EXPO (para movil)
+============================================================
+
+  cd frontend
+  npx expo start
+
+  Escanear QR con Expo Go en el celular
+
+============================================================
+  RESUMEN DE PRUEBAS
+============================================================
+
+  Unitarias backend:     270 tests  (JUnit + Mockito)
+  Integracion/Aceptacion: 31 tests  (Karate BDD)
+  Frontend:              178 tests  (Jest)
+  TOTAL:                 479 tests
+
+============================================================

@@ -1,0 +1,142 @@
+networks:
+  oh-churus-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+
+services:
+  # ==================== DATABASE ====================
+  postgres:
+    image: postgres:14
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-OhChurus2026}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./backend/init-db/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql
+    networks:
+      - oh-churus-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==================== INFRASTRUCTURE ====================
+  discovery-service:
+    image: oh-churus-discovery
+    build:
+      context: ./backend/discovery-service
+    ports:
+      - "8760:8760"
+    networks:
+      - oh-churus-network
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8760/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  gateway-service:
+    image: oh-churus-gateway
+    build:
+      context: ./backend/gateway-service
+    ports:
+      - "8820:8820"
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+    networks:
+      - oh-churus-network
+
+  # ==================== MICROSERVICES ====================
+  auth-service:
+    image: oh-churus-auth
+    build:
+      context: ./backend/auth-service
+    ports:
+      - "8821:8821"
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/auth_db
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-OhChurus2026}
+      SECRET: ${SECRET:-ohchurus@secret.key}
+      EXP_TIME: ${EXP_TIME:-864000000}
+    networks:
+      - oh-churus-network
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8821/oh-churus/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  budget-service:
+    image: oh-churus-budget
+    build:
+      context: ./backend/budget-service
+    ports:
+      - "8823:8823"
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/budget_db
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-OhChurus2026}
+      SECRET: ${SECRET:-ohchurus@secret.key}
+    networks:
+      - oh-churus-network
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8823/oh-churus/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  fasting-service:
+    image: oh-churus-fasting
+    build:
+      context: ./backend/fasting-service
+    ports:
+      - "8825:8825"
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/fasting_db
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-OhChurus2026}
+      SECRET: ${SECRET:-ohchurus@secret.key}
+    networks:
+      - oh-churus-network
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8825/oh-churus/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ==================== FRONTEND ====================
+  frontend:
+    image: oh-churus-frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        EXPO_PUBLIC_API_URL: ${API_URL:-http://192.168.1.9:8820}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - gateway-service
+    networks:
+      - oh-churus-network

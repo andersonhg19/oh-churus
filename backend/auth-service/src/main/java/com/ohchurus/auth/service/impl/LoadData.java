@@ -1,0 +1,78 @@
+package com.ohchurus.auth.service.impl;
+
+import com.ohchurus.auth.entity.User;
+import com.ohchurus.auth.repository.UserRepository;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Component;
+
+@Slf4j
+@Component
+public class LoadData implements CommandLineRunner {
+
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+
+    @Value("${app.seed-data-enabled:true}")
+    private boolean seedDataEnabled;
+
+    public LoadData(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+        this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
+    }
+
+    @Override
+    public void run(String... args) {
+        if (seedDataEnabled) {
+            seedUsers();
+        }
+    }
+
+    private void seedUsers() {
+        if (userRepository.count() > 0) {
+            log.info("Users already exist, skipping seed data");
+            return;
+        }
+
+        User admin = User.builder()
+                .name("Administrador")
+                .email("admin@ohchurus.com")
+                .password(passwordEncoder.encode("Admin123!"))
+                .budgetStartDay(1)
+                .active(true)
+                .build();
+
+        User demo = User.builder()
+                .name("Usuario Demo")
+                .email("demo@ohchurus.com")
+                .password(passwordEncoder.encode("Demo123!"))
+                .budgetStartDay(1)
+                .active(true)
+                .build();
+
+        User anderson = User.builder()
+                .name("Anderson")
+                .email("anderson@ohchurus.com")
+                .password(passwordEncoder.encode("Admin123!"))
+                .budgetStartDay(28)
+                .active(true)
+                .build();
+
+        User samy = User.builder()
+                .name("Samy")
+                .email("samy@ohchurus.com")
+                .password(passwordEncoder.encode("Samy123!"))
+                .budgetStartDay(28)
+                .active(true)
+                .build();
+
+        userRepository.save(admin);
+        userRepository.save(demo);
+        userRepository.save(anderson);
+        userRepository.save(samy);
+
+        log.info("Seed data loaded: 4 users created (admin, demo, anderson, samy)");
+    }
+}

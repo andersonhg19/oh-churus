@@ -23,3 +23,18 @@ jest.mock('./src/contexts/ToastContext', () => {
     }),
   };
 });
+
+// Silencia warnings INOFENSIVOS de consola en tests (animaciones que actualizan
+// estado tras el render -> "not wrapped in act"). No afectan los asserts; jest
+// sigue reportando fallos reales por su cuenta. Cualquier otro error se imprime.
+const __IGNORED_LOGS = [
+  'not wrapped in act',
+  'Animated:',
+  'useNativeDriver',
+];
+const __origError = console.error;
+const __origWarn = console.warn;
+const __shouldIgnore = (args) =>
+  typeof args[0] === 'string' && __IGNORED_LOGS.some((p) => args[0].includes(p));
+console.error = (...args) => { if (!__shouldIgnore(args)) __origError(...args); };
+console.warn = (...args) => { if (!__shouldIgnore(args)) __origWarn(...args); };

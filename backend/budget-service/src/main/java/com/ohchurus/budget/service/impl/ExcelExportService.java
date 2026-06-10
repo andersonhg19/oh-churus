@@ -213,7 +213,7 @@ public class ExcelExportService {
             String estado = Boolean.TRUE.equals(m.getConfirmed()) ? "Ejecutado" : "Presupuestado";
 
             XSSFCell cId = row.createCell(0);
-            cId.setCellValue(rowIdx - 1);
+            cId.setCellValue((double) (rowIdx - 1));
             cId.setCellStyle(centerStyle);
 
             XSSFCell cTipo = row.createCell(1);

@@ -32,6 +32,10 @@ class LoadDataTest {
     @DisplayName("Should seed users when database is empty")
     void shouldSeedUsersWhenEmpty() {
         ReflectionTestUtils.setField(loadData, "seedDataEnabled", true);
+        ReflectionTestUtils.setField(loadData, "adminPassword", "Admin123!");
+        ReflectionTestUtils.setField(loadData, "demoPassword", "Demo123!");
+        ReflectionTestUtils.setField(loadData, "andersonPassword", "Admin123!");
+        ReflectionTestUtils.setField(loadData, "samyPassword", "Samy123!");
         when(userRepository.count()).thenReturn(0L);
         when(passwordEncoder.encode(anyString())).thenReturn("encoded");
         when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));

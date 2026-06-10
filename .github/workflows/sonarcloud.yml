@@ -30,6 +30,13 @@ jobs:
         working-directory: backend
         run: mvn -B clean verify
 
+      - name: Backend - copiar dependencias (para sonar.java.libraries)
+        working-directory: backend
+        run: >
+          mvn -B dependency:copy-dependencies
+          -DoutputDirectory=target/dependency
+          -pl auth-service,budget-service,fasting-service,discovery-service,gateway-service
+
       # ---------- FRONTEND (React Native / Jest) ----------
       - name: Set up Node 20
         uses: actions/setup-node@v4

@@ -1,9 +1,10 @@
 import React from 'react';
-import { render, fireEvent } from '@testing-library/react-native';
+import { render, fireEvent, waitFor } from '@testing-library/react-native';
 import { Alert } from 'react-native';
 import CategoryFormScreen from '../categories/CategoryFormScreen';
 import { ThemeProvider } from '../../contexts/ThemeContext';
 import * as AuthContext from '../../contexts/AuthContext';
+import { categoryService } from '../../services/categoryService';
 
 jest.mock('../../services/categoryService', () => ({
   categoryService: {
@@ -98,5 +99,29 @@ describe('CategoryFormScreen', () => {
     );
     fireEvent.changeText(getByPlaceholderText('Nombre de la categoría'), 'Mi Categoría');
     expect(getByText('Vista previa')).toBeTruthy();
+  });
+
+  it('saves a category successfully (happy path)', async () => {
+    const route = { params: {} } as any;
+    const { getByText, getByPlaceholderText } = render(
+      <CategoryFormScreen navigation={mockNavigation} route={route} />,
+      { wrapper: Wrapper },
+    );
+    fireEvent.changeText(getByPlaceholderText('Nombre de la categoría'), 'Mercado');
+    fireEvent.press(getByText('Guardar'));
+    await waitFor(() => expect(categoryService.save).toHaveBeenCalled());
+    expect(mockNavigation.goBack).toHaveBeenCalled();
+  });
+
+  it('shows an error toast when save fails', async () => {
+    (categoryService.save as jest.Mock).mockResolvedValueOnce({ correct: false, message: 'fallo' });
+    const route = { params: {} } as any;
+    const { getByText, getByPlaceholderText } = render(
+      <CategoryFormScreen navigation={mockNavigation} route={route} />,
+      { wrapper: Wrapper },
+    );
+    fireEvent.changeText(getByPlaceholderText('Nombre de la categoría'), 'Mercado');
+    fireEvent.press(getByText('Guardar'));
+    await waitFor(() => expect((globalThis as any).__mockShowToast).toHaveBeenCalledWith('error', 'Error', 'fallo'));
   });
 });

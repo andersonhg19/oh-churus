@@ -122,4 +122,33 @@ describe('MovementFormScreen', () => {
     fireEvent.press(getByText('Por pagar'));
     expect(getByText('Por pagar')).toBeTruthy();
   });
+
+  it('saves a movement successfully (happy path)', async () => {
+    const route = { params: {} } as any;
+    const { getByText, getByPlaceholderText } = render(
+      <MovementFormScreen navigation={mockNavigation} route={route} />,
+      { wrapper: Wrapper },
+    );
+    // categories load async; EXPENSE is the default type -> "Arriendo" chip
+    await waitFor(() => expect(getByText('Arriendo')).toBeTruthy());
+    fireEvent.press(getByText('Arriendo'));
+    fireEvent.changeText(getByPlaceholderText('0'), '150000');
+    fireEvent.press(getByText('Guardar'));
+    await waitFor(() => expect(movementService.save).toHaveBeenCalled());
+    expect(mockNavigation.goBack).toHaveBeenCalled();
+  });
+
+  it('shows an error toast when save fails', async () => {
+    (movementService.save as jest.Mock).mockResolvedValueOnce({ correct: false, message: 'boom' });
+    const route = { params: {} } as any;
+    const { getByText, getByPlaceholderText } = render(
+      <MovementFormScreen navigation={mockNavigation} route={route} />,
+      { wrapper: Wrapper },
+    );
+    await waitFor(() => expect(getByText('Arriendo')).toBeTruthy());
+    fireEvent.press(getByText('Arriendo'));
+    fireEvent.changeText(getByPlaceholderText('0'), '150000');
+    fireEvent.press(getByText('Guardar'));
+    await waitFor(() => expect(showToastSpy).toHaveBeenCalledWith('error', 'Error', 'boom'));
+  });
 });

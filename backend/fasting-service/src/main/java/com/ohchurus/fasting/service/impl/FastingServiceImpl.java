@@ -249,7 +249,7 @@ public class FastingServiceImpl {
                 dayMap.put("status", s.getStatus().name());
 
                 if (s.getActualEndTime() != null) {
-                    long minutes = Duration.between(s.getStartTime().atZone(ZONE_CO), s.getActualEndTime().atZone(ZONE_CO)).toMinutes();
+                    long minutes = Duration.between(s.getStartTime(), s.getActualEndTime()).toMinutes();
                     dayMap.put("durationMinutes", minutes);
                     dayMap.put("durationFormatted", String.format("%dh %dm", minutes / 60, minutes % 60));
                 }
@@ -351,7 +351,7 @@ public class FastingServiceImpl {
             int completedCount = allCompleted.size();
             long totalMinutes = allCompleted.stream()
                     .filter(s -> s.getActualEndTime() != null)
-                    .mapToLong(s -> Duration.between(s.getStartTime().atZone(ZONE_CO), s.getActualEndTime().atZone(ZONE_CO)).toMinutes())
+                    .mapToLong(s -> Duration.between(s.getStartTime(), s.getActualEndTime()).toMinutes())
                     .sum();
             long totalHours = totalMinutes / 60;
 

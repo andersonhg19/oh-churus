@@ -17,7 +17,7 @@ Análisis: SonarQube Cloud vía GitHub Actions (CI).
 | Vulnerabilities | 4 | **0** |
 | Security Hotspots (sin revisar) | 4 | **0** |
 | Code Smells (abiertos) | 243 | **0** |
-| Cobertura | 44.7% | **78.7%** |
+| Cobertura | 44.7% | **80.9%** (backend 98.9% · frontend 67.5%) |
 | Reliability / Security / Sec.Review / Maintainability | C / A / E / A | **A / A / A / A** |
 
 > El estado "perfecto" quedó respaldado en el tag de git `quality-baseline-ok`,

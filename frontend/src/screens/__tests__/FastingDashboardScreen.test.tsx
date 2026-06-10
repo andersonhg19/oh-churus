@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, waitFor } from '@testing-library/react-native';
+import { render, waitFor, fireEvent } from '@testing-library/react-native';
 import FastingDashboardScreen from '../fasting/FastingDashboardScreen';
 import { ThemeProvider } from '../../contexts/ThemeContext';
 import * as AuthContext from '../../contexts/AuthContext';
@@ -55,5 +55,54 @@ describe('FastingDashboardScreen', () => {
     const { getByText } = render(<FastingDashboardScreen />, { wrapper: Wrapper });
     await waitFor(() => expect(fastingService.getWaterToday).toHaveBeenCalled());
     expect(getByText(/Plan activo/)).toBeTruthy();
+  });
+
+  const activePlan = { id: 1, planType: 'PLAN_16_8', fastingHours: 16, eatingHours: 8 };
+
+  it('renders an active fasting session (timer + finish/cancel)', async () => {
+    (fastingService.getPlan as jest.Mock).mockResolvedValue({ correct: true, object: activePlan });
+    (fastingService.getActiveSession as jest.Mock).mockResolvedValue({
+      correct: true,
+      object: { status: 'IN_PROGRESS', startTime: new Date(Date.now() - 3600000).toISOString(),
+                targetEndTime: new Date(Date.now() + 15 * 3600000).toISOString() },
+    });
+    const { getByText } = render(<FastingDashboardScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(getByText('Finalizar Ayuno')).toBeTruthy());
+    expect(getByText('Cancelar')).toBeTruthy();
+  });
+
+  it('opens the start modal and starts a fast', async () => {
+    (fastingService.getPlan as jest.Mock).mockResolvedValue({ correct: true, object: activePlan });
+    (fastingService.startFasting as jest.Mock).mockResolvedValue({
+      correct: true, object: { status: 'IN_PROGRESS', startTime: new Date().toISOString() },
+    });
+    const { getByText } = render(<FastingDashboardScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(getByText('Iniciar Ayuno')).toBeTruthy());
+    fireEvent.press(getByText('Iniciar Ayuno'));
+    fireEvent.press(getByText('Confirmar'));
+    await waitFor(() => expect(fastingService.startFasting).toHaveBeenCalled());
+  });
+
+  it('adds a glass of water', async () => {
+    (fastingService.getPlan as jest.Mock).mockResolvedValue({ correct: true, object: activePlan });
+    (fastingService.addWater as jest.Mock).mockResolvedValue({ correct: true, object: { glasses: 3, goalGlasses: 8 } });
+    const { getByText } = render(<FastingDashboardScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(getByText('+ 1 vaso')).toBeTruthy());
+    fireEvent.press(getByText('+ 1 vaso'));
+    await waitFor(() => expect(fastingService.addWater).toHaveBeenCalledWith('3', 1));
+  });
+
+  it('cancels an active fast', async () => {
+    (fastingService.getPlan as jest.Mock).mockResolvedValue({ correct: true, object: activePlan });
+    (fastingService.getActiveSession as jest.Mock).mockResolvedValue({
+      correct: true,
+      object: { status: 'IN_PROGRESS', startTime: new Date().toISOString(),
+                targetEndTime: new Date(Date.now() + 16 * 3600000).toISOString() },
+    });
+    (fastingService.cancelFasting as jest.Mock).mockResolvedValue({ correct: true });
+    const { getByText } = render(<FastingDashboardScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(getByText('Cancelar')).toBeTruthy());
+    fireEvent.press(getByText('Cancelar'));
+    await waitFor(() => expect(fastingService.cancelFasting).toHaveBeenCalled());
   });
 });

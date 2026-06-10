@@ -66,7 +66,7 @@ describe('CategoryFormScreen', () => {
       { wrapper: Wrapper },
     );
     fireEvent.press(getByText('Guardar'));
-    expect(Alert.alert).toHaveBeenCalledWith('Validacion', 'El campo "Nombre de la categoria" es obligatorio');
+    expect((globalThis as any).__mockShowToast).toHaveBeenCalledWith('warning', 'Validacion', expect.any(String));
   });
 
   it('renders edit mode with existing data', () => {

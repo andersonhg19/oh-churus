@@ -69,6 +69,6 @@ describe('LoginScreen', () => {
       <LoginScreen navigation={mockNavigation} route={mockRoute} />,
       { wrapper: Wrapper },
     );
-    expect(getByText('Tu asistente de finanzas personales')).toBeTruthy();
+    expect(getByText('Tu asistente para la vida cotidiana')).toBeTruthy();
   });
 });

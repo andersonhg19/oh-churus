@@ -70,7 +70,7 @@ describe('ScheduledScreen', () => {
       <ScheduledScreen navigation={mockNavigation} route={mockRoute} />,
       { wrapper: Wrapper },
     );
-    await waitFor(() => expect(getByText('Generar Pendientes')).toBeTruthy());
+    await waitFor(() => expect(getByText('Generar')).toBeTruthy());
   });
 
   it('handles generate pending action', async () => {
@@ -79,8 +79,8 @@ describe('ScheduledScreen', () => {
       <ScheduledScreen navigation={mockNavigation} route={mockRoute} />,
       { wrapper: Wrapper },
     );
-    await waitFor(() => expect(getByText('Generar Pendientes')).toBeTruthy());
-    fireEvent.press(getByText('Generar Pendientes'));
+    await waitFor(() => expect(getByText('Generar')).toBeTruthy());
+    fireEvent.press(getByText('Generar'));
     await waitFor(() => {
       expect(scheduledService.generatePending).toHaveBeenCalledWith('1', 1);
     });

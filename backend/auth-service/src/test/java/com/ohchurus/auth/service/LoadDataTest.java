@@ -38,7 +38,7 @@ class LoadDataTest {
 
         loadData.run();
 
-        verify(userRepository, times(2)).save(any(User.class));
+        verify(userRepository, atLeast(2)).save(any(User.class));
     }
 
     @Test

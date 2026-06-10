@@ -5,13 +5,14 @@ import com.ohchurus.budget.dto.output.ResultDTO;
 import com.ohchurus.budget.dto.output.ResultMovementDTO;
 import com.ohchurus.budget.entity.Category;
 import com.ohchurus.budget.entity.Movement;
-import com.ohchurus.budget.entity.ScheduledMovement;
 import com.ohchurus.budget.enums.CategoryType;
 import com.ohchurus.budget.mapper.MovementMapper;
 import com.ohchurus.budget.repository.CategoryRepository;
 import com.ohchurus.budget.repository.MovementRepository;
 import com.ohchurus.budget.repository.ScheduledMovementRepository;
 import com.ohchurus.budget.service.impl.DashboardServiceImpl;
+import com.ohchurus.budget.service.impl.HouseholdServiceImpl;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -45,29 +46,27 @@ class DashboardServiceImplTest {
     @Mock
     private MovementMapper movementMapper;
 
+    @Mock
+    private ScheduledMovementService scheduledMovementService;
+
+    @Mock
+    private HouseholdServiceImpl householdService;
+
     @InjectMocks
     private DashboardServiceImpl dashboardService;
 
     private static final Long USER_ID = 1L;
 
     private Category incomeCategory() {
-        Category c = new Category();
-        c.setId(10L);
-        c.setType(CategoryType.INCOME);
-        c.setName("Salario");
-        c.setIcon("wallet");
-        c.setColor("#4CAF50");
-        return c;
+        return Category.builder()
+                .id(10L).userId(USER_ID).name("Salario").type(CategoryType.INCOME)
+                .icon("wallet").color("#4CAF50").active(true).build();
     }
 
     private Category expenseCategory() {
-        Category c = new Category();
-        c.setId(20L);
-        c.setType(CategoryType.EXPENSE);
-        c.setName("Arriendo");
-        c.setIcon("home");
-        c.setColor("#FF0000");
-        return c;
+        return Category.builder()
+                .id(20L).userId(USER_ID).name("Arriendo").type(CategoryType.EXPENSE)
+                .icon("home").color("#FF0000").active(true).build();
     }
 
     // ===================== GET SUMMARY =====================
@@ -79,23 +78,23 @@ class DashboardServiceImplTest {
         @Test
         @DisplayName("Should separate income and expense correctly")
         void shouldReturnSummaryWithData() {
+            when(householdService.getHouseholdIds(USER_ID)).thenReturn(Collections.emptyList());
+
             Movement income1 = Movement.builder()
                     .id(1L).userId(USER_ID).categoryId(10L)
-                    .amount(new BigDecimal("3500000")).confirmed(true).build();
+                    .date(LocalDate.now()).amount(new BigDecimal("3500000")).confirmed(true).active(true).build();
             Movement expense1 = Movement.builder()
                     .id(2L).userId(USER_ID).categoryId(20L)
-                    .amount(new BigDecimal("1500000")).confirmed(true).build();
+                    .date(LocalDate.now()).amount(new BigDecimal("1500000")).confirmed(true).active(true).build();
             Movement pending1 = Movement.builder()
                     .id(3L).userId(USER_ID).categoryId(20L).date(LocalDate.now())
-                    .amount(new BigDecimal("250000")).confirmed(false).build();
+                    .amount(new BigDecimal("250000")).confirmed(false).active(true).build();
 
             when(movementRepository.findByUserIdAndDateBetweenAndConfirmedTrueAndActiveTrue(eq(USER_ID), any(), any()))
                     .thenReturn(List.of(income1, expense1));
             when(movementRepository.findByUserIdAndDateBetweenAndConfirmedFalseAndActiveTrue(eq(USER_ID), any(), any()))
                     .thenReturn(List.of(pending1));
             when(movementRepository.findByUserIdAndConfirmedFalseAndActiveTrue(USER_ID))
-                    .thenReturn(Collections.emptyList());
-            when(scheduledMovementRepository.findActiveInPeriod(eq(USER_ID), any(), any()))
                     .thenReturn(Collections.emptyList());
             when(categoryRepository.findByIdAndActiveTrue(10L)).thenReturn(Optional.of(incomeCategory()));
             when(categoryRepository.findByIdAndActiveTrue(20L)).thenReturn(Optional.of(expenseCategory()));
@@ -114,11 +113,12 @@ class DashboardServiceImplTest {
         @Test
         @DisplayName("Should return zeros when no data")
         void shouldReturnSummaryWithNoData() {
+            when(householdService.getHouseholdIds(USER_ID)).thenReturn(Collections.emptyList());
             when(movementRepository.findByUserIdAndDateBetweenAndConfirmedTrueAndActiveTrue(eq(USER_ID), any(), any()))
                     .thenReturn(Collections.emptyList());
             when(movementRepository.findByUserIdAndDateBetweenAndConfirmedFalseAndActiveTrue(eq(USER_ID), any(), any()))
                     .thenReturn(Collections.emptyList());
-            when(scheduledMovementRepository.findActiveInPeriod(eq(USER_ID), any(), any()))
+            when(movementRepository.findByUserIdAndConfirmedFalseAndActiveTrue(USER_ID))
                     .thenReturn(Collections.emptyList());
 
             ResultDTO result = dashboardService.getSummary(USER_ID, 1);
@@ -133,16 +133,18 @@ class DashboardServiceImplTest {
         @Test
         @DisplayName("Balance should be negative when expenses exceed income")
         void shouldCalculateNegativeBalance() {
+            when(householdService.getHouseholdIds(USER_ID)).thenReturn(Collections.emptyList());
+
             Movement income = Movement.builder().id(1L).userId(USER_ID).categoryId(10L)
-                    .amount(new BigDecimal("1000000")).confirmed(true).build();
+                    .date(LocalDate.now()).amount(new BigDecimal("1000000")).confirmed(true).active(true).build();
             Movement expense = Movement.builder().id(2L).userId(USER_ID).categoryId(20L)
-                    .amount(new BigDecimal("2000000")).confirmed(true).build();
+                    .date(LocalDate.now()).amount(new BigDecimal("2000000")).confirmed(true).active(true).build();
 
             when(movementRepository.findByUserIdAndDateBetweenAndConfirmedTrueAndActiveTrue(eq(USER_ID), any(), any()))
                     .thenReturn(List.of(income, expense));
             when(movementRepository.findByUserIdAndDateBetweenAndConfirmedFalseAndActiveTrue(eq(USER_ID), any(), any()))
                     .thenReturn(Collections.emptyList());
-            when(scheduledMovementRepository.findActiveInPeriod(eq(USER_ID), any(), any()))
+            when(movementRepository.findByUserIdAndConfirmedFalseAndActiveTrue(USER_ID))
                     .thenReturn(Collections.emptyList());
             when(categoryRepository.findByIdAndActiveTrue(10L)).thenReturn(Optional.of(incomeCategory()));
             when(categoryRepository.findByIdAndActiveTrue(20L)).thenReturn(Optional.of(expenseCategory()));
@@ -153,52 +155,54 @@ class DashboardServiceImplTest {
         }
 
         @Test
-        @DisplayName("BudgetTotal should only sum EXPENSE scheduled movements")
+        @DisplayName("BudgetTotal should only sum EXPENSE movements (confirmed+pending), excluding children and transfers")
         void shouldCalculateBudgetTotalOnlyExpenses() {
-            ScheduledMovement incomeScheduled = ScheduledMovement.builder()
-                    .id(1L).userId(USER_ID).categoryId(10L).amount(new BigDecimal("5000000")).build();
-            ScheduledMovement expenseScheduled = ScheduledMovement.builder()
-                    .id(2L).userId(USER_ID).categoryId(20L).amount(new BigDecimal("1500000")).build();
+            when(householdService.getHouseholdIds(USER_ID)).thenReturn(Collections.emptyList());
+
+            Movement confirmedIncome = Movement.builder().id(1L).userId(USER_ID).categoryId(10L)
+                    .date(LocalDate.now()).amount(new BigDecimal("5000000")).confirmed(true).active(true).build();
+            Movement confirmedExpense = Movement.builder().id(2L).userId(USER_ID).categoryId(20L)
+                    .date(LocalDate.now()).amount(new BigDecimal("1500000")).confirmed(true).active(true).build();
+            Movement pendingExpense = Movement.builder().id(3L).userId(USER_ID).categoryId(20L)
+                    .date(LocalDate.now()).amount(new BigDecimal("500000")).confirmed(false).active(true).build();
 
             when(movementRepository.findByUserIdAndDateBetweenAndConfirmedTrueAndActiveTrue(eq(USER_ID), any(), any()))
-                    .thenReturn(Collections.emptyList());
+                    .thenReturn(List.of(confirmedIncome, confirmedExpense));
             when(movementRepository.findByUserIdAndDateBetweenAndConfirmedFalseAndActiveTrue(eq(USER_ID), any(), any()))
-                    .thenReturn(Collections.emptyList());
-            when(scheduledMovementRepository.findActiveInPeriod(eq(USER_ID), any(), any()))
-                    .thenReturn(List.of(incomeScheduled, expenseScheduled));
+                    .thenReturn(List.of(pendingExpense));
+            when(movementRepository.findByUserIdAndConfirmedFalseAndActiveTrue(USER_ID))
+                    .thenReturn(List.of(pendingExpense));
             when(categoryRepository.findByIdAndActiveTrue(10L)).thenReturn(Optional.of(incomeCategory()));
             when(categoryRepository.findByIdAndActiveTrue(20L)).thenReturn(Optional.of(expenseCategory()));
 
             ResultDTO result = dashboardService.getSummary(USER_ID, 1);
             DashboardSummaryDTO summary = (DashboardSummaryDTO) result.getObject();
-            // Solo debe sumar el programado de EXPENSE, no el de INCOME
-            assertEquals(new BigDecimal("1500000"), summary.getBudgetTotal());
+            // budgetTotal = confirmedExpense(1500000) + pendingExpense(500000) = 2000000
+            assertEquals(new BigDecimal("2000000"), summary.getBudgetTotal());
         }
 
         @Test
         @DisplayName("Should include all pending from current period plus old periods")
         void shouldIncludeAllPendingFromPeriod() {
-            Movement futurePending = Movement.builder()
+            when(householdService.getHouseholdIds(USER_ID)).thenReturn(Collections.emptyList());
+
+            Movement pendingCurrent = Movement.builder()
                     .id(1L).userId(USER_ID).categoryId(20L)
-                    .date(LocalDate.now().plusDays(5))
-                    .amount(new BigDecimal("100000")).confirmed(false).build();
-            Movement todayPending = Movement.builder()
+                    .date(LocalDate.now()).amount(new BigDecimal("200000")).confirmed(false).active(true).build();
+            Movement pendingOld = Movement.builder()
                     .id(2L).userId(USER_ID).categoryId(20L)
-                    .date(LocalDate.now())
-                    .amount(new BigDecimal("200000")).confirmed(false).build();
+                    .date(LocalDate.now().minusMonths(2)).amount(new BigDecimal("100000")).confirmed(false).active(true).build();
 
             when(movementRepository.findByUserIdAndDateBetweenAndConfirmedTrueAndActiveTrue(eq(USER_ID), any(), any()))
                     .thenReturn(Collections.emptyList());
             when(movementRepository.findByUserIdAndDateBetweenAndConfirmedFalseAndActiveTrue(eq(USER_ID), any(), any()))
-                    .thenReturn(List.of(futurePending, todayPending));
+                    .thenReturn(List.of(pendingCurrent));
             when(movementRepository.findByUserIdAndConfirmedFalseAndActiveTrue(USER_ID))
-                    .thenReturn(Collections.emptyList());
-            when(scheduledMovementRepository.findActiveInPeriod(eq(USER_ID), any(), any()))
-                    .thenReturn(Collections.emptyList());
+                    .thenReturn(List.of(pendingOld, pendingCurrent));
+            when(categoryRepository.findByIdAndActiveTrue(20L)).thenReturn(Optional.of(expenseCategory()));
 
             ResultDTO result = dashboardService.getSummary(USER_ID, 1);
             DashboardSummaryDTO summary = (DashboardSummaryDTO) result.getObject();
-            // Ambos cuentan: todos los del periodo actual se muestran
             assertEquals(2, summary.getPendingCount());
             assertEquals(new BigDecimal("300000"), summary.getPendingAmount());
         }
@@ -206,8 +210,7 @@ class DashboardServiceImplTest {
         @Test
         @DisplayName("Should handle exception gracefully")
         void shouldHandleException() {
-            when(movementRepository.findByUserIdAndDateBetweenAndConfirmedTrueAndActiveTrue(eq(USER_ID), any(), any()))
-                    .thenThrow(new RuntimeException("DB error"));
+            when(householdService.getHouseholdIds(USER_ID)).thenThrow(new RuntimeException("DB error"));
 
             ResultDTO result = dashboardService.getSummary(USER_ID, 1);
             assertFalse(result.isCorrect());
@@ -224,10 +227,12 @@ class DashboardServiceImplTest {
         @Test
         @DisplayName("Should group by category with type")
         void shouldGroupByCategory() {
+            when(householdService.getHouseholdIds(USER_ID)).thenReturn(Collections.emptyList());
+
             Movement m1 = Movement.builder().id(1L).userId(USER_ID).categoryId(10L)
-                    .amount(new BigDecimal("100000")).confirmed(true).build();
+                    .date(LocalDate.now()).amount(new BigDecimal("100000")).confirmed(true).active(true).build();
             Movement m2 = Movement.builder().id(2L).userId(USER_ID).categoryId(20L)
-                    .amount(new BigDecimal("200000")).confirmed(true).build();
+                    .date(LocalDate.now()).amount(new BigDecimal("200000")).confirmed(true).active(true).build();
 
             when(movementRepository.findByUserIdAndDateBetweenAndConfirmedTrueAndActiveTrue(eq(USER_ID), any(), any()))
                     .thenReturn(List.of(m1, m2));
@@ -246,18 +251,22 @@ class DashboardServiceImplTest {
         @Test
         @DisplayName("Should return empty when no movements")
         void shouldReturnEmptyWhenNoMovements() {
+            when(householdService.getHouseholdIds(USER_ID)).thenReturn(Collections.emptyList());
             when(movementRepository.findByUserIdAndDateBetweenAndConfirmedTrueAndActiveTrue(eq(USER_ID), any(), any()))
                     .thenReturn(Collections.emptyList());
 
             ResultDTO result = dashboardService.getByCategory(USER_ID, 1);
             assertTrue(result.isCorrect());
+
+            @SuppressWarnings("unchecked")
+            List<?> categories = (List<?>) result.getObject();
+            assertTrue(categories.isEmpty());
         }
 
         @Test
         @DisplayName("Should handle exception gracefully")
         void shouldHandleException() {
-            when(movementRepository.findByUserIdAndDateBetweenAndConfirmedTrueAndActiveTrue(eq(USER_ID), any(), any()))
-                    .thenThrow(new RuntimeException("DB error"));
+            when(householdService.getHouseholdIds(USER_ID)).thenThrow(new RuntimeException("DB error"));
 
             ResultDTO result = dashboardService.getByCategory(USER_ID, 1);
             assertFalse(result.isCorrect());
@@ -274,14 +283,16 @@ class DashboardServiceImplTest {
         @Test
         @DisplayName("Should calculate trend with income and expense")
         void shouldCalculateTrendWithBothTypes() {
+            when(householdService.getHouseholdIds(USER_ID)).thenReturn(Collections.emptyList());
+
             Movement currentIncome = Movement.builder().id(1L).userId(USER_ID).categoryId(10L)
-                    .amount(new BigDecimal("500000")).confirmed(true).build();
+                    .date(LocalDate.now()).amount(new BigDecimal("500000")).confirmed(true).active(true).build();
             Movement currentExpense = Movement.builder().id(2L).userId(USER_ID).categoryId(20L)
-                    .amount(new BigDecimal("200000")).confirmed(true).build();
+                    .date(LocalDate.now()).amount(new BigDecimal("200000")).confirmed(true).active(true).build();
             Movement previousIncome = Movement.builder().id(3L).userId(USER_ID).categoryId(10L)
-                    .amount(new BigDecimal("400000")).confirmed(true).build();
+                    .date(LocalDate.now().minusMonths(1)).amount(new BigDecimal("400000")).confirmed(true).active(true).build();
             Movement previousExpense = Movement.builder().id(4L).userId(USER_ID).categoryId(20L)
-                    .amount(new BigDecimal("100000")).confirmed(true).build();
+                    .date(LocalDate.now().minusMonths(1)).amount(new BigDecimal("100000")).confirmed(true).active(true).build();
 
             when(movementRepository.findByUserIdAndDateBetweenAndConfirmedTrueAndActiveTrue(eq(USER_ID), any(), any()))
                     .thenReturn(List.of(currentIncome, currentExpense))
@@ -302,6 +313,7 @@ class DashboardServiceImplTest {
         @Test
         @DisplayName("Should handle zero previous period")
         void shouldHandleZeroPreviousPeriod() {
+            when(householdService.getHouseholdIds(USER_ID)).thenReturn(Collections.emptyList());
             when(movementRepository.findByUserIdAndDateBetweenAndConfirmedTrueAndActiveTrue(eq(USER_ID), any(), any()))
                     .thenReturn(Collections.emptyList())
                     .thenReturn(Collections.emptyList());
@@ -315,8 +327,7 @@ class DashboardServiceImplTest {
         @Test
         @DisplayName("Should handle exception gracefully")
         void shouldHandleException() {
-            when(movementRepository.findByUserIdAndDateBetweenAndConfirmedTrueAndActiveTrue(eq(USER_ID), any(), any()))
-                    .thenThrow(new RuntimeException("DB error"));
+            when(householdService.getHouseholdIds(USER_ID)).thenThrow(new RuntimeException("DB error"));
 
             ResultDTO result = dashboardService.getTrend(USER_ID, 1);
             assertFalse(result.isCorrect());
@@ -333,15 +344,18 @@ class DashboardServiceImplTest {
         @Test
         @DisplayName("Should return pending from current period enriched with category data")
         void shouldReturnPendingMovements() {
+            when(householdService.getHouseholdIds(USER_ID)).thenReturn(Collections.emptyList());
+
             Movement m = Movement.builder().id(1L).userId(USER_ID).categoryId(20L)
-                    .date(LocalDate.now()).amount(new BigDecimal("50000")).confirmed(false).build();
+                    .date(LocalDate.now()).amount(new BigDecimal("50000")).confirmed(false).active(true).build();
             ResultMovementDTO dto = new ResultMovementDTO();
             dto.setId(1L);
+            dto.setCategoryId(20L);
 
             when(movementRepository.findByUserIdAndDateBetweenAndConfirmedFalseAndActiveTrue(eq(USER_ID), any(), any()))
                     .thenReturn(List.of(m));
             when(movementRepository.findByUserIdAndConfirmedFalseAndActiveTrue(USER_ID))
-                    .thenReturn(Collections.emptyList());
+                    .thenReturn(List.of(m));
             when(movementMapper.toResultDTO(m)).thenReturn(dto);
             when(categoryRepository.findByIdAndActiveTrue(20L)).thenReturn(Optional.of(expenseCategory()));
 
@@ -356,53 +370,222 @@ class DashboardServiceImplTest {
         }
 
         @Test
-        @DisplayName("Should include future pending from current period")
-        void shouldIncludeFuturePendingFromCurrentPeriod() {
-            Movement future = Movement.builder().id(1L).userId(USER_ID).categoryId(20L)
-                    .date(LocalDate.now().plusDays(5)).amount(new BigDecimal("50000")).confirmed(false).build();
-            Movement today = Movement.builder().id(2L).userId(USER_ID).categoryId(20L)
-                    .date(LocalDate.now()).amount(new BigDecimal("30000")).confirmed(false).build();
-
-            ResultMovementDTO dto1 = new ResultMovementDTO();
-            dto1.setId(1L);
-            ResultMovementDTO dto2 = new ResultMovementDTO();
-            dto2.setId(2L);
-
+        @DisplayName("Should return empty when no pending")
+        void shouldReturnEmptyWhenNoPending() {
+            when(householdService.getHouseholdIds(USER_ID)).thenReturn(Collections.emptyList());
             when(movementRepository.findByUserIdAndDateBetweenAndConfirmedFalseAndActiveTrue(eq(USER_ID), any(), any()))
-                    .thenReturn(List.of(future, today));
+                    .thenReturn(Collections.emptyList());
             when(movementRepository.findByUserIdAndConfirmedFalseAndActiveTrue(USER_ID))
                     .thenReturn(Collections.emptyList());
-            when(movementMapper.toResultDTO(future)).thenReturn(dto1);
-            when(movementMapper.toResultDTO(today)).thenReturn(dto2);
-            when(categoryRepository.findByIdAndActiveTrue(20L)).thenReturn(Optional.of(expenseCategory()));
 
             ResultDTO result = dashboardService.getPending(USER_ID, 1);
             assertTrue(result.isCorrect());
 
             @SuppressWarnings("unchecked")
-            List<ResultMovementDTO> pending = (List<ResultMovementDTO>) result.getObject();
-            assertEquals(2, pending.size()); // Ambos: futuro y hoy del periodo actual
-        }
-
-        @Test
-        @DisplayName("Should return empty when no pending")
-        void shouldReturnEmptyWhenNoPending() {
-            when(movementRepository.findByUserIdAndConfirmedFalseAndActiveTrue(USER_ID))
-                    .thenReturn(Collections.emptyList());
-
-            ResultDTO result = dashboardService.getPending(USER_ID, 1);
-            assertTrue(result.isCorrect());
+            List<?> pending = (List<?>) result.getObject();
+            assertTrue(pending.isEmpty());
         }
 
         @Test
         @DisplayName("Should handle exception gracefully")
         void shouldHandleException() {
-            when(movementRepository.findByUserIdAndConfirmedFalseAndActiveTrue(USER_ID))
-                    .thenThrow(new RuntimeException("DB error"));
+            when(householdService.getHouseholdIds(USER_ID)).thenThrow(new RuntimeException("DB error"));
 
             ResultDTO result = dashboardService.getPending(USER_ID, 1);
             assertFalse(result.isCorrect());
             assertEquals(500, result.getErrorCode());
+        }
+    }
+
+    // ===================== GET SPLIT SUMMARY =====================
+
+    private Category sharedExpenseCategory() {
+        return Category.builder()
+                .id(30L).userId(USER_ID).name("Mercado").type(CategoryType.EXPENSE)
+                .householdId(100L).active(true).build();
+    }
+
+    private Category sharedIncomeCategory() {
+        return Category.builder()
+                .id(40L).userId(USER_ID).name("Aporte").type(CategoryType.INCOME)
+                .householdId(100L).active(true).build();
+    }
+
+    @Nested
+    @DisplayName("GetSplitSummary")
+    class GetSplitSummaryTests {
+
+        @Test
+        @DisplayName("Should split personal vs shared, exclude transfers from total, count pending per scope")
+        void shouldSplitConfirmedAndPending() {
+            when(householdService.getHouseholdIds(USER_ID)).thenReturn(Collections.emptyList());
+
+            Movement persIncome = Movement.builder().id(1L).userId(USER_ID).categoryId(10L)
+                    .date(LocalDate.now()).amount(new BigDecimal("500000")).confirmed(true).active(true).build();
+            Movement persExpense = Movement.builder().id(2L).userId(USER_ID).categoryId(20L)
+                    .date(LocalDate.now()).amount(new BigDecimal("200000")).confirmed(true).active(true).build();
+            Movement sharedIncome = Movement.builder().id(3L).userId(USER_ID).categoryId(40L)
+                    .date(LocalDate.now()).amount(new BigDecimal("300000")).confirmed(true).active(true).build();
+            Movement sharedExpense = Movement.builder().id(4L).userId(USER_ID).categoryId(30L)
+                    .date(LocalDate.now()).amount(new BigDecimal("100000")).confirmed(true).active(true).build();
+            Movement transferOut = Movement.builder().id(5L).userId(USER_ID).categoryId(30L)
+                    .date(LocalDate.now()).amount(new BigDecimal("50000")).isTransfer(true).confirmed(true).active(true).build();
+            Movement transferIn = Movement.builder().id(6L).userId(USER_ID).categoryId(20L)
+                    .date(LocalDate.now()).amount(new BigDecimal("50000")).isTransfer(true).confirmed(true).active(true).build();
+
+            Movement persPending = Movement.builder().id(7L).userId(USER_ID).categoryId(20L)
+                    .date(LocalDate.now()).amount(new BigDecimal("10000")).confirmed(false).active(true).build();
+            Movement sharedPending = Movement.builder().id(8L).userId(USER_ID).categoryId(30L)
+                    .date(LocalDate.now()).amount(new BigDecimal("20000")).confirmed(false).active(true).build();
+
+            when(movementRepository.findByUserIdAndDateBetweenAndConfirmedTrueAndActiveTrue(eq(USER_ID), any(), any()))
+                    .thenReturn(List.of(persIncome, persExpense, sharedIncome, sharedExpense, transferOut, transferIn));
+            when(movementRepository.findByUserIdAndDateBetweenAndConfirmedFalseAndActiveTrue(eq(USER_ID), any(), any()))
+                    .thenReturn(List.of(persPending, sharedPending));
+            when(movementRepository.findByUserIdAndConfirmedFalseAndActiveTrue(USER_ID))
+                    .thenReturn(Collections.emptyList());
+
+            when(categoryRepository.findByIdAndActiveTrue(10L)).thenReturn(Optional.of(incomeCategory()));
+            when(categoryRepository.findByIdAndActiveTrue(20L)).thenReturn(Optional.of(expenseCategory()));
+            when(categoryRepository.findByIdAndActiveTrue(40L)).thenReturn(Optional.of(sharedIncomeCategory()));
+            when(categoryRepository.findByIdAndActiveTrue(30L)).thenReturn(Optional.of(sharedExpenseCategory()));
+
+            ResultDTO result = dashboardService.getSplitSummary(USER_ID, 1, LocalDate.now());
+
+            assertTrue(result.isCorrect());
+            DashboardSummaryDTO.SplitSummary split = (DashboardSummaryDTO.SplitSummary) result.getObject();
+            // personal income = 500000 + transferIn 50000
+            assertEquals(new BigDecimal("550000"), split.getPersonalIncome());
+            assertEquals(new BigDecimal("200000"), split.getPersonalExpense());
+            // shared expense = 100000 + transferOut 50000
+            assertEquals(new BigDecimal("300000"), split.getSharedIncome());
+            assertEquals(new BigDecimal("150000"), split.getSharedExpense());
+            // total excludes transfers
+            assertEquals(new BigDecimal("800000"), split.getTotalIncome());
+            assertEquals(new BigDecimal("300000"), split.getTotalExpense());
+            assertEquals(1, split.getPersonalPendingCount());
+            assertEquals(1, split.getSharedPendingCount());
+        }
+
+        @Test
+        @DisplayName("Should handle null amounts and missing categories as personal expense")
+        void shouldHandleNullsAndMissingCategory() {
+            when(householdService.getHouseholdIds(USER_ID)).thenReturn(Collections.emptyList());
+
+            Movement nullAmount = Movement.builder().id(1L).userId(USER_ID).categoryId(99L)
+                    .date(LocalDate.now()).amount(null).confirmed(true).active(true).build();
+            when(movementRepository.findByUserIdAndDateBetweenAndConfirmedTrueAndActiveTrue(eq(USER_ID), any(), any()))
+                    .thenReturn(List.of(nullAmount));
+            when(movementRepository.findByUserIdAndDateBetweenAndConfirmedFalseAndActiveTrue(eq(USER_ID), any(), any()))
+                    .thenReturn(Collections.emptyList());
+            when(movementRepository.findByUserIdAndConfirmedFalseAndActiveTrue(USER_ID))
+                    .thenReturn(Collections.emptyList());
+            when(categoryRepository.findByIdAndActiveTrue(99L)).thenReturn(Optional.empty());
+
+            ResultDTO result = dashboardService.getSplitSummary(USER_ID, 1, LocalDate.now());
+
+            assertTrue(result.isCorrect());
+            DashboardSummaryDTO.SplitSummary split = (DashboardSummaryDTO.SplitSummary) result.getObject();
+            assertEquals(BigDecimal.ZERO, split.getPersonalExpense());
+        }
+
+        @Test
+        @DisplayName("Should use household queries and include old pending when user has households")
+        void shouldUseHouseholdQueries() {
+            when(householdService.getHouseholdIds(USER_ID)).thenReturn(List.of(100L));
+
+            Movement oldPending = Movement.builder().id(1L).userId(USER_ID).categoryId(30L)
+                    .date(LocalDate.now().minusMonths(2)).amount(new BigDecimal("5000")).confirmed(false).active(true).build();
+
+            when(movementRepository.findHouseholdConfirmed(eq(USER_ID), anyList(), any(), any()))
+                    .thenReturn(Collections.emptyList());
+            when(movementRepository.findHouseholdPending(eq(USER_ID), anyList(), any(), any()))
+                    .thenReturn(Collections.emptyList());
+            when(movementRepository.findHouseholdAllPending(eq(USER_ID), anyList()))
+                    .thenReturn(List.of(oldPending));
+            when(categoryRepository.findByIdAndActiveTrue(30L)).thenReturn(Optional.of(sharedExpenseCategory()));
+
+            ResultDTO result = dashboardService.getSplitSummary(USER_ID, 1, LocalDate.now());
+
+            assertTrue(result.isCorrect());
+            DashboardSummaryDTO.SplitSummary split = (DashboardSummaryDTO.SplitSummary) result.getObject();
+            assertEquals(1, split.getSharedPendingCount());
+            verify(movementRepository).findHouseholdConfirmed(eq(USER_ID), anyList(), any(), any());
+        }
+
+        @Test
+        @DisplayName("Should handle exception gracefully")
+        void shouldHandleException() {
+            when(householdService.getHouseholdIds(USER_ID)).thenThrow(new RuntimeException("DB error"));
+
+            ResultDTO result = dashboardService.getSplitSummary(USER_ID, 1, LocalDate.now());
+            assertFalse(result.isCorrect());
+            assertEquals(500, result.getErrorCode());
+        }
+    }
+
+    // ===================== HOUSEHOLD-AWARE BRANCHES =====================
+
+    @Nested
+    @DisplayName("Household-aware branches")
+    class HouseholdBranchTests {
+
+        @Test
+        @DisplayName("getSummary should use household queries when user belongs to households")
+        void summaryUsesHouseholdQueries() {
+            when(householdService.getHouseholdIds(USER_ID)).thenReturn(List.of(100L));
+            when(movementRepository.findHouseholdConfirmed(eq(USER_ID), anyList(), any(), any()))
+                    .thenReturn(Collections.emptyList());
+            when(movementRepository.findHouseholdPending(eq(USER_ID), anyList(), any(), any()))
+                    .thenReturn(Collections.emptyList());
+            when(movementRepository.findHouseholdAllPending(eq(USER_ID), anyList()))
+                    .thenReturn(Collections.emptyList());
+
+            ResultDTO result = dashboardService.getSummary(USER_ID, 1, LocalDate.now());
+
+            assertTrue(result.isCorrect());
+            verify(movementRepository).findHouseholdConfirmed(eq(USER_ID), anyList(), any(), any());
+        }
+
+        @Test
+        @DisplayName("getByCategory should use household query when user belongs to households")
+        void byCategoryUsesHouseholdQuery() {
+            when(householdService.getHouseholdIds(USER_ID)).thenReturn(List.of(100L));
+            when(movementRepository.findHouseholdConfirmed(eq(USER_ID), anyList(), any(), any()))
+                    .thenReturn(Collections.emptyList());
+
+            ResultDTO result = dashboardService.getByCategory(USER_ID, 1, LocalDate.now());
+
+            assertTrue(result.isCorrect());
+            verify(movementRepository).findHouseholdConfirmed(eq(USER_ID), anyList(), any(), any());
+        }
+
+        @Test
+        @DisplayName("getTrend should use household queries when user belongs to households")
+        void trendUsesHouseholdQueries() {
+            when(householdService.getHouseholdIds(USER_ID)).thenReturn(List.of(100L));
+            when(movementRepository.findHouseholdConfirmed(eq(USER_ID), anyList(), any(), any()))
+                    .thenReturn(Collections.emptyList());
+
+            ResultDTO result = dashboardService.getTrend(USER_ID, 1);
+
+            assertTrue(result.isCorrect());
+            verify(movementRepository, atLeastOnce()).findHouseholdConfirmed(eq(USER_ID), anyList(), any(), any());
+        }
+
+        @Test
+        @DisplayName("getPending should use household queries when user belongs to households")
+        void pendingUsesHouseholdQueries() {
+            when(householdService.getHouseholdIds(USER_ID)).thenReturn(List.of(100L));
+            when(movementRepository.findHouseholdPending(eq(USER_ID), anyList(), any(), any()))
+                    .thenReturn(Collections.emptyList());
+            when(movementRepository.findHouseholdAllPending(eq(USER_ID), anyList()))
+                    .thenReturn(Collections.emptyList());
+
+            ResultDTO result = dashboardService.getPending(USER_ID, 1, LocalDate.now());
+
+            assertTrue(result.isCorrect());
+            verify(movementRepository).findHouseholdPending(eq(USER_ID), anyList(), any(), any());
         }
     }
 }

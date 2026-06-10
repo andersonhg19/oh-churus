@@ -1,5 +1,5 @@
 import React from 'react';
-import { Text as RNText, TextStyle, StyleSheet } from 'react-native';
+import { Text as RNText, TextStyle, StyleProp, StyleSheet } from 'react-native';
 import { useTheme } from '../../contexts/ThemeContext';
 import { fontSize, fontWeight } from '../../theme';
 
@@ -10,7 +10,7 @@ interface TextProps {
   color?: string;
   align?: TextStyle['textAlign'];
   children: React.ReactNode;
-  style?: TextStyle;
+  style?: StyleProp<TextStyle>;
   numberOfLines?: number;
 }
 

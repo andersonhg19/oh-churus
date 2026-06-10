@@ -76,6 +76,6 @@ describe('RegisterScreen', () => {
       <RegisterScreen navigation={mockNavigation} route={mockRoute} />,
       { wrapper: Wrapper },
     );
-    expect(getByText('Crea tu cuenta y empieza a ahorrar')).toBeTruthy();
+    expect(getByText('Crea tu cuenta y empieza a organizar tu vida')).toBeTruthy();
   });
 });

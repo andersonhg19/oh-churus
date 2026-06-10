@@ -44,13 +44,20 @@ class DTOTest {
     }
 
     @Test
-    @DisplayName("DashboardRequestDTO")
+    @DisplayName("DashboardRequestDTO with referenceDate")
     void testDashboardRequest() {
         DashboardRequestDTO dto = new DashboardRequestDTO();
         dto.setUserId(1L);
         dto.setBudgetStartDay(15);
+        dto.setReferenceDate(LocalDate.of(2026, 3, 15));
         assertEquals(1L, dto.getUserId());
         assertEquals(15, dto.getBudgetStartDay());
+        assertEquals(LocalDate.of(2026, 3, 15), dto.getReferenceDate());
+
+        // Default budgetStartDay is 1
+        DashboardRequestDTO dto2 = new DashboardRequestDTO();
+        assertEquals(1, dto2.getBudgetStartDay());
+        assertNull(dto2.getReferenceDate());
     }
 
     @Test
@@ -82,9 +89,9 @@ class DTOTest {
     }
 
     @Test
-    @DisplayName("CategorySaveDTO all fields via constructor and setters")
+    @DisplayName("CategorySaveDTO all fields via constructor and setters, including householdId")
     void testCategorySave() {
-        CategorySaveDTO dto = new CategorySaveDTO(1L, 2L, "Cat", "Desc", 3L, "icon", "#FFF", CategoryType.INCOME, null);
+        CategorySaveDTO dto = new CategorySaveDTO(1L, 2L, "Cat", "Desc", 3L, "icon", "#FFF", CategoryType.INCOME, 100L);
         assertEquals(1L, dto.getId());
         assertEquals(2L, dto.getUserId());
         assertEquals("Cat", dto.getName());
@@ -93,6 +100,7 @@ class DTOTest {
         assertEquals("icon", dto.getIcon());
         assertEquals("#FFF", dto.getColor());
         assertEquals(CategoryType.INCOME, dto.getType());
+        assertEquals(100L, dto.getHouseholdId());
 
         CategorySaveDTO dto2 = new CategorySaveDTO();
         dto2.setId(10L);
@@ -103,14 +111,16 @@ class DTOTest {
         dto2.setIcon("i");
         dto2.setColor("#000");
         dto2.setType(CategoryType.EXPENSE);
+        dto2.setHouseholdId(200L);
         assertEquals(10L, dto2.getId());
+        assertEquals(200L, dto2.getHouseholdId());
     }
 
     @Test
-    @DisplayName("MovementSaveDTO all fields via setters and AllArgsConstructor")
+    @DisplayName("MovementSaveDTO all fields via setters and AllArgsConstructor, including parentMovementId")
     void testMovementSave() {
         LocalDate now = LocalDate.now();
-        MovementSaveDTO dto = new MovementSaveDTO(1L, 2L, 3L, now, new BigDecimal("1000"), "desc", 4L, null, true);
+        MovementSaveDTO dto = new MovementSaveDTO(1L, 2L, 3L, now, new BigDecimal("1000"), "desc", 4L, 5L, true);
         assertEquals(1L, dto.getId());
         assertEquals(2L, dto.getUserId());
         assertEquals(3L, dto.getCategoryId());
@@ -118,6 +128,7 @@ class DTOTest {
         assertEquals(new BigDecimal("1000"), dto.getAmount());
         assertEquals("desc", dto.getDescription());
         assertEquals(4L, dto.getScheduledMovementId());
+        assertEquals(5L, dto.getParentMovementId());
         assertTrue(dto.getConfirmed());
 
         MovementSaveDTO dto2 = new MovementSaveDTO();
@@ -128,9 +139,15 @@ class DTOTest {
         dto2.setAmount(new BigDecimal("500"));
         dto2.setDescription("test");
         dto2.setScheduledMovementId(40L);
+        dto2.setParentMovementId(50L);
         dto2.setConfirmed(false);
         assertEquals(10L, dto2.getId());
+        assertEquals(50L, dto2.getParentMovementId());
         assertFalse(dto2.getConfirmed());
+
+        // Default confirmed is true
+        MovementSaveDTO dto3 = new MovementSaveDTO();
+        assertTrue(dto3.getConfirmed());
     }
 
     @Test
@@ -218,7 +235,7 @@ class DTOTest {
     }
 
     @Test
-    @DisplayName("DashboardSummaryDTO builder, all-args, no-args, setters and getters")
+    @DisplayName("DashboardSummaryDTO builder, all-args, no-args, setters and getters with budgetTotal")
     void testDashboardSummary() {
         LocalDate start = LocalDate.of(2026, 3, 1);
         LocalDate end = LocalDate.of(2026, 3, 31);
@@ -253,7 +270,7 @@ class DTOTest {
         dto2.setPeriodEnd(end);
         assertEquals(new BigDecimal("2000"), dto2.getTotalIncome());
 
-        // Test all-args (order: totalIncome, totalExpense, balance, budgetTotal, pendingCount, pendingAmount, periodStart, periodEnd)
+        // Test all-args
         DashboardSummaryDTO dto3 = new DashboardSummaryDTO(
                 new BigDecimal("3000"), new BigDecimal("1500"), new BigDecimal("1500"),
                 new BigDecimal("2000"), 2, new BigDecimal("100"), start, end);
@@ -261,7 +278,7 @@ class DTOTest {
     }
 
     @Test
-    @DisplayName("DashboardSummaryDTO.CategorySummary all constructors and getters")
+    @DisplayName("DashboardSummaryDTO.CategorySummary with categoryType field")
     void testCategorySummary() {
         DashboardSummaryDTO.CategorySummary cs = DashboardSummaryDTO.CategorySummary.builder()
                 .categoryId(1L).categoryName("Food").categoryType("EXPENSE").icon("utensils").color("#FF0000")
@@ -292,7 +309,69 @@ class DTOTest {
     }
 
     @Test
-    @DisplayName("DashboardSummaryDTO.TrendDTO all constructors and getters")
+    @DisplayName("DashboardSummaryDTO.SplitSummary all fields")
+    void testSplitSummary() {
+        LocalDate start = LocalDate.of(2026, 3, 1);
+        LocalDate end = LocalDate.of(2026, 3, 31);
+
+        DashboardSummaryDTO.SplitSummary ss = DashboardSummaryDTO.SplitSummary.builder()
+                .personalIncome(new BigDecimal("1000"))
+                .personalExpense(new BigDecimal("500"))
+                .personalBalance(new BigDecimal("500"))
+                .sharedIncome(new BigDecimal("2000"))
+                .sharedExpense(new BigDecimal("1500"))
+                .sharedBalance(new BigDecimal("500"))
+                .totalIncome(new BigDecimal("3000"))
+                .totalExpense(new BigDecimal("2000"))
+                .totalBalance(new BigDecimal("1000"))
+                .personalPendingCount(2)
+                .sharedPendingCount(3)
+                .periodStart(start)
+                .periodEnd(end)
+                .build();
+
+        assertEquals(new BigDecimal("1000"), ss.getPersonalIncome());
+        assertEquals(new BigDecimal("500"), ss.getPersonalExpense());
+        assertEquals(new BigDecimal("500"), ss.getPersonalBalance());
+        assertEquals(new BigDecimal("2000"), ss.getSharedIncome());
+        assertEquals(new BigDecimal("1500"), ss.getSharedExpense());
+        assertEquals(new BigDecimal("500"), ss.getSharedBalance());
+        assertEquals(new BigDecimal("3000"), ss.getTotalIncome());
+        assertEquals(new BigDecimal("2000"), ss.getTotalExpense());
+        assertEquals(new BigDecimal("1000"), ss.getTotalBalance());
+        assertEquals(2, ss.getPersonalPendingCount());
+        assertEquals(3, ss.getSharedPendingCount());
+        assertEquals(start, ss.getPeriodStart());
+        assertEquals(end, ss.getPeriodEnd());
+
+        // NoArgs + setters
+        DashboardSummaryDTO.SplitSummary ss2 = new DashboardSummaryDTO.SplitSummary();
+        ss2.setPersonalIncome(BigDecimal.ZERO);
+        ss2.setPersonalExpense(BigDecimal.ZERO);
+        ss2.setPersonalBalance(BigDecimal.ZERO);
+        ss2.setSharedIncome(BigDecimal.ZERO);
+        ss2.setSharedExpense(BigDecimal.ZERO);
+        ss2.setSharedBalance(BigDecimal.ZERO);
+        ss2.setTotalIncome(BigDecimal.ZERO);
+        ss2.setTotalExpense(BigDecimal.ZERO);
+        ss2.setTotalBalance(BigDecimal.ZERO);
+        ss2.setPersonalPendingCount(0);
+        ss2.setSharedPendingCount(0);
+        ss2.setPeriodStart(start);
+        ss2.setPeriodEnd(end);
+        assertEquals(BigDecimal.ZERO, ss2.getPersonalIncome());
+
+        // AllArgs
+        DashboardSummaryDTO.SplitSummary ss3 = new DashboardSummaryDTO.SplitSummary(
+                new BigDecimal("100"), new BigDecimal("50"), new BigDecimal("50"),
+                new BigDecimal("200"), new BigDecimal("100"), new BigDecimal("100"),
+                new BigDecimal("300"), new BigDecimal("150"), new BigDecimal("150"),
+                1, 2, start, end);
+        assertEquals(new BigDecimal("100"), ss3.getPersonalIncome());
+    }
+
+    @Test
+    @DisplayName("DashboardSummaryDTO.TrendDTO with 4 income/expense fields")
     void testTrendDTO() {
         LocalDate cs = LocalDate.of(2026, 3, 1);
         LocalDate ce = LocalDate.of(2026, 3, 31);
@@ -343,7 +422,7 @@ class DTOTest {
     }
 
     @Test
-    @DisplayName("ResultCategoryDTO all getters/setters")
+    @DisplayName("ResultCategoryDTO all getters/setters including householdId and shared")
     void testResultCategory() {
         ResultCategoryDTO dto = new ResultCategoryDTO();
         dto.setId(1L);
@@ -355,6 +434,8 @@ class DTOTest {
         dto.setColor("#000");
         dto.setType(CategoryType.INCOME);
         dto.setActive(true);
+        dto.setHouseholdId(100L);
+        dto.setShared(true);
         assertEquals(1L, dto.getId());
         assertEquals(2L, dto.getUserId());
         assertEquals("Cat", dto.getName());
@@ -364,10 +445,16 @@ class DTOTest {
         assertEquals("#000", dto.getColor());
         assertEquals(CategoryType.INCOME, dto.getType());
         assertTrue(dto.getActive());
+        assertEquals(100L, dto.getHouseholdId());
+        assertTrue(dto.getShared());
+
+        // Default shared is false
+        ResultCategoryDTO dto2 = new ResultCategoryDTO();
+        assertFalse(dto2.getShared());
     }
 
     @Test
-    @DisplayName("ResultMovementDTO all getters/setters")
+    @DisplayName("ResultMovementDTO all getters/setters including parentMovementId, isTransfer, transferPairId")
     void testResultMovement() {
         LocalDate now = LocalDate.now();
         ResultMovementDTO dto = new ResultMovementDTO();
@@ -378,6 +465,9 @@ class DTOTest {
         dto.setAmount(new BigDecimal("100"));
         dto.setDescription("test");
         dto.setScheduledMovementId(4L);
+        dto.setParentMovementId(5L);
+        dto.setIsTransfer(true);
+        dto.setTransferPairId(6L);
         dto.setConfirmed(true);
         dto.setActive(true);
         assertEquals(1L, dto.getId());
@@ -387,6 +477,9 @@ class DTOTest {
         assertEquals(new BigDecimal("100"), dto.getAmount());
         assertEquals("test", dto.getDescription());
         assertEquals(4L, dto.getScheduledMovementId());
+        assertEquals(5L, dto.getParentMovementId());
+        assertTrue(dto.getIsTransfer());
+        assertEquals(6L, dto.getTransferPairId());
         assertTrue(dto.getConfirmed());
         assertTrue(dto.getActive());
         // Enrichment fields
@@ -401,7 +494,7 @@ class DTOTest {
     }
 
     @Test
-    @DisplayName("ResultScheduledMovementDTO all getters/setters")
+    @DisplayName("ResultScheduledMovementDTO all getters/setters including categoryName and categoryType")
     void testResultScheduled() {
         LocalDate start = LocalDate.of(2026, 1, 1);
         LocalDate end = LocalDate.of(2026, 12, 31);
@@ -417,6 +510,8 @@ class DTOTest {
         dto.setEndDate(end);
         dto.setDayOfMonth(1);
         dto.setActive(true);
+        dto.setCategoryName("Vivienda");
+        dto.setCategoryType("EXPENSE");
         assertEquals(1L, dto.getId());
         assertEquals(2L, dto.getUserId());
         assertEquals(3L, dto.getCategoryId());
@@ -428,15 +523,12 @@ class DTOTest {
         assertEquals(end, dto.getEndDate());
         assertEquals(1, dto.getDayOfMonth());
         assertTrue(dto.getActive());
-        // Test enrichment fields
-        dto.setCategoryName("Vivienda");
-        dto.setCategoryType("EXPENSE");
         assertEquals("Vivienda", dto.getCategoryName());
         assertEquals("EXPENSE", dto.getCategoryType());
     }
 
     @Test
-    @DisplayName("ResultCategoryTreeDTO all fields and children")
+    @DisplayName("ResultCategoryTreeDTO all fields including householdId and shared")
     void testCategoryTree() {
         ResultCategoryTreeDTO parent = new ResultCategoryTreeDTO();
         parent.setId(1L);
@@ -445,6 +537,8 @@ class DTOTest {
         parent.setIcon("folder");
         parent.setColor("#FFF");
         parent.setType(CategoryType.EXPENSE);
+        parent.setHouseholdId(100L);
+        parent.setShared(true);
         ResultCategoryTreeDTO child = new ResultCategoryTreeDTO();
         child.setId(2L);
         child.setName("Child");
@@ -455,17 +549,24 @@ class DTOTest {
         assertEquals("folder", parent.getIcon());
         assertEquals("#FFF", parent.getColor());
         assertEquals(CategoryType.EXPENSE, parent.getType());
+        assertEquals(100L, parent.getHouseholdId());
+        assertTrue(parent.getShared());
         assertEquals(1, parent.getChildren().size());
         parent.setChildren(List.of(child));
         assertEquals(1, parent.getChildren().size());
+
+        // Default shared is false
+        ResultCategoryTreeDTO dto = new ResultCategoryTreeDTO();
+        assertFalse(dto.getShared());
     }
 
     @Test
-    @DisplayName("Entity - Category all constructors, builder, setters, getters")
+    @DisplayName("Entity - Category all constructors, builder, setters, getters including householdId")
     void testCategoryEntity() {
         Category cat = Category.builder()
                 .id(1L).userId(2L).name("Cat").description("D")
                 .parentId(3L).icon("star").color("#FFF")
+                .householdId(100L)
                 .type(CategoryType.EXPENSE).active(true).build();
         assertEquals(1L, cat.getId());
         assertEquals(2L, cat.getUserId());
@@ -474,6 +575,7 @@ class DTOTest {
         assertEquals(3L, cat.getParentId());
         assertEquals("star", cat.getIcon());
         assertEquals("#FFF", cat.getColor());
+        assertEquals(100L, cat.getHouseholdId());
         assertEquals(CategoryType.EXPENSE, cat.getType());
         assertTrue(cat.getActive());
 
@@ -486,22 +588,25 @@ class DTOTest {
         cat2.setParentId(30L);
         cat2.setIcon("i");
         cat2.setColor("#000");
+        cat2.setHouseholdId(200L);
         cat2.setType(CategoryType.INCOME);
         cat2.setActive(false);
         cat2.setCreatedAt(LocalDateTime.now());
         cat2.setUpdatedAt(LocalDateTime.now());
         assertEquals(10L, cat2.getId());
+        assertEquals(200L, cat2.getHouseholdId());
         assertNotNull(cat2.getCreatedAt());
         assertNotNull(cat2.getUpdatedAt());
 
         // AllArgs
         LocalDateTime now = LocalDateTime.now();
-        Category cat3 = new Category(1L, 2L, "N", "D", 3L, "i", "#F", null, CategoryType.INCOME, true, now, now);
+        Category cat3 = new Category(1L, 2L, "N", "D", 3L, "i", "#F", 50L, CategoryType.INCOME, true, now, now);
         assertEquals("N", cat3.getName());
+        assertEquals(50L, cat3.getHouseholdId());
     }
 
     @Test
-    @DisplayName("Entity - Movement all constructors, builder, setters, getters")
+    @DisplayName("Entity - Movement all constructors, builder, setters, getters including parentMovementId, isTransfer, transferPairId")
     void testMovementEntity() {
         LocalDate date = LocalDate.now();
         LocalDateTime now = LocalDateTime.now();
@@ -509,6 +614,8 @@ class DTOTest {
                 .id(1L).userId(2L).categoryId(3L)
                 .date(date).amount(new BigDecimal("100"))
                 .description("test").scheduledMovementId(4L)
+                .parentMovementId(5L)
+                .isTransfer(true).transferPairId(6L)
                 .confirmed(true).active(true).build();
         assertEquals(1L, m.getId());
         assertEquals(2L, m.getUserId());
@@ -517,6 +624,9 @@ class DTOTest {
         assertEquals(new BigDecimal("100"), m.getAmount());
         assertEquals("test", m.getDescription());
         assertEquals(4L, m.getScheduledMovementId());
+        assertEquals(5L, m.getParentMovementId());
+        assertTrue(m.getIsTransfer());
+        assertEquals(6L, m.getTransferPairId());
         assertTrue(m.getConfirmed());
         assertTrue(m.getActive());
 
@@ -529,17 +639,26 @@ class DTOTest {
         m2.setAmount(new BigDecimal("200"));
         m2.setDescription("d");
         m2.setScheduledMovementId(40L);
+        m2.setParentMovementId(50L);
+        m2.setIsTransfer(false);
+        m2.setTransferPairId(60L);
         m2.setConfirmed(false);
         m2.setActive(false);
         m2.setCreatedAt(now);
         m2.setUpdatedAt(now);
         assertEquals(10L, m2.getId());
+        assertEquals(50L, m2.getParentMovementId());
+        assertFalse(m2.getIsTransfer());
+        assertEquals(60L, m2.getTransferPairId());
         assertNotNull(m2.getCreatedAt());
         assertNotNull(m2.getUpdatedAt());
 
         // AllArgs
-        Movement m3 = new Movement(1L, 2L, 3L, date, new BigDecimal("50"), "d", 4L, null, false, null, true, true, now, now);
+        Movement m3 = new Movement(1L, 2L, 3L, date, new BigDecimal("50"), "d", 4L, 5L, true, 6L, true, true, now, now);
         assertEquals(new BigDecimal("50"), m3.getAmount());
+        assertEquals(5L, m3.getParentMovementId());
+        assertTrue(m3.getIsTransfer());
+        assertEquals(6L, m3.getTransferPairId());
     }
 
     @Test
@@ -591,9 +710,68 @@ class DTOTest {
     }
 
     @Test
-    @DisplayName("Frequency enum values")
+    @DisplayName("Entity - Household builder and fields")
+    void testHouseholdEntity() {
+        Household h = Household.builder().id(1L).name("Familia").active(true).build();
+        assertEquals(1L, h.getId());
+        assertEquals("Familia", h.getName());
+        assertTrue(h.getActive());
+
+        Household h2 = new Household();
+        h2.setId(2L);
+        h2.setName("Test");
+        h2.setActive(false);
+        assertEquals(2L, h2.getId());
+    }
+
+    @Test
+    @DisplayName("Entity - HouseholdMember builder and fields")
+    void testHouseholdMemberEntity() {
+        HouseholdMember hm = HouseholdMember.builder()
+                .id(1L).householdId(10L).userId(20L).role("OWNER").active(true).build();
+        assertEquals(1L, hm.getId());
+        assertEquals(10L, hm.getHouseholdId());
+        assertEquals(20L, hm.getUserId());
+        assertEquals("OWNER", hm.getRole());
+        assertTrue(hm.getActive());
+
+        HouseholdMember hm2 = new HouseholdMember();
+        hm2.setId(2L);
+        hm2.setHouseholdId(20L);
+        hm2.setUserId(30L);
+        hm2.setRole("MEMBER");
+        hm2.setActive(false);
+        assertEquals(2L, hm2.getId());
+        assertEquals("MEMBER", hm2.getRole());
+    }
+
+    @Test
+    @DisplayName("Entity - BudgetAllocation builder and fields")
+    void testBudgetAllocationEntity() {
+        LocalDate start = LocalDate.of(2026, 3, 1);
+        LocalDate end = LocalDate.of(2026, 3, 31);
+        BudgetAllocation ba = BudgetAllocation.builder()
+                .id(1L).userId(2L).categoryId(3L).householdId(4L)
+                .periodStart(start).periodEnd(end)
+                .allocatedAmount(new BigDecimal("500000"))
+                .status("ACTIVE").notes("test").active(true).build();
+        assertEquals(1L, ba.getId());
+        assertEquals(2L, ba.getUserId());
+        assertEquals(3L, ba.getCategoryId());
+        assertEquals(4L, ba.getHouseholdId());
+        assertEquals(start, ba.getPeriodStart());
+        assertEquals(end, ba.getPeriodEnd());
+        assertEquals(new BigDecimal("500000"), ba.getAllocatedAmount());
+        assertEquals("ACTIVE", ba.getStatus());
+        assertEquals("test", ba.getNotes());
+        assertTrue(ba.getActive());
+    }
+
+    @Test
+    @DisplayName("Frequency enum has 8 values including DAILY")
     void testFrequencyEnum() {
-        assertEquals(7, Frequency.values().length);
+        assertEquals(8, Frequency.values().length);
+        assertNotNull(Frequency.valueOf("DAILY"));
         assertNotNull(Frequency.valueOf("WEEKLY"));
         assertNotNull(Frequency.valueOf("BIWEEKLY"));
         assertNotNull(Frequency.valueOf("MONTHLY"));

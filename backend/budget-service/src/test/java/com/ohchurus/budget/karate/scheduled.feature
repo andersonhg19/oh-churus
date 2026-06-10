@@ -29,7 +29,7 @@ Feature: Scheduled Movement API Tests
     When method POST
     Then status 200
     And match response.correct == true
-    And match response.object == '#[7]'
+    And match response.object == '#[8]'
 
   Scenario: Generate pending movements
     Given path '/v1/scheduled/generate-pending'

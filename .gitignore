@@ -28,6 +28,10 @@ frontend/.env.*.local
 *.zip
 *.7z
 
+# === Database backups / dumps (no deben ir al repo) ===
+backups/
+*.sql
+
 # === OS ===
 .DS_Store
 Thumbs.db

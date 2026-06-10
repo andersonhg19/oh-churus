@@ -4,6 +4,9 @@ import { Alert } from 'react-native';
 import MovementFormScreen from '../movements/MovementFormScreen';
 import { ThemeProvider } from '../../contexts/ThemeContext';
 import * as AuthContext from '../../contexts/AuthContext';
+import { movementService } from '../../services/movementService';
+
+const showToastSpy = (globalThis as any).__mockShowToast as jest.Mock;
 
 jest.mock('../../services/movementService', () => ({
   movementService: { save: jest.fn().mockResolvedValue({ correct: true }) },
@@ -44,9 +47,8 @@ describe('MovementFormScreen', () => {
       <MovementFormScreen navigation={mockNavigation} route={route} />,
       { wrapper: Wrapper },
     );
-    expect(getByText(/Nuevo Movimiento/)).toBeTruthy();
+    expect(getByText('MONTO')).toBeTruthy();
     expect(getByText('Guardar')).toBeTruthy();
-    expect(getByText('Cancelar')).toBeTruthy();
   });
 
   it('renders type toggle buttons', () => {
@@ -59,23 +61,25 @@ describe('MovementFormScreen', () => {
     expect(getByText(/Gasto/)).toBeTruthy();
   });
 
-  it('shows validation error when no category selected', async () => {
+  it('blocks submit and warns when no category selected', () => {
     const route = { params: {} } as any;
     const { getByText } = render(
       <MovementFormScreen navigation={mockNavigation} route={route} />,
       { wrapper: Wrapper },
     );
     fireEvent.press(getByText('Guardar'));
-    expect(Alert.alert).toHaveBeenCalledWith('Validacion', 'Debes seleccionar una categoria');
+    expect(showToastSpy).toHaveBeenCalledWith('warning', 'Validacion', expect.any(String));
+    expect(movementService.save).not.toHaveBeenCalled();
   });
 
-  it('shows category picker placeholder', () => {
+  it('renders date and note inputs', () => {
     const route = { params: {} } as any;
     const { getByText } = render(
       <MovementFormScreen navigation={mockNavigation} route={route} />,
       { wrapper: Wrapper },
     );
-    expect(getByText(/Seleccionar categoría/)).toBeTruthy();
+    expect(getByText('Fecha')).toBeTruthy();
+    expect(getByText('Nota')).toBeTruthy();
   });
 
   it('renders type toggle and can switch', () => {
@@ -95,26 +99,27 @@ describe('MovementFormScreen', () => {
       <MovementFormScreen navigation={mockNavigation} route={route} />,
       { wrapper: Wrapper },
     );
-    expect(getByText(/Editar Movimiento/)).toBeTruthy();
     expect(getByText('Actualizar')).toBeTruthy();
+    expect(getByText('Eliminar')).toBeTruthy();
   });
 
-  it('cancel navigates back', () => {
+  it('shows payment status options', () => {
     const route = { params: {} } as any;
     const { getByText } = render(
       <MovementFormScreen navigation={mockNavigation} route={route} />,
       { wrapper: Wrapper },
     );
-    fireEvent.press(getByText('Cancelar'));
-    expect(mockNavigation.goBack).toHaveBeenCalled();
+    expect(getByText('Pagado')).toBeTruthy();
+    expect(getByText('Por pagar')).toBeTruthy();
   });
 
-  it('shows note about auto-confirm', () => {
+  it('can switch payment status to "Por pagar"', () => {
     const route = { params: {} } as any;
     const { getByText } = render(
       <MovementFormScreen navigation={mockNavigation} route={route} />,
       { wrapper: Wrapper },
     );
-    expect(getByText(/confirman automáticamente/)).toBeTruthy();
+    fireEvent.press(getByText('Por pagar'));
+    expect(getByText('Por pagar')).toBeTruthy();
   });
 });

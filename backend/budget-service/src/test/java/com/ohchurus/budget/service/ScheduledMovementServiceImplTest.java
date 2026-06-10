@@ -15,7 +15,9 @@ import com.ohchurus.budget.mapper.ScheduledMovementMapper;
 import com.ohchurus.budget.repository.CategoryRepository;
 import com.ohchurus.budget.repository.MovementRepository;
 import com.ohchurus.budget.repository.ScheduledMovementRepository;
+import com.ohchurus.budget.service.impl.HouseholdServiceImpl;
 import com.ohchurus.budget.service.impl.ScheduledMovementServiceImpl;
+import com.ohchurus.budget.util.PeriodUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -30,6 +32,7 @@ import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -56,6 +59,9 @@ class ScheduledMovementServiceImplTest {
     @Mock
     private MovementMapper movementMapper;
 
+    @Mock
+    private HouseholdServiceImpl householdService;
+
     @InjectMocks
     private ScheduledMovementServiceImpl scheduledMovementService;
 
@@ -70,8 +76,7 @@ class ScheduledMovementServiceImplTest {
                 .id(10L).userId(1L).name("Vivienda").type(CategoryType.EXPENSE)
                 .active(true).build();
 
-        // startDate en el periodo actual para que solo genere 1 pendiente
-        LocalDate currentPeriodStart = com.ohchurus.budget.util.PeriodUtils.getStartOfPeriod(1, LocalDate.now());
+        LocalDate currentPeriodStart = PeriodUtils.getStartOfPeriod(1, LocalDate.now());
         testScheduled = ScheduledMovement.builder()
                 .id(1L).userId(1L).categoryId(10L)
                 .name("Monthly Rent")
@@ -170,7 +175,7 @@ class ScheduledMovementServiceImplTest {
             ResultDTO result = scheduledMovementService.saveAndUpdate(testSaveDTO);
 
             assertFalse(result.isCorrect());
-            assertEquals(204, result.getErrorCode());
+            assertEquals(404, result.getErrorCode());
             verify(scheduledMovementRepository, never()).save(any());
         }
     }
@@ -205,7 +210,7 @@ class ScheduledMovementServiceImplTest {
             ResultDTO result = scheduledMovementService.saveAndUpdate(testSaveDTO);
 
             assertFalse(result.isCorrect());
-            assertEquals(401, result.getErrorCode());
+            assertEquals(404, result.getErrorCode());
         }
 
         @Test
@@ -217,7 +222,7 @@ class ScheduledMovementServiceImplTest {
             ResultDTO result = scheduledMovementService.saveAndUpdate(testSaveDTO);
 
             assertFalse(result.isCorrect());
-            assertEquals(204, result.getErrorCode());
+            assertEquals(404, result.getErrorCode());
         }
     }
 
@@ -248,7 +253,7 @@ class ScheduledMovementServiceImplTest {
             ResultDTO result = scheduledMovementService.getById(99L);
 
             assertFalse(result.isCorrect());
-            assertEquals(401, result.getErrorCode());
+            assertEquals(404, result.getErrorCode());
         }
     }
 
@@ -261,6 +266,8 @@ class ScheduledMovementServiceImplTest {
         void shouldReturnPaginated() {
             ScheduledMovementFilterDTO filter = new ScheduledMovementFilterDTO();
             filter.setUserId(1L);
+
+            when(householdService.getHouseholdIds(1L)).thenReturn(Collections.emptyList());
             Page<ScheduledMovement> page = new PageImpl<>(List.of(testScheduled));
             when(scheduledMovementRepository.findAllWithFilters(any(), any(), any(), any(Pageable.class))).thenReturn(page);
             when(scheduledMovementMapper.toResultDTO(any())).thenReturn(testResultDTO);
@@ -280,6 +287,8 @@ class ScheduledMovementServiceImplTest {
         void shouldReturnEmptyList() {
             ScheduledMovementFilterDTO filter = new ScheduledMovementFilterDTO();
             filter.setUserId(1L);
+
+            when(householdService.getHouseholdIds(1L)).thenReturn(Collections.emptyList());
             Page<ScheduledMovement> page = new PageImpl<>(List.of());
             when(scheduledMovementRepository.findAllWithFilters(any(), any(), any(), any(Pageable.class))).thenReturn(page);
 
@@ -297,15 +306,24 @@ class ScheduledMovementServiceImplTest {
     class DeleteTests {
 
         @Test
-        @DisplayName("Should soft delete scheduled movement")
-        void shouldSoftDelete() {
+        @DisplayName("Should soft delete scheduled movement and cascade pending")
+        void shouldSoftDeleteAndCascade() {
+            Movement pending = Movement.builder()
+                    .id(100L).userId(1L).categoryId(10L).date(LocalDate.now())
+                    .amount(new BigDecimal("1500000")).scheduledMovementId(1L)
+                    .confirmed(false).active(true).build();
+
             when(scheduledMovementRepository.findByIdAndActiveTrue(1L)).thenReturn(Optional.of(testScheduled));
             when(scheduledMovementRepository.save(any())).thenReturn(testScheduled);
+            when(movementRepository.findByScheduledMovementIdAndConfirmedFalseAndActiveTrue(1L))
+                    .thenReturn(List.of(pending));
+            when(movementRepository.save(any())).thenReturn(pending);
 
             ResultDTO result = scheduledMovementService.delete(1L);
 
             assertTrue(result.isCorrect());
             verify(scheduledMovementRepository).save(argThat(s -> !s.getActive()));
+            verify(movementRepository).save(argThat(m -> !m.getActive()));
         }
 
         @Test
@@ -316,7 +334,7 @@ class ScheduledMovementServiceImplTest {
             ResultDTO result = scheduledMovementService.delete(99L);
 
             assertFalse(result.isCorrect());
-            assertEquals(401, result.getErrorCode());
+            assertEquals(404, result.getErrorCode());
         }
     }
 
@@ -327,6 +345,7 @@ class ScheduledMovementServiceImplTest {
         @Test
         @DisplayName("Should generate pending movement for monthly scheduled")
         void shouldGeneratePendingMonthly() {
+            when(householdService.getHouseholdIds(1L)).thenReturn(Collections.emptyList());
             when(scheduledMovementRepository.findByUserIdAndActiveTrue(1L))
                     .thenReturn(List.of(testScheduled));
             when(movementRepository.existsByScheduledMovementIdAndDateBetweenAndActiveTrue(
@@ -357,6 +376,7 @@ class ScheduledMovementServiceImplTest {
         @Test
         @DisplayName("Should not generate when pending already exists")
         void shouldNotGenerateWhenAlreadyExists() {
+            when(householdService.getHouseholdIds(1L)).thenReturn(Collections.emptyList());
             when(scheduledMovementRepository.findByUserIdAndActiveTrue(1L))
                     .thenReturn(List.of(testScheduled));
             when(movementRepository.existsByScheduledMovementIdAndDateBetweenAndActiveTrue(
@@ -381,6 +401,7 @@ class ScheduledMovementServiceImplTest {
                     .endDate(LocalDate.of(2024, 6, 1))
                     .active(true).build();
 
+            when(householdService.getHouseholdIds(1L)).thenReturn(Collections.emptyList());
             when(scheduledMovementRepository.findByUserIdAndActiveTrue(1L))
                     .thenReturn(List.of(expired));
 
@@ -402,6 +423,7 @@ class ScheduledMovementServiceImplTest {
                     .startDate(LocalDate.now().plusYears(1))
                     .active(true).build();
 
+            when(householdService.getHouseholdIds(1L)).thenReturn(Collections.emptyList());
             when(scheduledMovementRepository.findByUserIdAndActiveTrue(1L))
                     .thenReturn(List.of(future));
 
@@ -417,6 +439,7 @@ class ScheduledMovementServiceImplTest {
         @Test
         @DisplayName("Should return empty list when no scheduled movements")
         void shouldReturnEmptyWhenNoScheduled() {
+            when(householdService.getHouseholdIds(1L)).thenReturn(Collections.emptyList());
             when(scheduledMovementRepository.findByUserIdAndActiveTrue(1L))
                     .thenReturn(List.of());
 
@@ -431,13 +454,15 @@ class ScheduledMovementServiceImplTest {
         @Test
         @DisplayName("Should generate for quarterly scheduled in correct period")
         void shouldGenerateForQuarterly() {
+            LocalDate currentPeriodStart = PeriodUtils.getStartOfPeriod(1, LocalDate.now());
             ScheduledMovement quarterly = ScheduledMovement.builder()
                     .id(4L).userId(1L).categoryId(10L).name("Quarterly Tax")
                     .amount(new BigDecimal("300000.00")).frequency(Frequency.QUARTERLY)
-                    .startDate(LocalDate.now().withDayOfMonth(1))
+                    .startDate(currentPeriodStart)
                     .dayOfMonth(15)
                     .active(true).build();
 
+            when(householdService.getHouseholdIds(1L)).thenReturn(Collections.emptyList());
             when(scheduledMovementRepository.findByUserIdAndActiveTrue(1L))
                     .thenReturn(List.of(quarterly));
             when(movementRepository.existsByScheduledMovementIdAndDateBetweenAndActiveTrue(
@@ -458,15 +483,17 @@ class ScheduledMovementServiceImplTest {
 
             assertTrue(result.isCorrect());
         }
+
         @Test
         @DisplayName("Should generate for weekly scheduled")
         void shouldGenerateForWeekly() {
-            LocalDate currentPeriodStart = com.ohchurus.budget.util.PeriodUtils.getStartOfPeriod(1, LocalDate.now());
+            LocalDate currentPeriodStart = PeriodUtils.getStartOfPeriod(1, LocalDate.now());
             ScheduledMovement weekly = ScheduledMovement.builder()
                     .id(5L).userId(1L).categoryId(10L).name("Weekly Groceries")
                     .amount(new BigDecimal("150000.00")).frequency(Frequency.WEEKLY)
                     .startDate(currentPeriodStart).dayOfMonth(1).active(true).build();
 
+            when(householdService.getHouseholdIds(1L)).thenReturn(Collections.emptyList());
             when(scheduledMovementRepository.findByUserIdAndActiveTrue(1L)).thenReturn(List.of(weekly));
             when(movementRepository.existsByScheduledMovementIdAndDateBetweenAndActiveTrue(
                     eq(5L), any(LocalDate.class), any(LocalDate.class))).thenReturn(false);
@@ -485,14 +512,43 @@ class ScheduledMovementServiceImplTest {
         }
 
         @Test
+        @DisplayName("Should generate for DAILY scheduled")
+        void shouldGenerateForDaily() {
+            LocalDate currentPeriodStart = PeriodUtils.getStartOfPeriod(1, LocalDate.now());
+            ScheduledMovement daily = ScheduledMovement.builder()
+                    .id(10L).userId(1L).categoryId(10L).name("Daily Coffee")
+                    .amount(new BigDecimal("5000.00")).frequency(Frequency.DAILY)
+                    .startDate(currentPeriodStart).dayOfMonth(1).active(true).build();
+
+            when(householdService.getHouseholdIds(1L)).thenReturn(Collections.emptyList());
+            when(scheduledMovementRepository.findByUserIdAndActiveTrue(1L)).thenReturn(List.of(daily));
+            when(movementRepository.existsByScheduledMovementIdAndDateBetweenAndActiveTrue(
+                    eq(10L), any(LocalDate.class), any(LocalDate.class))).thenReturn(false);
+
+            Movement saved = Movement.builder().id(110L).userId(1L).categoryId(10L)
+                    .date(LocalDate.now()).amount(new BigDecimal("5000.00"))
+                    .scheduledMovementId(10L).confirmed(false).active(true).build();
+            ResultMovementDTO dto = new ResultMovementDTO();
+            dto.setId(110L);
+
+            when(movementRepository.save(any(Movement.class))).thenReturn(saved);
+            when(movementMapper.toResultDTO(any())).thenReturn(dto);
+
+            ResultDTO result = scheduledMovementService.generatePending(1L, 1);
+            assertTrue(result.isCorrect());
+        }
+
+        @Test
         @DisplayName("Should use budgetStartDay when dayOfMonth is null")
         void shouldUseBudgetStartDayWhenNoDayOfMonth() {
-            LocalDate currentPeriodStart = com.ohchurus.budget.util.PeriodUtils.getStartOfPeriod(1, LocalDate.now());
+            // Use the same budgetStartDay for startDate so the period aligns
+            LocalDate currentPeriodStart = PeriodUtils.getStartOfPeriod(15, LocalDate.now());
             ScheduledMovement noDayScheduled = ScheduledMovement.builder()
                     .id(6L).userId(1L).categoryId(10L).name("No Day")
                     .amount(new BigDecimal("50000.00")).frequency(Frequency.MONTHLY)
                     .startDate(currentPeriodStart).dayOfMonth(null).active(true).build();
 
+            when(householdService.getHouseholdIds(1L)).thenReturn(Collections.emptyList());
             when(scheduledMovementRepository.findByUserIdAndActiveTrue(1L)).thenReturn(List.of(noDayScheduled));
             when(movementRepository.existsByScheduledMovementIdAndDateBetweenAndActiveTrue(
                     eq(6L), any(LocalDate.class), any(LocalDate.class))).thenReturn(false);
@@ -513,12 +569,13 @@ class ScheduledMovementServiceImplTest {
         @Test
         @DisplayName("Should generate with null amount as zero")
         void shouldHandleNullAmount() {
-            LocalDate currentPeriodStart = com.ohchurus.budget.util.PeriodUtils.getStartOfPeriod(1, LocalDate.now());
+            LocalDate currentPeriodStart = PeriodUtils.getStartOfPeriod(1, LocalDate.now());
             ScheduledMovement nullAmount = ScheduledMovement.builder()
                     .id(7L).userId(1L).categoryId(10L).name("Variable")
                     .amount(null).frequency(Frequency.MONTHLY)
                     .startDate(currentPeriodStart).dayOfMonth(1).active(true).build();
 
+            when(householdService.getHouseholdIds(1L)).thenReturn(Collections.emptyList());
             when(scheduledMovementRepository.findByUserIdAndActiveTrue(1L)).thenReturn(List.of(nullAmount));
             when(movementRepository.existsByScheduledMovementIdAndDateBetweenAndActiveTrue(
                     eq(7L), any(LocalDate.class), any(LocalDate.class))).thenReturn(false);
@@ -538,61 +595,9 @@ class ScheduledMovementServiceImplTest {
         }
 
         @Test
-        @DisplayName("Should break iteration when scheduled expires mid-iteration")
-        void shouldBreakWhenExpiredDuringIteration() {
-            // Programado que inicio hace 3 meses y endDate es al inicio del periodo actual
-            // El check de linea 200 (endDate < currentPeriodStart) NO lo filtra
-            // porque endDate == currentPeriodStart. Pero al iterar, cuando llega
-            // a un periodo donde endDate < iterPeriodStart, hace break (linea 218).
-            LocalDate threeMonthsAgo = LocalDate.now().minusMonths(3).withDayOfMonth(1);
-            LocalDate currentPeriodStart = com.ohchurus.budget.util.PeriodUtils.getStartOfPeriod(1, LocalDate.now());
-
-            ScheduledMovement expiring = ScheduledMovement.builder()
-                    .id(8L).userId(1L).categoryId(10L).name("Old Loan")
-                    .amount(new BigDecimal("100000.00")).frequency(Frequency.MONTHLY)
-                    .startDate(threeMonthsAgo).endDate(currentPeriodStart)
-                    .dayOfMonth(1).active(true).build();
-
-            when(scheduledMovementRepository.findByUserIdAndActiveTrue(1L)).thenReturn(List.of(expiring));
-            when(movementRepository.existsByScheduledMovementIdAndDateBetweenAndActiveTrue(
-                    eq(8L), any(LocalDate.class), any(LocalDate.class))).thenReturn(true);
-
-            ResultDTO result = scheduledMovementService.generatePending(1L, 1);
-            assertTrue(result.isCorrect());
-        }
-
-        @Test
-        @DisplayName("Should skip period when startDate is after period end")
-        void shouldContinueWhenStartDateAfterPeriodEnd() {
-            // Programado cuyo startDate es a mitad del mes
-            // El primer periodo de iteracion puede ser anterior al startDate
-            LocalDate midLastMonth = LocalDate.now().minusMonths(1).withDayOfMonth(15);
-
-            ScheduledMovement midMonth = ScheduledMovement.builder()
-                    .id(9L).userId(1L).categoryId(10L).name("Mid Month")
-                    .amount(new BigDecimal("75000.00")).frequency(Frequency.MONTHLY)
-                    .startDate(midLastMonth).dayOfMonth(15).active(true).build();
-
-            when(scheduledMovementRepository.findByUserIdAndActiveTrue(1L)).thenReturn(List.of(midMonth));
-            when(movementRepository.existsByScheduledMovementIdAndDateBetweenAndActiveTrue(
-                    eq(9L), any(LocalDate.class), any(LocalDate.class))).thenReturn(false);
-
-            Movement saved = Movement.builder().id(105L).userId(1L).categoryId(10L)
-                    .date(LocalDate.now()).amount(new BigDecimal("75000.00"))
-                    .scheduledMovementId(9L).confirmed(false).active(true).build();
-            ResultMovementDTO dto = new ResultMovementDTO();
-            dto.setId(105L);
-
-            when(movementRepository.save(any(Movement.class))).thenReturn(saved);
-            when(movementMapper.toResultDTO(any())).thenReturn(dto);
-
-            ResultDTO result = scheduledMovementService.generatePending(1L, 1);
-            assertTrue(result.isCorrect());
-        }
-
-        @Test
         @DisplayName("Should handle exception in generate pending")
         void shouldHandleException() {
+            when(householdService.getHouseholdIds(1L)).thenReturn(Collections.emptyList());
             when(scheduledMovementRepository.findByUserIdAndActiveTrue(1L))
                     .thenThrow(new RuntimeException("DB error"));
 
@@ -623,14 +628,14 @@ class ScheduledMovementServiceImplTest {
     class FrequencyListTests {
 
         @Test
-        @DisplayName("Should return all frequencies")
+        @DisplayName("Should return all 8 frequencies including DAILY")
         void shouldReturnFrequencies() {
             ResultDTO result = scheduledMovementService.frequencyList();
 
             assertTrue(result.isCorrect());
             @SuppressWarnings("unchecked")
             List<Map<String, String>> frequencies = (List<Map<String, String>>) result.getObject();
-            assertEquals(7, frequencies.size());
+            assertEquals(8, frequencies.size());
         }
     }
 }

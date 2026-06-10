@@ -16,6 +16,7 @@ type SettingsStackParamList = {
   ExportImport: undefined;
   PeriodConfig: undefined;
   Household: undefined;
+  Consolidated: undefined;
 };
 
 type Props = NativeStackScreenProps<SettingsStackParamList, 'SettingsMain'>;

@@ -10,6 +10,7 @@ import com.ohchurus.budget.enums.CategoryType;
 import com.ohchurus.budget.mapper.MovementMapper;
 import com.ohchurus.budget.repository.CategoryRepository;
 import com.ohchurus.budget.repository.MovementRepository;
+import com.ohchurus.budget.service.impl.HouseholdServiceImpl;
 import com.ohchurus.budget.service.impl.MovementServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -25,6 +26,7 @@ import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -44,6 +46,9 @@ class MovementServiceImplTest {
 
     @Mock
     private MovementMapper movementMapper;
+
+    @Mock
+    private HouseholdServiceImpl householdService;
 
     @InjectMocks
     private MovementServiceImpl movementService;
@@ -114,6 +119,7 @@ class MovementServiceImplTest {
 
             ResultMovementDTO unconfirmedDTO = new ResultMovementDTO();
             unconfirmedDTO.setId(2L);
+            unconfirmedDTO.setCategoryId(10L);
             unconfirmedDTO.setConfirmed(false);
 
             when(categoryRepository.findByIdAndActiveTrue(10L)).thenReturn(Optional.of(testCategory));
@@ -134,8 +140,39 @@ class MovementServiceImplTest {
             ResultDTO result = movementService.saveAndUpdate(testSaveDTO);
 
             assertFalse(result.isCorrect());
-            assertEquals(204, result.getErrorCode());
+            assertEquals(404, result.getErrorCode());
             verify(movementRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("Should create child movement with parentMovementId")
+        void shouldCreateChildMovement() {
+            testSaveDTO.setParentMovementId(50L);
+            Movement parent = Movement.builder()
+                    .id(50L).userId(1L).categoryId(10L).date(LocalDate.now())
+                    .amount(new BigDecimal("500000")).confirmed(true).active(true).build();
+
+            when(movementRepository.findByIdAndActiveTrue(50L)).thenReturn(Optional.of(parent));
+            when(categoryRepository.findByIdAndActiveTrue(10L)).thenReturn(Optional.of(testCategory));
+            when(movementRepository.save(any(Movement.class))).thenReturn(testMovement);
+            when(movementMapper.toResultDTO(any())).thenReturn(testResultDTO);
+
+            ResultDTO result = movementService.saveAndUpdate(testSaveDTO);
+
+            assertTrue(result.isCorrect());
+        }
+
+        @Test
+        @DisplayName("Should fail when parent movement not found")
+        void shouldFailWhenParentNotFound() {
+            testSaveDTO.setParentMovementId(999L);
+            when(categoryRepository.findByIdAndActiveTrue(10L)).thenReturn(Optional.of(testCategory));
+            when(movementRepository.findByIdAndActiveTrue(999L)).thenReturn(Optional.empty());
+
+            ResultDTO result = movementService.saveAndUpdate(testSaveDTO);
+
+            assertFalse(result.isCorrect());
+            assertEquals(404, result.getErrorCode());
         }
     }
 
@@ -169,7 +206,7 @@ class MovementServiceImplTest {
             ResultDTO result = movementService.saveAndUpdate(testSaveDTO);
 
             assertFalse(result.isCorrect());
-            assertEquals(301, result.getErrorCode());
+            assertEquals(404, result.getErrorCode());
         }
 
         @Test
@@ -181,7 +218,7 @@ class MovementServiceImplTest {
             ResultDTO result = movementService.saveAndUpdate(testSaveDTO);
 
             assertFalse(result.isCorrect());
-            assertEquals(204, result.getErrorCode());
+            assertEquals(404, result.getErrorCode());
         }
     }
 
@@ -208,7 +245,7 @@ class MovementServiceImplTest {
             ResultDTO result = movementService.getById(99L);
 
             assertFalse(result.isCorrect());
-            assertEquals(301, result.getErrorCode());
+            assertEquals(404, result.getErrorCode());
         }
     }
 
@@ -221,6 +258,8 @@ class MovementServiceImplTest {
         void shouldReturnPaginated() {
             MovementFilterDTO filter = new MovementFilterDTO();
             filter.setUserId(1L);
+
+            when(householdService.getHouseholdIds(1L)).thenReturn(Collections.emptyList());
             Page<Movement> page = new PageImpl<>(List.of(testMovement));
             when(movementRepository.findAllWithFilters(any(), any(), any(), any(), any(), any(Pageable.class))).thenReturn(page);
             when(movementMapper.toResultDTO(any())).thenReturn(testResultDTO);
@@ -238,6 +277,8 @@ class MovementServiceImplTest {
         void shouldReturnEmptyList() {
             MovementFilterDTO filter = new MovementFilterDTO();
             filter.setUserId(1L);
+
+            when(householdService.getHouseholdIds(1L)).thenReturn(Collections.emptyList());
             Page<Movement> page = new PageImpl<>(List.of());
             when(movementRepository.findAllWithFilters(any(), any(), any(), any(), any(), any(Pageable.class))).thenReturn(page);
 
@@ -274,7 +315,29 @@ class MovementServiceImplTest {
             ResultDTO result = movementService.delete(99L);
 
             assertFalse(result.isCorrect());
-            assertEquals(301, result.getErrorCode());
+            assertEquals(404, result.getErrorCode());
+        }
+
+        @Test
+        @DisplayName("Should delete transfer pair when deleting a transfer movement")
+        void shouldDeleteTransferPair() {
+            Movement transfer = Movement.builder()
+                    .id(1L).userId(1L).categoryId(10L).date(LocalDate.now())
+                    .amount(new BigDecimal("100000")).isTransfer(true).transferPairId(2L)
+                    .confirmed(true).active(true).build();
+            Movement pair = Movement.builder()
+                    .id(2L).userId(1L).categoryId(20L).date(LocalDate.now())
+                    .amount(new BigDecimal("100000")).isTransfer(true).transferPairId(1L)
+                    .confirmed(true).active(true).build();
+
+            when(movementRepository.findByIdAndActiveTrue(1L)).thenReturn(Optional.of(transfer));
+            when(movementRepository.findByIdAndActiveTrue(2L)).thenReturn(Optional.of(pair));
+            when(movementRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+            ResultDTO result = movementService.delete(1L);
+
+            assertTrue(result.isCorrect());
+            verify(movementRepository, times(2)).save(any(Movement.class));
         }
     }
 
@@ -293,6 +356,7 @@ class MovementServiceImplTest {
 
             ResultMovementDTO confirmedDTO = new ResultMovementDTO();
             confirmedDTO.setId(1L);
+            confirmedDTO.setCategoryId(10L);
             confirmedDTO.setConfirmed(true);
 
             when(movementRepository.findByIdAndActiveTrue(1L)).thenReturn(Optional.of(unconfirmed));
@@ -306,6 +370,31 @@ class MovementServiceImplTest {
         }
 
         @Test
+        @DisplayName("Should confirm with new amount")
+        void shouldConfirmWithAmount() {
+            Movement unconfirmed = Movement.builder()
+                    .id(1L).userId(1L).categoryId(10L)
+                    .date(LocalDate.of(2026, 3, 15))
+                    .amount(new BigDecimal("100000.00"))
+                    .confirmed(false).active(true).build();
+
+            ResultMovementDTO confirmedDTO = new ResultMovementDTO();
+            confirmedDTO.setId(1L);
+            confirmedDTO.setCategoryId(10L);
+            confirmedDTO.setConfirmed(true);
+
+            when(movementRepository.findByIdAndActiveTrue(1L)).thenReturn(Optional.of(unconfirmed));
+            when(movementRepository.save(any())).thenReturn(unconfirmed);
+            when(movementMapper.toResultDTO(any())).thenReturn(confirmedDTO);
+
+            ResultDTO result = movementService.confirmWithAmount(1L, new BigDecimal("200000"));
+
+            assertTrue(result.isCorrect());
+            verify(movementRepository).save(argThat(m ->
+                    m.getConfirmed() && m.getAmount().equals(new BigDecimal("200000"))));
+        }
+
+        @Test
         @DisplayName("Should fail when movement not found for confirm")
         void shouldFailWhenNotFound() {
             when(movementRepository.findByIdAndActiveTrue(99L)).thenReturn(Optional.empty());
@@ -313,7 +402,7 @@ class MovementServiceImplTest {
             ResultDTO result = movementService.confirm(99L);
 
             assertFalse(result.isCorrect());
-            assertEquals(301, result.getErrorCode());
+            assertEquals(404, result.getErrorCode());
         }
     }
 
@@ -327,6 +416,7 @@ class MovementServiceImplTest {
             LocalDate start = LocalDate.of(2026, 3, 1);
             LocalDate end = LocalDate.of(2026, 3, 31);
 
+            when(householdService.getHouseholdIds(1L)).thenReturn(Collections.emptyList());
             when(movementRepository.findByUserIdAndDateBetweenAndActiveTrue(1L, start, end))
                     .thenReturn(List.of(testMovement));
             when(movementMapper.toResultDTO(any())).thenReturn(testResultDTO);
@@ -345,6 +435,7 @@ class MovementServiceImplTest {
             LocalDate start = LocalDate.of(2026, 1, 1);
             LocalDate end = LocalDate.of(2026, 1, 31);
 
+            when(householdService.getHouseholdIds(1L)).thenReturn(Collections.emptyList());
             when(movementRepository.findByUserIdAndDateBetweenAndActiveTrue(1L, start, end))
                     .thenReturn(List.of());
 
@@ -354,6 +445,49 @@ class MovementServiceImplTest {
             @SuppressWarnings("unchecked")
             List<?> list = (List<?>) result.getObject();
             assertTrue(list.isEmpty());
+        }
+    }
+
+    @Nested
+    @DisplayName("GetChildren")
+    class GetChildrenTests {
+
+        @Test
+        @DisplayName("Should return children of a parent movement")
+        void shouldReturnChildren() {
+            Movement parent = Movement.builder()
+                    .id(50L).userId(1L).categoryId(10L).date(LocalDate.now())
+                    .amount(new BigDecimal("500000")).confirmed(true).active(true).build();
+            Movement child = Movement.builder()
+                    .id(51L).userId(1L).categoryId(10L).date(LocalDate.now())
+                    .amount(new BigDecimal("200000")).parentMovementId(50L).confirmed(true).active(true).build();
+
+            ResultMovementDTO childDTO = new ResultMovementDTO();
+            childDTO.setId(51L);
+            childDTO.setCategoryId(10L);
+
+            when(movementRepository.findByIdAndActiveTrue(50L)).thenReturn(Optional.of(parent));
+            when(movementRepository.findByParentMovementIdAndActiveTrue(50L)).thenReturn(List.of(child));
+            when(movementMapper.toResultDTO(child)).thenReturn(childDTO);
+
+            ResultDTO result = movementService.getChildren(50L);
+
+            assertTrue(result.isCorrect());
+            @SuppressWarnings("unchecked")
+            Map<String, Object> response = (Map<String, Object>) result.getObject();
+            assertEquals(50L, response.get("parentId"));
+            assertEquals(1, response.get("childrenCount"));
+        }
+
+        @Test
+        @DisplayName("Should fail when parent not found")
+        void shouldFailWhenParentNotFound() {
+            when(movementRepository.findByIdAndActiveTrue(999L)).thenReturn(Optional.empty());
+
+            ResultDTO result = movementService.getChildren(999L);
+
+            assertFalse(result.isCorrect());
+            assertEquals(404, result.getErrorCode());
         }
     }
 

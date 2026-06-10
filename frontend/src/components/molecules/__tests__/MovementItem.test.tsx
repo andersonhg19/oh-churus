@@ -58,23 +58,22 @@ describe('MovementItem', () => {
   it('shows confirm button for unconfirmed movements', () => {
     const pending: Movement = { ...baseMovement, confirmed: false };
     const onConfirm = jest.fn();
-    const { getByText } = render(
+    const { getAllByText } = render(
       <TestWrapper><MovementItem movement={pending} onConfirm={onConfirm} /></TestWrapper>
     );
-    expect(getByText('Confirmar')).toBeTruthy();
+    // "Confirmar" appears both in the swipe action and in the inline button
+    expect(getAllByText('Confirmar').length).toBeGreaterThan(0);
   });
 
   it('calls onConfirm when confirm button pressed', () => {
     const pending: Movement = { ...baseMovement, confirmed: false };
     const onConfirm = jest.fn();
-    const { getByText } = render(
+    const { getAllByText } = render(
       <TestWrapper><MovementItem movement={pending} onConfirm={onConfirm} /></TestWrapper>
     );
-    // fireEvent.press doesn't pass a native event with stopPropagation,
-    // but the component uses optional chaining (e.stopPropagation?.()) so we
-    // need to provide a mock event
-    const confirmBtn = getByText('Confirmar');
-    fireEvent(confirmBtn, 'press', { stopPropagation: jest.fn() });
+    // The inline confirm button is the last "Confirmar" element
+    const buttons = getAllByText('Confirmar');
+    fireEvent(buttons[buttons.length - 1], 'press', { stopPropagation: jest.fn() });
     expect(onConfirm).toHaveBeenCalled();
   });
 

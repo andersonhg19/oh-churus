@@ -294,7 +294,6 @@ public class ExcelExportService {
         // Row 7: separator - already styled
 
         // Row 8: BALANCE
-        int balRow = dataStartRow > 6 ? 6 : dataEndRow;
         XSSFRow sr4 = ws.getRow(6) != null ? ws.getRow(6) : ws.createRow(6);
         sr4.createCell(8).setCellStyle(summaryLabelStyles[4]);
         sr4.getCell(8).setCellValue(summaryLabels[4]);
@@ -321,9 +320,6 @@ public class ExcelExportService {
         XSSFCellStyle configDataStyle = wb.createCellStyle();
         configDataStyle.cloneStyleFrom(dataStyle);
 
-        String[][] configData = {
-                {"CAT. EGRESO", "CAT. INGRESO"},
-        };
         XSSFRow configR0 = configSheet.createRow(0);
         configR0.createCell(0).setCellValue("CAT. EGRESO");
         configR0.getCell(0).setCellStyle(configHeaderStyle);

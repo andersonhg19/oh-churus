@@ -1,7 +1,6 @@
 package com.ohchurus.budget.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.ohchurus.budget.dto.input.MovementFilterDTO;
 import com.ohchurus.budget.dto.input.MovementSaveDTO;
 import com.ohchurus.budget.dto.input.PeriodRequestDTO;
@@ -9,6 +8,7 @@ import com.ohchurus.budget.dto.output.ResultDTO;
 import com.ohchurus.budget.security.JWTAuthorizationFilter;
 import com.ohchurus.budget.security.SecParams;
 import com.ohchurus.budget.service.MovementService;
+import com.ohchurus.budget.service.impl.BudgetAllocationServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -42,6 +42,9 @@ class MovementControllerTest {
 
     @MockBean
     private MovementService movementService;
+
+    @MockBean
+    private BudgetAllocationServiceImpl budgetAllocationService;
 
     @MockBean
     private JWTAuthorizationFilter jwtAuthorizationFilter;
@@ -136,6 +139,21 @@ class MovementControllerTest {
             dto.setUserId(1L);
             dto.setCategoryId(1L);
             dto.setAmount(new BigDecimal("100.00"));
+
+            mockMvc.perform(post("/v1/movements/save")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(dto)))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("Should return 400 when amount is less than 0.01")
+        void shouldReturn400WhenAmountTooSmall() throws Exception {
+            MovementSaveDTO dto = new MovementSaveDTO();
+            dto.setUserId(1L);
+            dto.setCategoryId(1L);
+            dto.setDate(LocalDate.of(2026, 3, 15));
+            dto.setAmount(new BigDecimal("0.00"));
 
             mockMvc.perform(post("/v1/movements/save")
                             .contentType(MediaType.APPLICATION_JSON)
@@ -258,6 +276,33 @@ class MovementControllerTest {
         }
 
         @Test
+        @DisplayName("Should confirm movement with amount")
+        void shouldConfirmWithAmount() throws Exception {
+            when(movementService.confirmWithAmount(eq(1L), any(BigDecimal.class))).thenReturn(successResult);
+
+            mockMvc.perform(post("/v1/movements/confirm/1")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"amount\": 250000}"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.correct").value(true));
+
+            verify(movementService).confirmWithAmount(eq(1L), any(BigDecimal.class));
+        }
+
+        @Test
+        @DisplayName("Should confirm with a body that has no amount key")
+        void shouldConfirmWithBodyNoAmount() throws Exception {
+            when(movementService.confirm(1L)).thenReturn(successResult);
+
+            mockMvc.perform(post("/v1/movements/confirm/1")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{}"))
+                    .andExpect(status().isOk());
+
+            verify(movementService).confirm(1L);
+        }
+
+        @Test
         @DisplayName("Should return error when confirm fails")
         void shouldReturnErrorOnConfirmFailure() throws Exception {
             when(movementService.confirm(99L)).thenReturn(errorResult);
@@ -317,6 +362,74 @@ class MovementControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
                     .andExpect(status().isBadRequest());
+        }
+    }
+
+    @Nested
+    @DisplayName("POST /v1/movements/children/{parentId}")
+    class ChildrenTests {
+
+        @Test
+        @DisplayName("Should return children of a parent movement")
+        void shouldReturnChildren() throws Exception {
+            when(movementService.getChildren(50L)).thenReturn(successResult);
+
+            mockMvc.perform(post("/v1/movements/children/50")
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.correct").value(true));
+
+            verify(movementService).getChildren(50L);
+        }
+
+        @Test
+        @DisplayName("Should return error when parent not found")
+        void shouldReturnErrorWhenParentNotFound() throws Exception {
+            when(movementService.getChildren(999L)).thenReturn(errorResult);
+
+            mockMvc.perform(post("/v1/movements/children/999")
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.correct").value(false));
+        }
+    }
+
+    @Nested
+    @DisplayName("POST /v1/movements/transfer")
+    class TransferTests {
+
+        @Test
+        @DisplayName("Should parse body with description and delegate to BudgetAllocationService")
+        void shouldTransferWithDescription() throws Exception {
+            when(budgetAllocationService.transfer(eq(1L), eq(30L), eq(20L),
+                    eq(new BigDecimal("50000")), eq("Disponibilizar"))).thenReturn(successResult);
+
+            String body = "{\"userId\":1,\"fromCategoryId\":30,\"toCategoryId\":20,"
+                    + "\"amount\":50000,\"description\":\"Disponibilizar\"}";
+
+            mockMvc.perform(post("/v1/movements/transfer")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.correct").value(true));
+
+            verify(budgetAllocationService).transfer(1L, 30L, 20L, new BigDecimal("50000"), "Disponibilizar");
+        }
+
+        @Test
+        @DisplayName("Should default description to null when absent")
+        void shouldTransferWithoutDescription() throws Exception {
+            when(budgetAllocationService.transfer(eq(1L), eq(30L), eq(20L),
+                    eq(new BigDecimal("50000")), eq(null))).thenReturn(successResult);
+
+            String body = "{\"userId\":1,\"fromCategoryId\":30,\"toCategoryId\":20,\"amount\":50000}";
+
+            mockMvc.perform(post("/v1/movements/transfer")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isOk());
+
+            verify(budgetAllocationService).transfer(1L, 30L, 20L, new BigDecimal("50000"), null);
         }
     }
 }

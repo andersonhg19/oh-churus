@@ -18,7 +18,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 type RootStackParamList = {
   MainTabs: undefined;
-  MovementFormModal: { movement?: Movement };
+  MovementFormModal: { movement?: Movement; parentMovement?: Movement };
 };
 
 type Props = NativeStackScreenProps<RootStackParamList, 'MovementFormModal'>;
@@ -108,7 +108,7 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
       if (isTransfer && personalCategoryId && !isEdit) {
         const res = await movementService.transfer({
           userId: user!.userId,
-          fromCategoryId: selectedCategory!.id as number,
+          fromCategoryId: Number(selectedCategory!.id),
           toCategoryId: personalCategoryId,
           amount: parseFloat(amount),
           description: description.trim() || 'Disponibilizar',

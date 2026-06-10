@@ -38,7 +38,7 @@ describe('movementService', () => {
   it('confirm posts to confirm endpoint', async () => {
     mockPost.mockResolvedValueOnce({ data: { correct: true } });
     await movementService.confirm('3');
-    expect(mockPost).toHaveBeenCalledWith('/BUDGET-SERVICE/oh-churus/v1/movements/confirm/3');
+    expect(mockPost).toHaveBeenCalledWith('/BUDGET-SERVICE/oh-churus/v1/movements/confirm/3', {});
   });
 
   it('getByPeriod posts with date range', async () => {

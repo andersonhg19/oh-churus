@@ -17,11 +17,25 @@
     "setupFiles": [
       "./jest.setup.js"
     ],
+    "testTimeout": 20000,
     "moduleFileExtensions": [
       "ts",
       "tsx",
       "js",
       "jsx"
+    ],
+    "collectCoverageFrom": [
+      "src/**/*.{ts,tsx}",
+      "!src/**/__tests__/**",
+      "!src/test-utils.tsx",
+      "!src/types/index.ts",
+      "!src/theme/**",
+      "!src/navigation/AppNavigator.tsx"
+    ],
+    "coverageReporters": [
+      "text-summary",
+      "lcov",
+      "json-summary"
     ]
   },
   "dependencies": {

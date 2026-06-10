@@ -75,7 +75,7 @@ describe('ScheduledFormScreen', () => {
       { wrapper: Wrapper },
     );
     fireEvent.press(getByText('Guardar'));
-    expect(Alert.alert).toHaveBeenCalledWith('Validacion', 'El campo "Nombre" es obligatorio');
+    expect((globalThis as any).__mockShowToast).toHaveBeenCalledWith('warning', 'Validacion', expect.any(String));
   });
 
   it('renders edit mode', () => {

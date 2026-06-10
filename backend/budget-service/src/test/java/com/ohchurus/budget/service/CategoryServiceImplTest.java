@@ -9,7 +9,9 @@ import com.ohchurus.budget.entity.Category;
 import com.ohchurus.budget.enums.CategoryType;
 import com.ohchurus.budget.mapper.CategoryMapper;
 import com.ohchurus.budget.repository.CategoryRepository;
+import com.ohchurus.budget.repository.MovementRepository;
 import com.ohchurus.budget.service.impl.CategoryServiceImpl;
+import com.ohchurus.budget.service.impl.HouseholdServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -22,6 +24,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -37,7 +40,13 @@ class CategoryServiceImplTest {
     private CategoryRepository categoryRepository;
 
     @Mock
+    private MovementRepository movementRepository;
+
+    @Mock
     private CategoryMapper categoryMapper;
+
+    @Mock
+    private HouseholdServiceImpl householdService;
 
     @InjectMocks
     private CategoryServiceImpl categoryService;
@@ -94,6 +103,20 @@ class CategoryServiceImplTest {
             ResultDTO result = categoryService.saveAndUpdate(testSaveDTO);
 
             assertTrue(result.isCorrect());
+        }
+
+        @Test
+        @DisplayName("Should create category with householdId")
+        void shouldCreateWithHouseholdId() {
+            testSaveDTO.setHouseholdId(100L);
+            when(categoryRepository.existsByUserIdAndNameAndParentIdAndActiveTrue(1L, "Salario", null)).thenReturn(false);
+            when(categoryRepository.save(any(Category.class))).thenReturn(testCategory);
+            when(categoryMapper.toResultDTO(any())).thenReturn(testResultDTO);
+
+            ResultDTO result = categoryService.saveAndUpdate(testSaveDTO);
+
+            assertTrue(result.isCorrect());
+            verify(categoryRepository).save(argThat(c -> c.getHouseholdId() != null));
         }
 
         @Test
@@ -170,150 +193,6 @@ class CategoryServiceImplTest {
             assertFalse(result.isCorrect());
             assertEquals(205, result.getErrorCode());
         }
-    }
-
-    @Nested
-    @DisplayName("GetById")
-    class GetByIdTests {
-
-        @Test
-        @DisplayName("Should return category when found")
-        void shouldReturnWhenFound() {
-            when(categoryRepository.findByIdAndActiveTrue(1L)).thenReturn(Optional.of(testCategory));
-            when(categoryMapper.toResultDTO(testCategory)).thenReturn(testResultDTO);
-
-            ResultDTO result = categoryService.getById(1L);
-
-            assertTrue(result.isCorrect());
-        }
-
-        @Test
-        @DisplayName("Should return error when not found")
-        void shouldReturnErrorWhenNotFound() {
-            when(categoryRepository.findByIdAndActiveTrue(99L)).thenReturn(Optional.empty());
-
-            ResultDTO result = categoryService.getById(99L);
-
-            assertFalse(result.isCorrect());
-            assertEquals(204, result.getErrorCode());
-        }
-    }
-
-    @Nested
-    @DisplayName("GetAll")
-    class GetAllTests {
-
-        @Test
-        @DisplayName("Should return paginated categories")
-        void shouldReturnPaginated() {
-            CategoryFilterDTO filter = new CategoryFilterDTO();
-            filter.setUserId(1L);
-            Page<Category> page = new PageImpl<>(List.of(testCategory));
-            when(categoryRepository.findAllWithFilters(any(), any(), any(), any(Pageable.class))).thenReturn(page);
-            when(categoryMapper.toResultDTO(any())).thenReturn(testResultDTO);
-
-            ResultDTO result = categoryService.getAll(filter);
-
-            assertTrue(result.isCorrect());
-        }
-    }
-
-    @Nested
-    @DisplayName("GetTree")
-    class GetTreeTests {
-
-        @Test
-        @DisplayName("Should return tree structure")
-        void shouldReturnTree() {
-            Category parent = Category.builder().id(1L).userId(1L).name("Parent").parentId(null).type(CategoryType.EXPENSE).active(true).build();
-            Category child = Category.builder().id(2L).userId(1L).name("Child").parentId(1L).type(CategoryType.EXPENSE).active(true).build();
-
-            ResultCategoryTreeDTO parentDTO = new ResultCategoryTreeDTO();
-            parentDTO.setId(1L);
-            parentDTO.setName("Parent");
-
-            ResultCategoryTreeDTO childDTO = new ResultCategoryTreeDTO();
-            childDTO.setId(2L);
-            childDTO.setName("Child");
-
-            when(categoryRepository.findByUserIdAndActiveTrue(1L)).thenReturn(List.of(parent, child));
-            when(categoryMapper.toTreeDTO(parent)).thenReturn(parentDTO);
-            when(categoryMapper.toTreeDTO(child)).thenReturn(childDTO);
-
-            ResultDTO result = categoryService.getTree(1L);
-
-            assertTrue(result.isCorrect());
-            @SuppressWarnings("unchecked")
-            List<ResultCategoryTreeDTO> roots = (List<ResultCategoryTreeDTO>) result.getObject();
-            assertEquals(1, roots.size());
-            assertEquals("Parent", roots.get(0).getName());
-            assertEquals(1, roots.get(0).getChildren().size());
-            assertEquals("Child", roots.get(0).getChildren().get(0).getName());
-        }
-
-        @Test
-        @DisplayName("Should return empty when no categories")
-        void shouldReturnEmptyTree() {
-            when(categoryRepository.findByUserIdAndActiveTrue(1L)).thenReturn(List.of());
-
-            ResultDTO result = categoryService.getTree(1L);
-
-            assertTrue(result.isCorrect());
-            @SuppressWarnings("unchecked")
-            List<?> roots = (List<?>) result.getObject();
-            assertTrue(roots.isEmpty());
-        }
-    }
-
-    @Nested
-    @DisplayName("Delete")
-    class DeleteTests {
-
-        @Test
-        @DisplayName("Should soft delete category")
-        void shouldSoftDelete() {
-            when(categoryRepository.findByIdAndActiveTrue(1L)).thenReturn(Optional.of(testCategory));
-            when(categoryRepository.existsByParentIdAndActiveTrue(1L)).thenReturn(false);
-            when(categoryRepository.save(any())).thenReturn(testCategory);
-
-            ResultDTO result = categoryService.delete(1L);
-
-            assertTrue(result.isCorrect());
-            verify(categoryRepository).save(argThat(cat -> !cat.getActive()));
-        }
-
-        @Test
-        @DisplayName("Should fail when category has children")
-        void shouldFailWhenHasChildren() {
-            when(categoryRepository.findByIdAndActiveTrue(1L)).thenReturn(Optional.of(testCategory));
-            when(categoryRepository.existsByParentIdAndActiveTrue(1L)).thenReturn(true);
-
-            ResultDTO result = categoryService.delete(1L);
-
-            assertFalse(result.isCorrect());
-            assertEquals(206, result.getErrorCode());
-        }
-    }
-
-    @Nested
-    @DisplayName("TypeList")
-    class TypeListTests {
-
-        @Test
-        @DisplayName("Should return all category types")
-        void shouldReturnTypes() {
-            ResultDTO result = categoryService.typeList();
-
-            assertTrue(result.isCorrect());
-            @SuppressWarnings("unchecked")
-            List<Map<String, String>> types = (List<Map<String, String>>) result.getObject();
-            assertEquals(2, types.size());
-        }
-    }
-
-    @Nested
-    @DisplayName("Update - edge cases")
-    class UpdateEdgeCaseTests {
 
         @Test
         @DisplayName("Should fail update when category not found")
@@ -369,6 +248,175 @@ class CategoryServiceImplTest {
             ResultDTO result = categoryService.saveAndUpdate(testSaveDTO);
             assertFalse(result.isCorrect());
             assertEquals(203, result.getErrorCode());
+        }
+    }
+
+    @Nested
+    @DisplayName("GetById")
+    class GetByIdTests {
+
+        @Test
+        @DisplayName("Should return category when found")
+        void shouldReturnWhenFound() {
+            when(categoryRepository.findByIdAndActiveTrue(1L)).thenReturn(Optional.of(testCategory));
+            when(categoryMapper.toResultDTO(testCategory)).thenReturn(testResultDTO);
+
+            ResultDTO result = categoryService.getById(1L);
+
+            assertTrue(result.isCorrect());
+        }
+
+        @Test
+        @DisplayName("Should return error when not found")
+        void shouldReturnErrorWhenNotFound() {
+            when(categoryRepository.findByIdAndActiveTrue(99L)).thenReturn(Optional.empty());
+
+            ResultDTO result = categoryService.getById(99L);
+
+            assertFalse(result.isCorrect());
+            assertEquals(204, result.getErrorCode());
+        }
+    }
+
+    @Nested
+    @DisplayName("GetAll")
+    class GetAllTests {
+
+        @Test
+        @DisplayName("Should return paginated categories")
+        void shouldReturnPaginated() {
+            CategoryFilterDTO filter = new CategoryFilterDTO();
+            filter.setUserId(1L);
+
+            when(householdService.getHouseholdIds(1L)).thenReturn(Collections.emptyList());
+            Page<Category> page = new PageImpl<>(List.of(testCategory));
+            when(categoryRepository.findAllWithFilters(any(), any(), any(), any(Pageable.class))).thenReturn(page);
+            when(categoryMapper.toResultDTO(any())).thenReturn(testResultDTO);
+
+            ResultDTO result = categoryService.getAll(filter);
+
+            assertTrue(result.isCorrect());
+        }
+    }
+
+    @Nested
+    @DisplayName("GetTree")
+    class GetTreeTests {
+
+        @Test
+        @DisplayName("Should return tree structure")
+        void shouldReturnTree() {
+            when(householdService.getHouseholdIds(1L)).thenReturn(Collections.emptyList());
+
+            Category parent = Category.builder().id(1L).userId(1L).name("Parent").parentId(null).type(CategoryType.EXPENSE).active(true).build();
+            Category child = Category.builder().id(2L).userId(1L).name("Child").parentId(1L).type(CategoryType.EXPENSE).active(true).build();
+
+            ResultCategoryTreeDTO parentDTO = new ResultCategoryTreeDTO();
+            parentDTO.setId(1L);
+            parentDTO.setName("Parent");
+
+            ResultCategoryTreeDTO childDTO = new ResultCategoryTreeDTO();
+            childDTO.setId(2L);
+            childDTO.setName("Child");
+
+            when(categoryRepository.findByUserIdAndActiveTrue(1L)).thenReturn(List.of(parent, child));
+            when(categoryMapper.toTreeDTO(parent)).thenReturn(parentDTO);
+            when(categoryMapper.toTreeDTO(child)).thenReturn(childDTO);
+
+            ResultDTO result = categoryService.getTree(1L);
+
+            assertTrue(result.isCorrect());
+            @SuppressWarnings("unchecked")
+            List<ResultCategoryTreeDTO> roots = (List<ResultCategoryTreeDTO>) result.getObject();
+            assertEquals(1, roots.size());
+            assertEquals("Parent", roots.get(0).getName());
+            assertEquals(1, roots.get(0).getChildren().size());
+            assertEquals("Child", roots.get(0).getChildren().get(0).getName());
+        }
+
+        @Test
+        @DisplayName("Should return empty when no categories")
+        void shouldReturnEmptyTree() {
+            when(householdService.getHouseholdIds(1L)).thenReturn(Collections.emptyList());
+            when(categoryRepository.findByUserIdAndActiveTrue(1L)).thenReturn(List.of());
+
+            ResultDTO result = categoryService.getTree(1L);
+
+            assertTrue(result.isCorrect());
+            @SuppressWarnings("unchecked")
+            List<?> roots = (List<?>) result.getObject();
+            assertTrue(roots.isEmpty());
+        }
+    }
+
+    @Nested
+    @DisplayName("Delete")
+    class DeleteTests {
+
+        @Test
+        @DisplayName("Should soft delete category")
+        void shouldSoftDelete() {
+            when(categoryRepository.findByIdAndActiveTrue(1L)).thenReturn(Optional.of(testCategory));
+            when(categoryRepository.existsByParentIdAndActiveTrue(1L)).thenReturn(false);
+            when(movementRepository.existsByCategoryIdAndActiveTrue(1L)).thenReturn(false);
+            when(categoryRepository.save(any())).thenReturn(testCategory);
+
+            ResultDTO result = categoryService.delete(1L);
+
+            assertTrue(result.isCorrect());
+            verify(categoryRepository).save(argThat(cat -> !cat.getActive()));
+        }
+
+        @Test
+        @DisplayName("Should fail when category has children")
+        void shouldFailWhenHasChildren() {
+            when(categoryRepository.findByIdAndActiveTrue(1L)).thenReturn(Optional.of(testCategory));
+            when(categoryRepository.existsByParentIdAndActiveTrue(1L)).thenReturn(true);
+
+            ResultDTO result = categoryService.delete(1L);
+
+            assertFalse(result.isCorrect());
+            assertEquals(400, result.getErrorCode());
+        }
+
+        @Test
+        @DisplayName("Should fail when category has active movements")
+        void shouldFailWhenHasMovements() {
+            when(categoryRepository.findByIdAndActiveTrue(1L)).thenReturn(Optional.of(testCategory));
+            when(categoryRepository.existsByParentIdAndActiveTrue(1L)).thenReturn(false);
+            when(movementRepository.existsByCategoryIdAndActiveTrue(1L)).thenReturn(true);
+
+            ResultDTO result = categoryService.delete(1L);
+
+            assertFalse(result.isCorrect());
+            assertEquals(400, result.getErrorCode());
+        }
+
+        @Test
+        @DisplayName("Should fail when category not found for delete")
+        void shouldFailWhenNotFound() {
+            when(categoryRepository.findByIdAndActiveTrue(99L)).thenReturn(Optional.empty());
+
+            ResultDTO result = categoryService.delete(99L);
+
+            assertFalse(result.isCorrect());
+            assertEquals(404, result.getErrorCode());
+        }
+    }
+
+    @Nested
+    @DisplayName("TypeList")
+    class TypeListTests {
+
+        @Test
+        @DisplayName("Should return all category types")
+        void shouldReturnTypes() {
+            ResultDTO result = categoryService.typeList();
+
+            assertTrue(result.isCorrect());
+            @SuppressWarnings("unchecked")
+            List<Map<String, String>> types = (List<Map<String, String>>) result.getObject();
+            assertEquals(2, types.size());
         }
     }
 

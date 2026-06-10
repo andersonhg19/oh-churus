@@ -45,6 +45,7 @@ public class MovementServiceImpl implements MovementService {
 
     @Override
     public ResultDTO saveAndUpdate(MovementSaveDTO dto) {
+        categoryCacheTL.remove();
         try {
             boolean isUpdate = dto.getId() != null;
             return isUpdate ? updateMovement(dto) : createMovement(dto);
@@ -129,6 +130,7 @@ public class MovementServiceImpl implements MovementService {
     @Override
     @Transactional(readOnly = true)
     public ResultDTO getById(Long id) {
+        categoryCacheTL.remove();
         Optional<Movement> movement = movementRepository.findByIdAndActiveTrue(id);
         if (movement.isEmpty()) {
             return new ResultDTO(false, "Movement not found", 404);
@@ -139,6 +141,7 @@ public class MovementServiceImpl implements MovementService {
     @Override
     @Transactional(readOnly = true)
     public ResultDTO getAll(MovementFilterDTO filter) {
+        categoryCacheTL.remove();
         Pageable pageable = PageRequest.of(filter.getPage(), filter.getSize(), Sort.by("date").descending());
 
         List<Long> householdIds = filter.getUserId() != null
@@ -180,6 +183,7 @@ public class MovementServiceImpl implements MovementService {
 
     @Override
     public ResultDTO confirmWithAmount(Long id, java.math.BigDecimal newAmount) {
+        categoryCacheTL.remove();
         Optional<Movement> movement = movementRepository.findByIdAndActiveTrue(id);
         if (movement.isEmpty()) {
             return new ResultDTO(false, "Movement not found", 404);
@@ -198,6 +202,7 @@ public class MovementServiceImpl implements MovementService {
     @Override
     @Transactional(readOnly = true)
     public ResultDTO getByPeriod(Long userId, LocalDate startDate, LocalDate endDate) {
+        categoryCacheTL.remove();
         List<Long> hIds = householdService.getHouseholdIds(userId);
         List<Movement> movements = !hIds.isEmpty()
                 ? movementRepository.findHouseholdByPeriod(userId, hIds, startDate, endDate)
@@ -214,6 +219,7 @@ public class MovementServiceImpl implements MovementService {
     @Override
     @Transactional(readOnly = true)
     public ResultDTO getChildren(Long parentId) {
+        categoryCacheTL.remove();
         Optional<Movement> parentOpt = movementRepository.findByIdAndActiveTrue(parentId);
         if (parentOpt.isEmpty()) {
             return new ResultDTO(false, "Parent movement not found", 404);

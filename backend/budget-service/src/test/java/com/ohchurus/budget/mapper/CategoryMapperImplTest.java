@@ -102,5 +102,19 @@ class CategoryMapperImplTest {
             ResultCategoryTreeDTO result = categoryMapper.toTreeDTO(null);
             assertNull(result);
         }
+
+        @Test
+        @DisplayName("Should flag shared=true when the category belongs to a household")
+        void shouldFlagSharedForHouseholdCategory() {
+            Category shared = Category.builder()
+                    .id(2L).userId(1L).name("Mercado").type(CategoryType.EXPENSE)
+                    .householdId(500L).active(true).build();
+
+            ResultCategoryTreeDTO result = categoryMapper.toTreeDTO(shared);
+
+            assertNotNull(result);
+            assertEquals(500L, result.getHouseholdId());
+            assertTrue(result.getShared());
+        }
     }
 }

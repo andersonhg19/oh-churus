@@ -17,7 +17,8 @@ export const validateEmail = (value: string | null | undefined): string | null =
   if (!value || !value.trim()) {
     return 'El correo electronico es obligatorio';
   }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())) {
+  // Regex lineal (sin backtracking polinomico/ReDoS): la parte antes del punto no admite puntos.
+  if (!/^[^\s@]+@[^\s@.]+\.[^\s@]+$/.test(value.trim())) {
     return 'Ingresa un correo valido (ej: usuario@correo.com)';
   }
   return null;

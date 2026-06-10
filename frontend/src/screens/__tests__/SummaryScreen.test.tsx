@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, waitFor } from '@testing-library/react-native';
+import { render, waitFor, fireEvent } from '@testing-library/react-native';
 import SummaryScreen from '../summary/SummaryScreen';
 import { ThemeProvider } from '../../contexts/ThemeContext';
 import * as AuthContext from '../../contexts/AuthContext';
@@ -40,5 +40,33 @@ describe('SummaryScreen', () => {
   it('loads category breakdown on mount', async () => {
     render(<SummaryScreen navigation={mockNavigation} route={{ params: {} } as any} />, { wrapper: Wrapper });
     await waitFor(() => expect(dashboardService.getByCategory).toHaveBeenCalled());
+  });
+
+  it('renders the donut, switches view modes and drills into a category', async () => {
+    (dashboardService.getByCategory as jest.Mock).mockResolvedValue({
+      correct: true,
+      object: [
+        { categoryId: 10, categoryName: 'Arriendo', categoryType: 'EXPENSE', total: 300000, color: '#FF0000' },
+        { categoryId: 20, categoryName: 'Salario', categoryType: 'INCOME', total: 500000, color: '#00FF00' },
+      ],
+    });
+    (dashboardService.getSummary as jest.Mock).mockResolvedValue({
+      correct: true, object: { totalIncome: 500000, totalExpense: 300000, balance: 200000, budgetTotal: 0, pendingCount: 0, pendingAmount: 0 },
+    });
+
+    const { getByText, getAllByText } = render(
+      <SummaryScreen navigation={mockNavigation} route={{ params: {} } as any} />, { wrapper: Wrapper },
+    );
+    // default BALANCE view -> expense donut shows "Arriendo" in the legend
+    await waitFor(() => expect(getAllByText('Arriendo').length).toBeGreaterThan(0));
+    // drill into a category slice (donut legend is the first occurrence)
+    fireEvent.press(getAllByText('Arriendo')[0]);
+    expect(mockNavigation.navigate).toHaveBeenCalledWith('CategoryDrillDown', expect.objectContaining({ categoryId: '10' }));
+    // switch to Ingresos -> income donut shows "Salario"
+    fireEvent.press(getByText('Ingresos'));
+    await waitFor(() => expect(getByText('Salario')).toBeTruthy());
+    // switch to Gastos
+    fireEvent.press(getByText('Gastos'));
+    await waitFor(() => expect(getAllByText('Arriendo').length).toBeGreaterThan(0));
   });
 });

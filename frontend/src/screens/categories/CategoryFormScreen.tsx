@@ -206,7 +206,7 @@ const CategoryFormScreen: React.FC<Props> = ({ navigation, route }) => {
       />
 
       {/* Preview */}
-      {(icon || color || name) && (
+      {Boolean(icon || color || name) && (
         <View style={[styles.preview, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <AppText variant="caption" color={colors.textMuted} style={{ marginBottom: spacing.xs }}>
             Vista previa

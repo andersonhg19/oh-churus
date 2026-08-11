@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authService } from '../services/authService';
-import { TOKEN_KEY } from '../services/api';
+import { TOKEN_KEY, registrarCierreDeSesion } from '../services/api';
 
 const USER_KEY = '@oh_churus_user';
 
@@ -65,8 +65,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               setUser(refreshed);
               await AsyncStorage.setItem(USER_KEY, JSON.stringify(refreshed));
             }
-          } catch {
-            // Usar valor del storage si falla
+          } catch (e: any) {
+            /* Un 401 aqui no es "no se pudo refrescar": es que el token ya no
+               vale. Antes se ignoraba y la app entraba igual, mostrando todo
+               vacio como si se hubieran perdido los datos. */
+            if (e?.response?.status === 401) {
+              await Promise.all([
+                AsyncStorage.removeItem(TOKEN_KEY),
+                AsyncStorage.removeItem(USER_KEY),
+              ]);
+              setToken(null);
+              setUser(null);
+            }
+            // Cualquier otro fallo (sin red, backend caido): se usa lo guardado.
           }
         }
       } catch {
@@ -76,6 +87,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     };
     loadStoredAuth();
+  }, []);
+
+  /* Cualquier peticion que reciba un 401 cierra la sesion, venga de la
+     pantalla que venga. Sin esto habia que acordarse en las 23 pantallas. */
+  useEffect(() => {
+    registrarCierreDeSesion(() => {
+      AsyncStorage.removeItem(TOKEN_KEY);
+      AsyncStorage.removeItem(USER_KEY);
+      setToken(null);
+      setUser(null);
+    });
+    return () => registrarCierreDeSesion(null);
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {

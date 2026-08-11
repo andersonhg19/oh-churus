@@ -253,6 +253,19 @@ const MainTabs = () => {
           tabPress: () => navigation.reset({ index: 0, routes: [{ name: 'Summary' }] }),
         })}
       />
+      {/* Presupuesto estaba escrito, con su pantalla, su navegador y sus
+          pruebas... y no se monto nunca en ninguna pestana. En una app de
+          presupuestos, era la seccion que le da sentido al resto: sin ella
+          la parte de "Ejecucion presupuestal" del Consolidado no tenia de
+          donde salir y quedaba siempre vacia. */}
+      <Tab.Screen
+        name="Budget"
+        component={BudgetNavigator}
+        options={{
+          tabBarLabel: 'Presupuesto',
+          tabBarIcon: () => <Text style={{ fontSize: 22 }}>🎯</Text>,
+        }}
+      />
       <Tab.Screen
         name="AddAction"
         component={EmptyScreen}

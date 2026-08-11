@@ -164,7 +164,7 @@ const DashboardScreen: React.FC = () => {
                   Balance {viewMode === 'shared' ? 'Conjunto' : viewMode === 'personal' ? 'Personal' : 'Total'}
                 </AppText>
                 <AppText variant="title" color={bColor} style={styles.balanceValue}>
-                  {(bal ?? 0) < 0 ? '-' : ''}{formatCurrency(bal ?? 0)}
+                  {formatCurrency(bal ?? 0)}
                 </AppText>
               </View>
 

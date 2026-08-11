@@ -177,7 +177,7 @@ const ConsolidatedScreen: React.FC = () => {
         </View>
         <View style={styles.balanceRow}>
           <AppText variant="title" color={balanceColor} style={styles.metricValue}>
-            {balance < 0 ? '-' : ''}{formatCurrency(balance)}
+            {formatCurrency(balance)}
           </AppText>
           <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
             <AppText variant="caption" color="#FFF" style={styles.statusText}>

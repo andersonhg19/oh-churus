@@ -1,3 +1,4 @@
+import { fechaLocalISO } from '../../utils/format';
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { View, StyleSheet, ScrollView, RefreshControl, Modal, TouchableOpacity } from 'react-native';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -70,14 +71,14 @@ const FastingDashboardScreen: React.FC = () => {
 
   const openStartModal = () => {
     const now = new Date();
-    setEditDate(now.toISOString().split('T')[0]);
+    setEditDate(fechaLocalISO(now));
     setEditTime(now.toTimeString().substring(0, 5));
     setShowTimeModal('start');
   };
 
   const openStopModal = () => {
     const now = new Date();
-    setEditDate(now.toISOString().split('T')[0]);
+    setEditDate(fechaLocalISO(now));
     setEditTime(now.toTimeString().substring(0, 5));
     setShowTimeModal('stop');
   };

@@ -5,6 +5,7 @@ import com.ohchurus.budget.dto.output.ResultDTO;
 import com.ohchurus.budget.dto.output.ResultMovementDTO;
 import com.ohchurus.budget.entity.Category;
 import com.ohchurus.budget.entity.Movement;
+import com.ohchurus.budget.util.Computables;
 import com.ohchurus.budget.entity.ScheduledMovement;
 import com.ohchurus.budget.enums.CategoryType;
 import com.ohchurus.budget.mapper.MovementMapper;
@@ -102,9 +103,13 @@ public class DashboardServiceImpl implements DashboardService {
             BigDecimal totalIncome = BigDecimal.ZERO;
             BigDecimal totalExpense = BigDecimal.ZERO;
             for (Movement m : confirmed) {
-                // Exclude transfers from totals (they cancel out)
-                if (Boolean.TRUE.equals(m.getIsTransfer())) continue;
-                BigDecimal amount = m.getAmount() != null ? m.getAmount() : BigDecimal.ZERO;
+                /* Una sola regla para toda la app: ver Computables.
+                   Antes aqui se excluian solo las transferencias y se contaban
+                   los sub-movimientos, mientras que `budgetTotal` —quince
+                   lineas mas abajo, en este mismo metodo— si los excluia. La
+                   misma plata daba dos cifras distintas en la misma pantalla. */
+                if (!Computables.suma(m)) continue;
+                BigDecimal amount = Computables.importe(m);
                 if (getCategoryType(m.getCategoryId(), categoryCache) == CategoryType.INCOME) {
                     totalIncome = totalIncome.add(amount);
                 } else {
@@ -123,11 +128,8 @@ public class DashboardServiceImpl implements DashboardService {
             allPeriodMovements.addAll(pendingInPeriod);
             BigDecimal budgetTotal = allPeriodMovements.stream()
                     .filter(m -> getCategoryType(m.getCategoryId(), categoryCache) == CategoryType.EXPENSE)
-                    // Bug 4: exclude children (they're detail of the parent, not separate budget items)
-                    .filter(m -> m.getParentMovementId() == null)
-                    // Bug 7: exclude transfers (they're money movement, not budget)
-                    .filter(m -> !Boolean.TRUE.equals(m.getIsTransfer()))
-                    .map(m -> m.getAmount() != null ? m.getAmount() : BigDecimal.ZERO)
+                    .filter(Computables::suma)
+                    .map(Computables::importe)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
 
             // 3. Pendientes (personales + household)
@@ -144,9 +146,7 @@ public class DashboardServiceImpl implements DashboardService {
             List<Movement> duePending = new ArrayList<>(pendingInPeriod);
             duePending.addAll(oldPending);
 
-            BigDecimal pendingAmount = duePending.stream()
-                    .map(m -> m.getAmount() != null ? m.getAmount() : BigDecimal.ZERO)
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            BigDecimal pendingAmount = Computables.total(duePending);
 
             DashboardSummaryDTO summary = DashboardSummaryDTO.builder()
                     .totalIncome(totalIncome)
@@ -198,10 +198,13 @@ public class DashboardServiceImpl implements DashboardService {
                         DashboardSummaryDTO.CategorySummary.CategorySummaryBuilder builder =
                                 DashboardSummaryDTO.CategorySummary.builder()
                                         .categoryId(categoryId)
-                                        .total(entry.getValue().stream()
-                                                .map(m -> m.getAmount() != null ? m.getAmount() : BigDecimal.ZERO)
-                                                .reduce(BigDecimal.ZERO, BigDecimal::add))
-                                        .count(entry.getValue().size());
+                                        /* Misma regla: si la dona sumara los
+                                           sub-movimientos, no cuadraria con el
+                                           total del panel ni con su propio
+                                           detalle al entrar en la categoria. */
+                                        .total(Computables.total(entry.getValue()))
+                                        .count((int) entry.getValue().stream()
+                                                .filter(Computables::suma).count());
 
                         if (cat != null) {
                             builder.categoryName(cat.getName())
@@ -428,9 +431,8 @@ public class DashboardServiceImpl implements DashboardService {
         BigDecimal income = BigDecimal.ZERO;
         BigDecimal expense = BigDecimal.ZERO;
         for (Movement m : movements) {
-            // Bug 5: exclude transfers from calculations (they cancel out)
-            if (Boolean.TRUE.equals(m.getIsTransfer())) continue;
-            BigDecimal amount = m.getAmount() != null ? m.getAmount() : BigDecimal.ZERO;
+            if (!Computables.suma(m)) continue;   // misma regla que el resto
+            BigDecimal amount = Computables.importe(m);
             if (getCategoryType(m.getCategoryId(), cache) == CategoryType.INCOME) {
                 income = income.add(amount);
             } else {

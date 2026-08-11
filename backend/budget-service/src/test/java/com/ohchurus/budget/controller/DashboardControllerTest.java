@@ -112,15 +112,20 @@ class DashboardControllerTest {
         }
 
         @Test
-        @DisplayName("Should return 400 when userId is missing")
-        void shouldReturn400WhenUserIdMissing() throws Exception {
+        @DisplayName("funciona SIN userId en el cuerpo: la identidad la pone el token")
+        void funcionaSinUserIdEnElCuerpo() throws Exception {
+            /* Estas pruebas exigian un 400 si faltaba el userId. Ese contrato
+               desaparecio con el arreglo de seguridad: el userId ya no se pide
+               al cliente —lo ponia el cliente, y por eso podia poner el de
+               otro—, sale del token. Que una peticion sin userId funcione es
+               ahora la prueba de que la identidad viene del sitio correcto. */
             DashboardRequestDTO dto = new DashboardRequestDTO();
             dto.setBudgetStartDay(15);
 
             mockMvc.perform(post("/v1/dashboard/summary")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
-                    .andExpect(status().isBadRequest());
+                    .andExpect(status().isOk());
         }
 
         @Test
@@ -172,14 +177,19 @@ class DashboardControllerTest {
         }
 
         @Test
-        @DisplayName("Should return 400 when userId is missing")
-        void shouldReturn400WhenUserIdMissing() throws Exception {
+        @DisplayName("funciona SIN userId en el cuerpo: la identidad la pone el token")
+        void funcionaSinUserIdEnElCuerpo() throws Exception {
+            /* Estas pruebas exigian un 400 si faltaba el userId. Ese contrato
+               desaparecio con el arreglo de seguridad: el userId ya no se pide
+               al cliente —lo ponia el cliente, y por eso podia poner el de
+               otro—, sale del token. Que una peticion sin userId funcione es
+               ahora la prueba de que la identidad viene del sitio correcto. */
             DashboardRequestDTO dto = new DashboardRequestDTO();
 
             mockMvc.perform(post("/v1/dashboard/by-category")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
-                    .andExpect(status().isBadRequest());
+                    .andExpect(status().isOk());
         }
     }
 
@@ -214,14 +224,19 @@ class DashboardControllerTest {
         }
 
         @Test
-        @DisplayName("Should return 400 when userId is missing")
-        void shouldReturn400WhenUserIdMissing() throws Exception {
+        @DisplayName("funciona SIN userId en el cuerpo: la identidad la pone el token")
+        void funcionaSinUserIdEnElCuerpo() throws Exception {
+            /* Estas pruebas exigian un 400 si faltaba el userId. Ese contrato
+               desaparecio con el arreglo de seguridad: el userId ya no se pide
+               al cliente —lo ponia el cliente, y por eso podia poner el de
+               otro—, sale del token. Que una peticion sin userId funcione es
+               ahora la prueba de que la identidad viene del sitio correcto. */
             DashboardRequestDTO dto = new DashboardRequestDTO();
 
             mockMvc.perform(post("/v1/dashboard/trend")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
-                    .andExpect(status().isBadRequest());
+                    .andExpect(status().isOk());
         }
     }
 
@@ -256,14 +271,19 @@ class DashboardControllerTest {
         }
 
         @Test
-        @DisplayName("Should return 400 when userId is missing")
-        void shouldReturn400WhenUserIdMissing() throws Exception {
+        @DisplayName("funciona SIN userId en el cuerpo: la identidad la pone el token")
+        void funcionaSinUserIdEnElCuerpo() throws Exception {
+            /* Estas pruebas exigian un 400 si faltaba el userId. Ese contrato
+               desaparecio con el arreglo de seguridad: el userId ya no se pide
+               al cliente —lo ponia el cliente, y por eso podia poner el de
+               otro—, sale del token. Que una peticion sin userId funcione es
+               ahora la prueba de que la identidad viene del sitio correcto. */
             DashboardRequestDTO dto = new DashboardRequestDTO();
 
             mockMvc.perform(post("/v1/dashboard/pending")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
-                    .andExpect(status().isBadRequest());
+                    .andExpect(status().isOk());
         }
     }
 
@@ -286,12 +306,17 @@ class DashboardControllerTest {
         }
 
         @Test
-        @DisplayName("Should return 400 when userId is missing")
-        void shouldReturn400WhenUserIdMissing() throws Exception {
+        @DisplayName("funciona SIN userId en el cuerpo: la identidad la pone el token")
+        void funcionaSinUserIdEnElCuerpo() throws Exception {
+            /* Estas pruebas exigian un 400 si faltaba el userId. Ese contrato
+               desaparecio con el arreglo de seguridad: el userId ya no se pide
+               al cliente —lo ponia el cliente, y por eso podia poner el de
+               otro—, sale del token. Que una peticion sin userId funcione es
+               ahora la prueba de que la identidad viene del sitio correcto. */
             mockMvc.perform(post("/v1/dashboard/split-summary")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(new DashboardRequestDTO())))
-                    .andExpect(status().isBadRequest());
+                    .andExpect(status().isOk());
         }
     }
 
@@ -314,12 +339,17 @@ class DashboardControllerTest {
         }
 
         @Test
-        @DisplayName("Should return 400 when userId is missing")
-        void shouldReturn400WhenUserIdMissing() throws Exception {
+        @DisplayName("funciona SIN userId en el cuerpo: la identidad la pone el token")
+        void funcionaSinUserIdEnElCuerpo() throws Exception {
+            /* Estas pruebas exigian un 400 si faltaba el userId. Ese contrato
+               desaparecio con el arreglo de seguridad: el userId ya no se pide
+               al cliente —lo ponia el cliente, y por eso podia poner el de
+               otro—, sale del token. Que una peticion sin userId funcione es
+               ahora la prueba de que la identidad viene del sitio correcto. */
             mockMvc.perform(post("/v1/dashboard/consolidated")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(new DashboardRequestDTO())))
-                    .andExpect(status().isBadRequest());
+                    .andExpect(status().isOk());
         }
     }
 }

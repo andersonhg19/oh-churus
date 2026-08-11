@@ -124,8 +124,13 @@ class MovementControllerTest {
         }
 
         @Test
-        @DisplayName("Should return 400 when userId is missing")
-        void shouldReturn400WhenUserIdMissing() throws Exception {
+        @DisplayName("funciona SIN userId en el cuerpo: la identidad la pone el token")
+        void funcionaSinUserIdEnElCuerpo() throws Exception {
+            /* Estas pruebas exigian un 400 si faltaba el userId. Ese contrato
+               desaparecio con el arreglo de seguridad: el userId ya no se pide
+               al cliente —lo ponia el cliente, y por eso podia poner el de
+               otro—, sale del token. Que una peticion sin userId funcione es
+               ahora la prueba de que la identidad viene del sitio correcto. */
             MovementSaveDTO dto = new MovementSaveDTO();
             dto.setCategoryId(1L);
             dto.setDate(LocalDate.of(2026, 3, 15));
@@ -134,7 +139,7 @@ class MovementControllerTest {
             mockMvc.perform(post("/v1/movements/save")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
-                    .andExpect(status().isBadRequest());
+                    .andExpect(status().isOk());
         }
 
         @Test
@@ -358,8 +363,13 @@ class MovementControllerTest {
         }
 
         @Test
-        @DisplayName("Should return 400 when userId is missing")
-        void shouldReturn400WhenUserIdMissing() throws Exception {
+        @DisplayName("funciona SIN userId en el cuerpo: la identidad la pone el token")
+        void funcionaSinUserIdEnElCuerpo() throws Exception {
+            /* Estas pruebas exigian un 400 si faltaba el userId. Ese contrato
+               desaparecio con el arreglo de seguridad: el userId ya no se pide
+               al cliente —lo ponia el cliente, y por eso podia poner el de
+               otro—, sale del token. Que una peticion sin userId funcione es
+               ahora la prueba de que la identidad viene del sitio correcto. */
             PeriodRequestDTO dto = new PeriodRequestDTO();
             dto.setStartDate(LocalDate.of(2026, 3, 1));
             dto.setEndDate(LocalDate.of(2026, 3, 31));
@@ -367,7 +377,7 @@ class MovementControllerTest {
             mockMvc.perform(post("/v1/movements/by-period")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
-                    .andExpect(status().isBadRequest());
+                    .andExpect(status().isOk());
         }
 
         @Test

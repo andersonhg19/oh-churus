@@ -62,7 +62,7 @@ class DashboardServiceImplEdgeCasesTest {
     }
 
     @Test
-    @DisplayName("getSummary should skip transfers, treat null amounts as zero, exclude children/transfers from budget")
+    @DisplayName("getSummary: gastos y presupuesto cuentan EXACTAMENTE la misma plata")
     void getSummaryEdgeMovements() {
         Movement transfer = Movement.builder().id(1L).userId(USER_ID).categoryId(20L).date(LocalDate.now())
                 .amount(new BigDecimal("999")).isTransfer(true).confirmed(true).active(true).build();
@@ -88,9 +88,19 @@ class DashboardServiceImplEdgeCasesTest {
         assertTrue(r.isCorrect());
         DashboardSummaryDTO s = (DashboardSummaryDTO) r.getObject();
         assertEquals(BigDecimal.ZERO, s.getTotalIncome());        // incomeNull -> 0
-        assertEquals(new BigDecimal("150"), s.getTotalExpense()); // child 100 + orphan 50 (transfer excluded)
-        // budget = orphanCat 50 (child excluded, transfer excluded, pendingNull adds 0)
+
+        /* Esta prueba pedia totalExpense=150 y budgetTotal=50 SOBRE LOS MISMOS
+           MOVIMIENTOS: fijaba como correcto que "Gastos" contara los
+           sub-movimientos y "Presupuesto" no. Era la incoherencia que el
+           usuario veia como "las cifras no cuadran", certificada por la suite.
+
+           La regla, ahora unica (ver Computables): el hijo es detalle del
+           padre y la transferencia no es ni ingreso ni gasto. Con estos datos
+           solo computa orphanCat (50). */
+        assertEquals(new BigDecimal("50"), s.getTotalExpense());
         assertEquals(new BigDecimal("50"), s.getBudgetTotal());
+        assertEquals(s.getTotalExpense(), s.getBudgetTotal(),
+                "gastos y presupuesto tienen que contar la misma plata");
         assertEquals(1, s.getPendingCount());
     }
 

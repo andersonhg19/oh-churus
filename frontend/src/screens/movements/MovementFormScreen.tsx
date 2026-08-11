@@ -11,7 +11,7 @@ import { spacing } from '../../theme';
 import { movementService } from '../../services/movementService';
 import { categoryService } from '../../services/categoryService';
 import { Movement, Category, CategoryType } from '../../types';
-import { formatCurrency } from '../../utils/format';
+import { formatCurrency, fechaLocalISO } from '../../utils/format';
 import { getIconEmoji } from '../../utils/iconMap';
 import { validateAmount, validateDate, validateCategory, validateAll } from '../../utils/validators';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -36,7 +36,7 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [amount, setAmount] = useState(existing ? String(existing.amount) : '');
   const [description, setDescription] = useState(existing?.description || '');
-  const [date, setDate] = useState(existing?.date || new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(existing?.date || fechaLocalISO());
   const [confirmed, setConfirmed] = useState(existing?.confirmed ?? true);
   const [loading, setLoading] = useState(false);
 

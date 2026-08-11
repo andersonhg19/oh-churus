@@ -1,3 +1,4 @@
+import { fechaLocalISO } from '../../utils/format';
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -53,7 +54,7 @@ const ScheduledFormScreen: React.FC<Props> = ({ navigation, route }) => {
   const filteredCategories = allCategories.filter(c => c.type === movementType);
   const [amount, setAmount] = useState(existing ? String(existing.amount) : '');
   const [frequency, setFrequency] = useState<Frequency>(existing?.frequency || 'MONTHLY');
-  const [startDate, setStartDate] = useState(existing?.startDate || new Date().toISOString().split('T')[0]);
+  const [startDate, setStartDate] = useState(existing?.startDate || fechaLocalISO());
   const [durationMonths, setDurationMonths] = useState(existing?.durationMonths ? String(existing.durationMonths) : '');
   const [dayOfMonth, setDayOfMonth] = useState(existing?.dayOfMonth ? String(existing.dayOfMonth) : '');
   const [loading, setLoading] = useState(false);

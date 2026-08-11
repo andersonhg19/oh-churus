@@ -89,11 +89,14 @@ class ExportControllerTest {
     }
 
     @Test
-    @DisplayName("POST /excel should reject when userId is missing (validation)")
-    void shouldRejectMissingUserId() throws Exception {
+    @DisplayName("exporta SIN userId en el cuerpo: la identidad la pone el token")
+    void funcionaSinUserIdEnElCuerpo() throws Exception {
+        /* Antes se exigia un 400 si faltaba el userId. Pedirselo al cliente era
+           justamente el fallo: podia mandar el de otra persona y descargarse su
+           Excel. Ahora sale del token y la peticion sin userId es valida. */
         mockMvc.perform(post("/v1/export/excel")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("budgetStartDay", 1))))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isOk());
     }
 }

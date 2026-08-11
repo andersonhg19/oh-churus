@@ -366,7 +366,7 @@ const BudgetScreen: React.FC = () => {
               color={totalVariance >= 0 ? colors.income : colors.expense}
               style={{ fontWeight: '700' }}
             >
-              {totalVariance >= 0 ? '+' : '-'}{formatCurrency(Math.abs(totalVariance))}
+              {totalVariance >= 0 ? '+' : ''}{formatCurrency(totalVariance)}
             </AppText>
           </View>
         </Card>

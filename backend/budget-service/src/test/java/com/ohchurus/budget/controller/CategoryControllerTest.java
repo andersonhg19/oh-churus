@@ -118,8 +118,13 @@ class CategoryControllerTest {
         }
 
         @Test
-        @DisplayName("Should return 400 when userId is missing")
-        void shouldReturn400WhenUserIdMissing() throws Exception {
+        @DisplayName("funciona SIN userId en el cuerpo: la identidad la pone el token")
+        void funcionaSinUserIdEnElCuerpo() throws Exception {
+            /* Estas pruebas exigian un 400 si faltaba el userId. Ese contrato
+               desaparecio con el arreglo de seguridad: el userId ya no se pide
+               al cliente —lo ponia el cliente, y por eso podia poner el de
+               otro—, sale del token. Que una peticion sin userId funcione es
+               ahora la prueba de que la identidad viene del sitio correcto. */
             CategorySaveDTO dto = new CategorySaveDTO();
             dto.setName("Food");
             dto.setType(CategoryType.EXPENSE);
@@ -127,7 +132,7 @@ class CategoryControllerTest {
             mockMvc.perform(post("/v1/categories/save")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
-                    .andExpect(status().isBadRequest());
+                    .andExpect(status().isOk());
         }
 
         @Test

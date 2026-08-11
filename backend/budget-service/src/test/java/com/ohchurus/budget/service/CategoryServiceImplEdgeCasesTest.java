@@ -14,6 +14,7 @@ import com.ohchurus.budget.service.impl.CategoryServiceImpl;
 import com.ohchurus.budget.service.impl.HouseholdServiceImpl;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -39,6 +40,23 @@ class CategoryServiceImplEdgeCasesTest {
     @Mock private MovementRepository movementRepository;
     @Mock private CategoryMapper categoryMapper;
     @Mock private HouseholdServiceImpl householdService;
+    /* El control de acceso es una preocupacion aparte: aqui se le dice que si
+       para poder probar la LOGICA. Que diga que no cuando toca lo comprueba
+       AislamientoEntreUsuariosTest, que levanta la app entera con dos usuarios
+       de verdad; un mock nunca podria demostrarlo. */
+    @Mock
+    private com.ohchurus.budget.util.ControlAcceso acceso;
+
+    @BeforeEach
+    void permitirAccesoEnLasPruebasDeLogica() {
+        org.mockito.Mockito.lenient().when(acceso.puedeVer(org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any())).thenReturn(true);
+        org.mockito.Mockito.lenient().when(acceso.puedeVerCategoria(
+                org.mockito.ArgumentMatchers.any())).thenReturn(true);
+        org.mockito.Mockito.lenient().when(acceso.esMio(
+                org.mockito.ArgumentMatchers.any())).thenReturn(true);
+    }
+
 
     @InjectMocks
     private CategoryServiceImpl service;

@@ -14,6 +14,15 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/v1/export")
 public class ExportController {
 
+    /*
+     * De aqui en adelante, el userId sale del token.
+     *
+     * Antes llegaba en el cuerpo de la peticion, o sea que lo decidia el
+     * cliente: bastaba con cambiar un numero para pedir el panel, los
+     * movimientos o el Excel de otra persona. Se ignora lo que venga en el
+     * cuerpo —el frontend puede seguir mandandolo— y manda el token.
+     */
+
     private final ExcelExportService excelExportService;
 
     public ExportController(ExcelExportService excelExportService) {
@@ -24,7 +33,7 @@ public class ExportController {
     public ResponseEntity<byte[]> exportExcel(@Valid @RequestBody DashboardRequestDTO request) {
         try {
             byte[] excelBytes = excelExportService.exportPeriod(
-                    request.getUserId(), request.getBudgetStartDay(), request.getReferenceDate());
+                    com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId(), request.getBudgetStartDay(), request.getReferenceDate());
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));

@@ -14,6 +14,7 @@ import com.ohchurus.budget.service.impl.HouseholdServiceImpl;
 import com.ohchurus.budget.service.impl.MovementServiceImpl;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -46,6 +47,23 @@ class MovementServiceImplEdgeCasesTest {
     private MovementMapper movementMapper;
     @Mock
     private HouseholdServiceImpl householdService;
+    /* El control de acceso es una preocupacion aparte: aqui se le dice que si
+       para poder probar la LOGICA. Que diga que no cuando toca lo comprueba
+       AislamientoEntreUsuariosTest, que levanta la app entera con dos usuarios
+       de verdad; un mock nunca podria demostrarlo. */
+    @Mock
+    private com.ohchurus.budget.util.ControlAcceso acceso;
+
+    @BeforeEach
+    void permitirAccesoEnLasPruebasDeLogica() {
+        org.mockito.Mockito.lenient().when(acceso.puedeVer(org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any())).thenReturn(true);
+        org.mockito.Mockito.lenient().when(acceso.puedeVerCategoria(
+                org.mockito.ArgumentMatchers.any())).thenReturn(true);
+        org.mockito.Mockito.lenient().when(acceso.esMio(
+                org.mockito.ArgumentMatchers.any())).thenReturn(true);
+    }
+
 
     @InjectMocks
     private MovementServiceImpl service;
@@ -195,8 +213,8 @@ class MovementServiceImplEdgeCasesTest {
         }
 
         @Test
-        @DisplayName("Should reassign userId on personal category and apply confirmed")
-        void shouldReassignOnPersonal() {
+        @DisplayName("El dueno NUNCA cambia al actualizar, ni en categoria personal")
+        void noCambiaDeDuenoAlActualizar() {
             MovementSaveDTO dto = saveDto();
             dto.setId(7L);
             dto.setUserId(2L);
@@ -211,7 +229,12 @@ class MovementServiceImplEdgeCasesTest {
 
             ResultDTO r = service.saveAndUpdate(dto);
             assertTrue(r.isCorrect());
-            assertEquals(2L, existing.getUserId());
+            /* Esta prueba pedia lo contrario —que el movimiento pasara del
+               usuario 99 al 2— y por eso el fallo aguanto tanto: la suite
+               CERTIFICABA el robo de datos como comportamiento correcto.
+               Mandar el id de un movimiento ajeno y tu propio userId bastaba
+               para quedarte con el. */
+            assertEquals(99L, existing.getUserId());
             assertFalse(existing.getConfirmed());
         }
     }

@@ -6,6 +6,7 @@ import com.ohchurus.budget.entity.HouseholdMember;
 import com.ohchurus.budget.repository.HouseholdMemberRepository;
 import com.ohchurus.budget.repository.HouseholdRepository;
 import com.ohchurus.budget.service.impl.HouseholdServiceImpl;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -32,6 +33,30 @@ class HouseholdServiceImplTest {
 
     @Mock
     private HouseholdMemberRepository memberRepository;
+    /* addMember/removeMember exigen ahora que quien llama sea el OWNER de ese
+       hogar. Antes no comprobaban nada: cualquiera enviaba {householdId, su
+       userId} y entraba en la casa de otra pareja. Estas pruebas se ejecutan
+       como el OWNER para poder seguir probando la LOGICA; que un extrano no
+       pueda lo demuestra AislamientoEntreUsuariosTest. */
+    @BeforeEach
+    void ejecutarComoDuenoDelHogar() {
+        var auth = new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                "dueno@ohchurus.com", null, java.util.Collections.emptyList());
+        auth.setDetails(USER_ID);
+        org.springframework.security.core.context.SecurityContextHolder.getContext()
+                .setAuthentication(auth);
+        org.mockito.Mockito.lenient().when(memberRepository
+                .findByHouseholdIdAndUserIdAndActiveTrue(HOUSEHOLD_ID, USER_ID))
+                .thenReturn(Optional.of(HouseholdMember.builder()
+                        .id(1L).householdId(HOUSEHOLD_ID).userId(USER_ID)
+                        .role("OWNER").active(true).build()));
+    }
+
+    @org.junit.jupiter.api.AfterEach
+    void limpiarSesion() {
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+    }
+
 
     @InjectMocks
     private HouseholdServiceImpl householdService;

@@ -13,6 +13,15 @@ import java.util.Map;
 @RequestMapping("/v1/budget-allocation")
 public class BudgetAllocationController {
 
+    /*
+     * De aqui en adelante, el userId sale del token.
+     *
+     * Antes llegaba en el cuerpo de la peticion, o sea que lo decidia el
+     * cliente: bastaba con cambiar un numero para pedir el panel, los
+     * movimientos o el Excel de otra persona. Se ignora lo que venga en el
+     * cuerpo —el frontend puede seguir mandandolo— y manda el token.
+     */
+
     private final BudgetAllocationServiceImpl service;
 
     public BudgetAllocationController(BudgetAllocationServiceImpl service) {
@@ -21,7 +30,7 @@ public class BudgetAllocationController {
 
     @PostMapping(value = "/save", produces = "application/json")
     public ResponseEntity<ResultDTO> save(@RequestBody Map<String, Object> body) {
-        Long userId = Long.valueOf(body.get("userId").toString());
+        Long userId = com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId();
         Long categoryId = Long.valueOf(body.get("categoryId").toString());
         BigDecimal amount = new BigDecimal(body.get("amount").toString());
         String notes = body.containsKey("notes") ? (String) body.get("notes") : null;
@@ -34,7 +43,7 @@ public class BudgetAllocationController {
 
     @PostMapping(value = "/list", produces = "application/json")
     public ResponseEntity<ResultDTO> list(@RequestBody Map<String, Object> body) {
-        Long userId = Long.valueOf(body.get("userId").toString());
+        Long userId = com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId();
         Integer budgetStartDay = body.containsKey("budgetStartDay")
                 ? Integer.valueOf(body.get("budgetStartDay").toString()) : 1;
         LocalDate ref = body.containsKey("referenceDate") && body.get("referenceDate") != null
@@ -44,7 +53,7 @@ public class BudgetAllocationController {
 
     @PostMapping(value = "/summary", produces = "application/json")
     public ResponseEntity<ResultDTO> summary(@RequestBody Map<String, Object> body) {
-        Long userId = Long.valueOf(body.get("userId").toString());
+        Long userId = com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId();
         Integer budgetStartDay = body.containsKey("budgetStartDay")
                 ? Integer.valueOf(body.get("budgetStartDay").toString()) : 1;
         LocalDate ref = body.containsKey("referenceDate") && body.get("referenceDate") != null

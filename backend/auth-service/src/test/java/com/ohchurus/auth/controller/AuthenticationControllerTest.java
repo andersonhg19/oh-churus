@@ -3,6 +3,7 @@ package com.ohchurus.auth.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ohchurus.auth.dto.input.AuthenticationRequest;
 import com.ohchurus.auth.dto.input.AuthenticationResponse;
+import com.ohchurus.auth.dto.input.UserRegisterDTO;
 import com.ohchurus.auth.dto.input.UserSaveDTO;
 import com.ohchurus.auth.dto.output.ResultDTO;
 import com.ohchurus.auth.security.JWTAuthorizationFilter;
@@ -20,6 +21,8 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -89,20 +92,58 @@ class AuthenticationControllerTest {
     }
 
     @Test
-    @DisplayName("POST /v1/auth/register - Should register user successfully")
+    @DisplayName("POST /v1/auth/register - registra y devuelve sesion iniciada (token incluido)")
     void registerSuccess() throws Exception {
-        UserSaveDTO dto = new UserSaveDTO();
+        UserRegisterDTO dto = new UserRegisterDTO();
         dto.setName("New User");
         dto.setEmail("new@ohchurus.com");
         dto.setPassword("Password123!");
 
-        when(userService.saveAndUpdate(any())).thenReturn(new ResultDTO(true, "OK", 0));
+        when(userService.register(any())).thenReturn(new ResultDTO(true, "OK", 0));
+
+        AuthenticationResponse sesion = new AuthenticationResponse();
+        sesion.setToken("jwt-de-prueba");
+        sesion.setEmail("new@ohchurus.com");
+        sesion.setName("New User");
+        sesion.setUserId(7L);
+        when(authenticationService.authenticate(any())).thenReturn(sesion);
 
         mockMvc.perform(post("/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.correct").value(true));
+                .andExpect(jsonPath("$.correct").value(true))
+                /* El frontend lee authData.token nada mas registrarse. Antes el
+                   backend devolvia el usuario SIN token y la persona quedaba
+                   registrada pero sin sesion. */
+                .andExpect(jsonPath("$.object.token").value("jwt-de-prueba"))
+                .andExpect(jsonPath("$.object.userId").value(7));
+    }
+
+    @Test
+    @DisplayName("POST /v1/auth/register - un 'id' en el cuerpo NO puede actualizar a nadie")
+    void registerNoPuedeSecuestrarCuentas() throws Exception {
+        /* El agujero que hubo: /register es publico y recibia un DTO con campo
+           "id"; el servicio interpretaba "trae id" como "actualiza", asi que
+           cualquiera SIN token podia cambiarle el correo y la contrasena a otro
+           usuario y quedarse con su cuenta.
+
+           Hoy el DTO de registro no tiene id: el campo se ignora y la ruta solo
+           puede crear. Se comprueba por el comportamiento, que es lo que
+           importa: jamas se llama al metodo que actualiza. */
+        when(userService.register(any())).thenReturn(new ResultDTO(true, "OK", 0));
+        AuthenticationResponse sesion = new AuthenticationResponse();
+        sesion.setToken("t");
+        when(authenticationService.authenticate(any())).thenReturn(sesion);
+
+        mockMvc.perform(post("/v1/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"id\":1,\"name\":\"Intruso\",\"email\":\"intruso@evil.com\","
+                                + "\"password\":\"Password123!\"}"))
+                .andExpect(status().isOk());
+
+        verify(userService, never()).saveAndUpdate(any());
+        verify(userService).register(any());
     }
 
     @Test

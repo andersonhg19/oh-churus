@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 public class BudgetAllocationServiceImpl {
 
     private final BudgetAllocationRepository allocationRepository;
+    private final com.ohchurus.budget.util.ControlAcceso acceso;
     private final MovementRepository movementRepository;
     private final CategoryRepository categoryRepository;
     private final HouseholdServiceImpl householdService;
@@ -32,11 +33,13 @@ public class BudgetAllocationServiceImpl {
     public BudgetAllocationServiceImpl(BudgetAllocationRepository allocationRepository,
                                         MovementRepository movementRepository,
                                         CategoryRepository categoryRepository,
-                                        HouseholdServiceImpl householdService) {
+                                        HouseholdServiceImpl householdService,
+                                       com.ohchurus.budget.util.ControlAcceso acceso) {
         this.allocationRepository = allocationRepository;
         this.movementRepository = movementRepository;
         this.categoryRepository = categoryRepository;
         this.householdService = householdService;
+        this.acceso = acceso;
     }
 
     // ===== CRUD =====
@@ -127,7 +130,9 @@ public class BudgetAllocationServiceImpl {
 
     public ResultDTO delete(Long id) {
         Optional<BudgetAllocation> opt = allocationRepository.findByIdAndActiveTrue(id);
-        if (opt.isEmpty()) return new ResultDTO(false, "Allocation not found", 404);
+        if (opt.isEmpty() || !acceso.puedeVer(opt.get().getUserId(), opt.get().getCategoryId())) {
+            return new ResultDTO(false, "Allocation not found", 404);
+        }
         BudgetAllocation a = opt.get();
         a.setActive(false);
         allocationRepository.save(a);

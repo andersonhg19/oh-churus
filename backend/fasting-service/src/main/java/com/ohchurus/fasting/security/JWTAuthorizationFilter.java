@@ -22,6 +22,7 @@ public class JWTAuthorizationFilter extends OncePerRequestFilter {
 
     private static final String BEARER = "Bearer ";
     private static final String AUTHORIZATION = "Authorization";
+    private static final String CLAIM_USER_ID = "userId";
 
     private final SecParams secParams;
 
@@ -47,6 +48,16 @@ public class JWTAuthorizationFilter extends OncePerRequestFilter {
             String email = decodedJWT.getSubject();
             UsernamePasswordAuthenticationToken authentication =
                     new UsernamePasswordAuthenticationToken(email, null, Collections.emptyList());
+
+            /* El token SIEMPRE trajo el id del usuario (AuthenticationServiceImpl
+               lo firma como claim "userId"), pero nadie lo leia: la identidad
+               llegaba en el cuerpo de cada peticion, o sea que la ponia el
+               cliente. De ahi salia que un usuario pudiera pedir los datos de
+               otro simplemente cambiando un numero. Aqui se recoge una sola vez
+               y SecurityUtils lo reparte al resto del servicio. */
+            Long userId = decodedJWT.getClaim(CLAIM_USER_ID).asLong();
+            authentication.setDetails(userId);
+
             SecurityContextHolder.getContext().setAuthentication(authentication);
         } catch (JWTVerificationException e) {
             SecurityContextHolder.clearContext();

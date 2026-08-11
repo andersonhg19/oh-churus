@@ -11,6 +11,15 @@ import java.util.Map;
 @RequestMapping("/v1/household")
 public class HouseholdController {
 
+    /*
+     * De aqui en adelante, el userId sale del token.
+     *
+     * Antes llegaba en el cuerpo de la peticion, o sea que lo decidia el
+     * cliente: bastaba con cambiar un numero para pedir el panel, los
+     * movimientos o el Excel de otra persona. Se ignora lo que venga en el
+     * cuerpo —el frontend puede seguir mandandolo— y manda el token.
+     */
+
     private final HouseholdServiceImpl householdService;
 
     public HouseholdController(HouseholdServiceImpl householdService) {
@@ -20,7 +29,7 @@ public class HouseholdController {
     @PostMapping(value = "/create", produces = "application/json")
     public ResponseEntity<ResultDTO> create(@RequestBody Map<String, Object> body) {
         String name = (String) body.get("name");
-        Long userId = Long.valueOf(body.get("userId").toString());
+        Long userId = com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId();   // el dueno es quien lo crea
         return ResponseEntity.ok(householdService.create(name, userId));
     }
 
@@ -40,7 +49,7 @@ public class HouseholdController {
 
     @PostMapping(value = "/by-user", produces = "application/json")
     public ResponseEntity<ResultDTO> getByUser(@RequestBody Map<String, Object> body) {
-        Long userId = Long.valueOf(body.get("userId").toString());
+        Long userId = com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId();
         return ResponseEntity.ok(householdService.getByUser(userId));
     }
 }

@@ -17,6 +17,15 @@ import java.util.Map;
 @RequestMapping("/v1/movements")
 public class MovementController {
 
+    /*
+     * De aqui en adelante, el userId sale del token.
+     *
+     * Antes llegaba en el cuerpo de la peticion, o sea que lo decidia el
+     * cliente: bastaba con cambiar un numero para pedir el panel, los
+     * movimientos o el Excel de otra persona. Se ignora lo que venga en el
+     * cuerpo —el frontend puede seguir mandandolo— y manda el token.
+     */
+
     private final MovementService movementService;
     private final BudgetAllocationServiceImpl budgetAllocationService;
 
@@ -38,6 +47,7 @@ public class MovementController {
 
     @PostMapping(value = "/all", produces = "application/json")
     public ResponseEntity<ResultDTO> getAll(@Valid @RequestBody MovementFilterDTO filter) {
+        filter.setUserId(com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId());
         return ResponseEntity.ok(movementService.getAll(filter));
     }
 
@@ -58,7 +68,7 @@ public class MovementController {
 
     @PostMapping(value = "/by-period", produces = "application/json")
     public ResponseEntity<ResultDTO> getByPeriod(@Valid @RequestBody PeriodRequestDTO dto) {
-        return ResponseEntity.ok(movementService.getByPeriod(dto.getUserId(), dto.getStartDate(), dto.getEndDate()));
+        return ResponseEntity.ok(movementService.getByPeriod(com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId(), dto.getStartDate(), dto.getEndDate()));
     }
 
     @PostMapping(value = "/children/{parentId}", produces = "application/json")
@@ -68,7 +78,7 @@ public class MovementController {
 
     @PostMapping(value = "/transfer", produces = "application/json")
     public ResponseEntity<ResultDTO> transfer(@RequestBody Map<String, Object> body) {
-        Long userId = Long.valueOf(body.get("userId").toString());
+        Long userId = com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId();
         Long fromCategoryId = Long.valueOf(body.get("fromCategoryId").toString());
         Long toCategoryId = Long.valueOf(body.get("toCategoryId").toString());
         BigDecimal amount = new BigDecimal(body.get("amount").toString());

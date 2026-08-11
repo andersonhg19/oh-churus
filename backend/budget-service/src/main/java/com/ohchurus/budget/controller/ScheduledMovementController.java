@@ -13,6 +13,15 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/v1/scheduled")
 public class ScheduledMovementController {
 
+    /*
+     * De aqui en adelante, el userId sale del token.
+     *
+     * Antes llegaba en el cuerpo de la peticion, o sea que lo decidia el
+     * cliente: bastaba con cambiar un numero para pedir el panel, los
+     * movimientos o el Excel de otra persona. Se ignora lo que venga en el
+     * cuerpo —el frontend puede seguir mandandolo— y manda el token.
+     */
+
     private final ScheduledMovementService scheduledMovementService;
 
     public ScheduledMovementController(ScheduledMovementService scheduledMovementService) {
@@ -31,6 +40,7 @@ public class ScheduledMovementController {
 
     @PostMapping(value = "/all", produces = "application/json")
     public ResponseEntity<ResultDTO> getAll(@Valid @RequestBody ScheduledMovementFilterDTO filter) {
+        filter.setUserId(com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId());
         return ResponseEntity.ok(scheduledMovementService.getAll(filter));
     }
 
@@ -41,7 +51,7 @@ public class ScheduledMovementController {
 
     @PostMapping(value = "/generate-pending", produces = "application/json")
     public ResponseEntity<ResultDTO> generatePending(@Valid @RequestBody GeneratePendingRequestDTO dto) {
-        return ResponseEntity.ok(scheduledMovementService.generatePending(dto.getUserId(), dto.getBudgetStartDay()));
+        return ResponseEntity.ok(scheduledMovementService.generatePending(com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId(), dto.getBudgetStartDay()));
     }
 
     @PostMapping(value = "/frequency-list", produces = "application/json")

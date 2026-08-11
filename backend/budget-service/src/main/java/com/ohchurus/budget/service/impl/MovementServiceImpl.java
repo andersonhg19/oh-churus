@@ -5,6 +5,7 @@ import com.ohchurus.budget.dto.input.MovementSaveDTO;
 import com.ohchurus.budget.dto.output.ResultDTO;
 import com.ohchurus.budget.dto.output.ResultMovementDTO;
 import com.ohchurus.budget.entity.Movement;
+import com.ohchurus.budget.util.ControlAcceso;
 import com.ohchurus.budget.mapper.MovementMapper;
 import com.ohchurus.budget.entity.Category;
 import com.ohchurus.budget.repository.CategoryRepository;
@@ -32,15 +33,27 @@ public class MovementServiceImpl implements MovementService {
     private final CategoryRepository categoryRepository;
     private final MovementMapper movementMapper;
     private final HouseholdServiceImpl householdService;
+    private final ControlAcceso acceso;
 
     public MovementServiceImpl(MovementRepository movementRepository,
                                CategoryRepository categoryRepository,
                                MovementMapper movementMapper,
-                               HouseholdServiceImpl householdService) {
+                               HouseholdServiceImpl householdService,
+                               ControlAcceso acceso) {
         this.movementRepository = movementRepository;
         this.categoryRepository = categoryRepository;
         this.movementMapper = movementMapper;
         this.householdService = householdService;
+        this.acceso = acceso;
+    }
+
+    /*
+     * Se responde "no existe" y no "no puedes" a proposito: contestar "no
+     * puedes" confirma que ese id existe, y con ids consecutivos eso permite
+     * averiguar cuantos movimientos tiene otra persona.
+     */
+    private boolean puedoTocar(Movement m) {
+        return acceso.puedeVer(m.getUserId(), m.getCategoryId());
     }
 
     @Override
@@ -98,7 +111,7 @@ public class MovementServiceImpl implements MovementService {
 
     private ResultDTO updateMovement(MovementSaveDTO dto) {
         Optional<Movement> existing = movementRepository.findByIdAndActiveTrue(dto.getId());
-        if (existing.isEmpty()) {
+        if (existing.isEmpty() || !puedoTocar(existing.get())) {
             return new ResultDTO(false, "Movement not found", 404);
         }
 
@@ -107,12 +120,9 @@ public class MovementServiceImpl implements MovementService {
         }
 
         Movement movement = existing.get();
-        // Don't change userId on shared movements - keep original creator
-        Category cat = categoryRepository.findByIdAndActiveTrue(dto.getCategoryId()).orElse(null);
-        if (cat != null && cat.getHouseholdId() == null) {
-            // Only change userId for personal categories
-            movement.setUserId(dto.getUserId());
-        }
+        /* El dueno NUNCA cambia en una actualizacion. Antes se reasignaba al
+           userId que viniera en el cuerpo, asi que mandar el id de un
+           movimiento ajeno bastaba para quedarse con el. */
         movement.setCategoryId(dto.getCategoryId());
         movement.setDate(dto.getDate());
         movement.setAmount(dto.getAmount());
@@ -132,7 +142,7 @@ public class MovementServiceImpl implements MovementService {
     public ResultDTO getById(Long id) {
         categoryCacheTL.remove();
         Optional<Movement> movement = movementRepository.findByIdAndActiveTrue(id);
-        if (movement.isEmpty()) {
+        if (movement.isEmpty() || !puedoTocar(movement.get())) {
             return new ResultDTO(false, "Movement not found", 404);
         }
         return new ResultDTO(enrichWithCategory(movementMapper.toResultDTO(movement.get())));
@@ -185,7 +195,7 @@ public class MovementServiceImpl implements MovementService {
     public ResultDTO confirmWithAmount(Long id, java.math.BigDecimal newAmount) {
         categoryCacheTL.remove();
         Optional<Movement> movement = movementRepository.findByIdAndActiveTrue(id);
-        if (movement.isEmpty()) {
+        if (movement.isEmpty() || !puedoTocar(movement.get())) {
             return new ResultDTO(false, "Movement not found", 404);
         }
 
@@ -221,7 +231,7 @@ public class MovementServiceImpl implements MovementService {
     public ResultDTO getChildren(Long parentId) {
         categoryCacheTL.remove();
         Optional<Movement> parentOpt = movementRepository.findByIdAndActiveTrue(parentId);
-        if (parentOpt.isEmpty()) {
+        if (parentOpt.isEmpty() || !puedoTocar(parentOpt.get())) {
             return new ResultDTO(false, "Parent movement not found", 404);
         }
 
@@ -257,7 +267,7 @@ public class MovementServiceImpl implements MovementService {
     @Override
     public ResultDTO delete(Long id) {
         Optional<Movement> movement = movementRepository.findByIdAndActiveTrue(id);
-        if (movement.isEmpty()) {
+        if (movement.isEmpty() || !puedoTocar(movement.get())) {
             return new ResultDTO(false, "Movement not found", 404);
         }
 

@@ -29,6 +29,25 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(DashboardController.class)
 @AutoConfigureMockMvc(addFilters = false)
 class DashboardControllerTest {
+    /* Los controllers ya no aceptan el userId del cuerpo: lo sacan del token.
+       Estas pruebas usan @WebMvcTest con los filtros apagados, asi que no hay
+       token; se planta la identidad a mano para poder seguir probando el
+       CONTROLLER. Que el userId del cuerpo se ignore de verdad lo demuestra
+       AislamientoEntreUsuariosTest con la aplicacion entera levantada. */
+    @org.junit.jupiter.api.BeforeEach
+    void autenticarComoUsuario1() {
+        var auth = new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                "usuario1@ohchurus.com", null, java.util.Collections.emptyList());
+        auth.setDetails(1L);
+        org.springframework.security.core.context.SecurityContextHolder.getContext()
+                .setAuthentication(auth);
+    }
+
+    @org.junit.jupiter.api.AfterEach
+    void limpiarSesion() {
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+    }
+
 
     @Autowired
     private MockMvc mockMvc;

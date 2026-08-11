@@ -1,6 +1,7 @@
 package com.ohchurus.auth.service.impl;
 
 import com.ohchurus.auth.dto.input.UserFilterDTO;
+import com.ohchurus.auth.dto.input.UserRegisterDTO;
 import com.ohchurus.auth.dto.input.UserSaveDTO;
 import com.ohchurus.auth.dto.output.ResultDTO;
 import com.ohchurus.auth.dto.output.ResultUserDTO;
@@ -38,6 +39,27 @@ public class UserServiceImpl implements UserService {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.userMapper = userMapper;
+    }
+
+    /**
+     * Alta publica. No delega en saveAndUpdate a proposito: ese metodo decide
+     * entre crear y actualizar mirando si viene "id", y por esa puerta se podia
+     * secuestrar la cuenta de cualquiera sin estar autenticado. Aqui no hay
+     * decision posible: siempre crea.
+     */
+    @Override
+    public ResultDTO register(UserRegisterDTO dto) {
+        try {
+            UserSaveDTO alta = new UserSaveDTO();
+            alta.setName(dto.getName());
+            alta.setEmail(dto.getEmail());
+            alta.setPassword(dto.getPassword());
+            alta.setBudgetStartDay(dto.getBudgetStartDay());
+            return createUser(alta);
+        } catch (Exception e) {
+            log.error("Error registering user: {}", e.getMessage(), e);
+            return new ResultDTO(false, "Error saving user", 500);
+        }
     }
 
     @Override

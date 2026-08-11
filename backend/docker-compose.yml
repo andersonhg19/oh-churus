@@ -12,7 +12,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./init-db/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql
@@ -55,7 +55,7 @@ services:
     build:
       context: ./auth-service
     ports:
-      - "8821:8821"
+      - "127.0.0.1:8821:8821"
     depends_on:
       discovery-service:
         condition: service_healthy
@@ -80,7 +80,7 @@ services:
     build:
       context: ./budget-service
     ports:
-      - "8823:8823"
+      - "127.0.0.1:8823:8823"
     depends_on:
       discovery-service:
         condition: service_healthy

@@ -32,15 +32,18 @@ public class CategoryServiceImpl implements CategoryService {
     private final com.ohchurus.budget.repository.MovementRepository movementRepository;
     private final CategoryMapper categoryMapper;
     private final HouseholdServiceImpl householdService;
+    private final com.ohchurus.budget.util.ControlAcceso acceso;
 
     public CategoryServiceImpl(CategoryRepository categoryRepository,
                                 com.ohchurus.budget.repository.MovementRepository movementRepository,
                                 CategoryMapper categoryMapper,
-                                HouseholdServiceImpl householdService) {
+                                HouseholdServiceImpl householdService,
+                                com.ohchurus.budget.util.ControlAcceso acceso) {
         this.categoryRepository = categoryRepository;
         this.movementRepository = movementRepository;
         this.categoryMapper = categoryMapper;
         this.householdService = householdService;
+        this.acceso = acceso;
     }
 
     @Override
@@ -89,7 +92,7 @@ public class CategoryServiceImpl implements CategoryService {
 
     private ResultDTO updateCategory(CategorySaveDTO dto) {
         Optional<Category> existing = categoryRepository.findByIdAndActiveTrue(dto.getId());
-        if (existing.isEmpty()) {
+        if (existing.isEmpty() || !acceso.puedeVerCategoria(existing.get())) {
             return new ResultDTO(false, "Category not found", 204);
         }
 
@@ -147,7 +150,7 @@ public class CategoryServiceImpl implements CategoryService {
     @Transactional(readOnly = true)
     public ResultDTO getById(Long id) {
         Optional<Category> category = categoryRepository.findByIdAndActiveTrue(id);
-        if (category.isEmpty()) {
+        if (category.isEmpty() || !acceso.puedeVerCategoria(category.get())) {
             return new ResultDTO(false, "Category not found", 204);
         }
         return new ResultDTO(categoryMapper.toResultDTO(category.get()));
@@ -224,7 +227,7 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     public ResultDTO delete(Long id) {
         Optional<Category> category = categoryRepository.findByIdAndActiveTrue(id);
-        if (category.isEmpty()) {
+        if (category.isEmpty() || !acceso.puedeVerCategoria(category.get())) {
             return new ResultDTO(false, "Category not found", 404);
         }
 

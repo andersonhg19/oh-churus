@@ -41,19 +41,27 @@ public class ScheduledMovementServiceImpl implements ScheduledMovementService {
     private final ScheduledMovementMapper scheduledMovementMapper;
     private final MovementMapper movementMapper;
     private final HouseholdServiceImpl householdService;
+    private final com.ohchurus.budget.util.ControlAcceso acceso;
 
     public ScheduledMovementServiceImpl(ScheduledMovementRepository scheduledMovementRepository,
                                          MovementRepository movementRepository,
                                          CategoryRepository categoryRepository,
                                          ScheduledMovementMapper scheduledMovementMapper,
                                          MovementMapper movementMapper,
-                                         HouseholdServiceImpl householdService) {
+                                         HouseholdServiceImpl householdService,
+                                         com.ohchurus.budget.util.ControlAcceso acceso) {
         this.scheduledMovementRepository = scheduledMovementRepository;
         this.movementRepository = movementRepository;
         this.categoryRepository = categoryRepository;
         this.scheduledMovementMapper = scheduledMovementMapper;
         this.movementMapper = movementMapper;
         this.householdService = householdService;
+        this.acceso = acceso;
+    }
+
+    /** Un programado es tuyo, o esta en una categoria compartida de tu hogar. */
+    private boolean puedoTocar(ScheduledMovement p) {
+        return acceso.puedeVer(p.getUserId(), p.getCategoryId());
     }
 
     @Override
@@ -133,7 +141,7 @@ public class ScheduledMovementServiceImpl implements ScheduledMovementService {
     @Transactional(readOnly = true)
     public ResultDTO getById(Long id) {
         Optional<ScheduledMovement> scheduled = scheduledMovementRepository.findByIdAndActiveTrue(id);
-        if (scheduled.isEmpty()) {
+        if (scheduled.isEmpty() || !puedoTocar(scheduled.get())) {
             return new ResultDTO(false, "Scheduled movement not found", 404);
         }
         ResultScheduledMovementDTO dto = scheduledMovementMapper.toResultDTO(scheduled.get());
@@ -185,7 +193,7 @@ public class ScheduledMovementServiceImpl implements ScheduledMovementService {
     @Override
     public ResultDTO delete(Long id) {
         Optional<ScheduledMovement> scheduled = scheduledMovementRepository.findByIdAndActiveTrue(id);
-        if (scheduled.isEmpty()) {
+        if (scheduled.isEmpty() || !puedoTocar(scheduled.get())) {
             return new ResultDTO(false, "Scheduled movement not found", 404);
         }
 

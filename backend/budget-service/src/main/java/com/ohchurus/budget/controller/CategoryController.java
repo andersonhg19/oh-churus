@@ -32,13 +32,13 @@ public class CategoryController {
 
     @PostMapping(value = "/all", produces = "application/json")
     public ResponseEntity<ResultDTO> getAll(@Valid @RequestBody CategoryFilterDTO filter) {
+        filter.setUserId(com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId());
         return ResponseEntity.ok(categoryService.getAll(filter));
     }
 
     @PostMapping(value = "/tree", produces = "application/json")
     public ResponseEntity<ResultDTO> getTree(@RequestBody Map<String, Long> body) {
-        Long userId = body.get("userId");
-        return ResponseEntity.ok(categoryService.getTree(userId));
+        return ResponseEntity.ok(categoryService.getTree(com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId()));
     }
 
     @PostMapping(value = "/delete/{id}", produces = "application/json")

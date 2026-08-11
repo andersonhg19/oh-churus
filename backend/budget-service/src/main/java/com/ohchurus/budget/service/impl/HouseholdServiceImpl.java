@@ -51,6 +51,13 @@ public class HouseholdServiceImpl {
 
     public ResultDTO addMember(Long householdId, Long userId) {
         try {
+            /* Solo el dueno del hogar invita. Antes no se comprobaba NADA:
+               cualquiera enviaba {householdId: 1, userId: <el suyo>} y entraba
+               en la casa de otra pareja, viendo todas sus finanzas compartidas.
+               Los householdId son consecutivos, asi que se adivinan probando. */
+            if (!esDuenoDelHogar(householdId)) {
+                return new ResultDTO(false, "Household not found", 404);
+            }
             if (memberRepository.existsByHouseholdIdAndUserIdAndActiveTrue(householdId, userId)) {
                 return new ResultDTO(false, "User is already a member", 400);
             }
@@ -71,6 +78,9 @@ public class HouseholdServiceImpl {
 
     public ResultDTO removeMember(Long householdId, Long userId) {
         try {
+            if (!esDuenoDelHogar(householdId)) {
+                return new ResultDTO(false, "Household not found", 404);
+            }
             var member = memberRepository.findByHouseholdIdAndUserIdAndActiveTrue(householdId, userId);
             if (member.isEmpty()) {
                 return new ResultDTO(false, "Member not found", 404);
@@ -84,6 +94,15 @@ public class HouseholdServiceImpl {
         } catch (Exception e) {
             return new ResultDTO(false, "Error removing member", 500);
         }
+    }
+
+    /** ¿Quien pide esto es el OWNER de ese hogar? */
+    private boolean esDuenoDelHogar(Long householdId) {
+        Long yo = com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId();
+        if (yo == null || householdId == null) return false;
+        return memberRepository.findByHouseholdIdAndUserIdAndActiveTrue(householdId, yo)
+                .map(m -> "OWNER".equals(m.getRole()))
+                .orElse(false);
     }
 
     @Transactional(readOnly = true)

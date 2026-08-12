@@ -19,6 +19,13 @@ env:
   JAVA_VERSION: '17'
   JAVA_DISTRIBUTION: temurin
   NODE_VERSION: '24.14.0'
+  # La carpeta se llama "documentación", con tilde, y ahi escribe la spec de
+  # OpenAPI una prueba de Java. Sin una configuracion regional UTF-8, la JVM 17
+  # coge la del sistema (ASCII en los runners) y crea "documentaci?n": la spec
+  # acaba en una carpeta que no es, el paso que compara no ve cambios y el
+  # guardarrail se vuelve decorativo sin ponerse rojo ni una vez.
+  LANG: C.UTF-8
+  LC_ALL: C.UTF-8
 
 jobs:
 
@@ -40,9 +47,37 @@ jobs:
           cache: maven
 
       # verify, no test: el suelo de cobertura (jacoco:check) esta en verify.
+      #
+      # Aqui SI hay Docker (los runners de GitHub lo traen), asi que las pruebas
+      # de Testcontainers —las que ejecutan las @Query contra un PostgreSQL de
+      # verdad— se ejecutan de verdad en vez de saltarse.
       - name: Pruebas y cobertura
         working-directory: backend
         run: mvn -B clean verify
+
+      # ----------------------------------------------------------------------
+      # EL oasdiff DEL POBRE
+      # ----------------------------------------------------------------------
+      # El paso de arriba ya compara la spec generada con la commiteada, pero
+      # falla con un diff de texto de 40 KB que no hay quien lea. Este paso la
+      # REGENERA y deja que git diga exactamente que cambio, endpoint por
+      # endpoint. Es el aviso util: "cambiaste la API y no actualizaste
+      # documentación/api".
+      - name: La spec de OpenAPI sigue describiendo la API
+        working-directory: backend
+        run: >
+          mvn -B test -Dtest=LaSpecPublicadaEstaAlDiaTest -DfailIfNoTests=false
+          -Djacoco.skip=true -Dactualizar.spec=true
+
+      - name: Fallar si la spec commiteada quedo atras
+        run: |
+          if ! git diff --exit-code -- documentación/api; then
+            echo "::error::La especificacion OpenAPI commiteada ya no describe la API."
+            echo "::error::Regenerala y commitea el cambio:"
+            echo "::error::  cd backend && mvn -B test -Dtest=LaSpecPublicadaEstaAlDiaTest -Dactualizar.spec=true"
+            exit 1
+          fi
+          echo "La spec commiteada coincide con la que genera el codigo."
 
       - name: Guardar informes del backend
         if: always()

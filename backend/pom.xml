@@ -21,6 +21,36 @@
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<spring-cloud.version>2023.0.3</spring-cloud.version>
 		<java.version>17</java.version>
+		<!--
+			LA VERSION DE LA API DEL DEMONIO DE DOCKER, PARA TESTCONTAINERS
+
+			docker-java —el cliente que usa Testcontainers— pide por defecto la
+			API 1.32. Docker Engine 29 subio el MINIMO que acepta a la 1.44 y
+			contesta "400 Bad Request" a cualquier version anterior. El sintoma no
+			es un fallo: Testcontainers concluye "aqui no hay Docker" y las
+			pruebas se SALTAN habiendolo. Un guardarrail que se salta solo es peor
+			que no tenerlo, porque la construccion sale verde igual.
+
+			Se declara aqui, y no en el codigo, porque tiene que estar puesta
+			antes de que arranque la JVM de las pruebas. Si algun dia hace falta
+			otra —un demonio viejo que no llegue a la 1.44— se cambia con
+			-Ddocker.api.version=1.43 sin tocar nada.
+		-->
+		<docker.api.version>1.44</docker.api.version>
+		<!--
+			springdoc para Boot 3.2. La rama 2.x es la de Spring Boot 3; la 3.x
+			NO vale aqui (pide Boot 4). Si algun dia se sube Boot, esta version
+			sube con el, y no antes.
+		-->
+		<springdoc.version>2.3.0</springdoc.version>
+		<!--
+			Puesto a "true" (-Dactualizar.spec=true), LaSpecPublicadaEstaAlDiaTest
+			REESCRIBE el JSON de documentación/api en vez de compararlo. Es la
+			forma de regenerar la spec despues de cambiar un endpoint.
+			Se declara aqui, con valor por defecto, para que la propiedad llegue
+			SIEMPRE definida a la JVM de las pruebas.
+		-->
+		<actualizar.spec>false</actualizar.spec>
 		<maven.compiler.source>17</maven.compiler.source>
 		<maven.compiler.target>17</maven.compiler.target>
 	</properties>
@@ -46,6 +76,20 @@
 	</modules>
 
 	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<configuration>
+					<!-- Ver el comentario de docker.api.version arriba. Los modulos
+					     que anaden sus propias <excludes> heredan esto igualmente. -->
+					<systemPropertyVariables>
+						<api.version>${docker.api.version}</api.version>
+						<actualizar.spec>${actualizar.spec}</actualizar.spec>
+					</systemPropertyVariables>
+				</configuration>
+			</plugin>
+		</plugins>
 		<pluginManagement>
 			<plugins>
 				<plugin>

@@ -78,6 +78,8 @@ class NingunEndpointSinDuenoTest {
                 "catalogo de tipos de categoria: constantes del enum, no hay datos de nadie", null));
         EXENTAS.put("/v1/scheduled/frequency-list", new Exencion(
                 "catalogo de frecuencias: constantes del enum, no hay datos de nadie", null));
+        EXENTAS.put("/v1/accounts/kind-list", new Exencion(
+                "catalogo de clases de cuenta: constantes del enum, no hay datos de nadie", null));
 
         // --- No reciben ningun id ajeno: el userId sale del token y el cuerpo se ignora ---
         // El panel es el representante de esta familia porque fue el caso real:
@@ -136,17 +138,19 @@ class NingunEndpointSinDuenoTest {
      */
     private static final Map<String, String> PENDIENTES = new LinkedHashMap<>();
     static {
-        PENDIENTES.put("/v1/budget-allocation/save",
-                "el categoryId del cuerpo no se contrasta con quien llama: con el id de una "
-                        + "categoria ajena se le reescribe a otro el presupuesto del periodo");
-        PENDIENTES.put("/v1/movements/transfer",
-                "solo se exige que la categoria destino sea tuya; de la de origen basta con "
-                        + "que sea compartida, sin comprobar que el hogar sea tuyo");
-        PENDIENTES.put("/v1/scheduled/save",
-                "updateScheduled no pregunta de quien es el programado antes de sobreescribirlo");
-        PENDIENTES.put("/v1/categories/save",
-                "editar si pasa por ControlAcceso, pero crear toma el userId del cuerpo: se "
-                        + "puede crear una categoria a nombre de otra persona");
+        /*
+         * Vacia, y que siga asi.
+         *
+         * Aqui vivieron cuatro: budget-allocation/save, movements/transfer,
+         * scheduled/save y categories/save. Las cuatro se cerraron en la ronda
+         * de control y tienen su caso en la seccion "Creacion" de la matriz.
+         *
+         * Se borran de aqui porque una lista de deuda que nombra deuda ya
+         * pagada es peor que no tenerla: la lees, te crees que hay cuatro
+         * agujeros abiertos, y dejas de creerte la lista entera. Lo vigila
+         * laDeudaNoSePudre, que se pone roja si una ruta esta a la vez en esta
+         * lista y en la matriz.
+         */
     }
 
     /** Que hacer cuando esto se pone rojo. Se imprime con el fallo a proposito. */
@@ -212,6 +216,35 @@ class NingunEndpointSinDuenoTest {
                 .as("una exencion se apoya en una ruta que la matriz ya no ejercita: la exencion "
                         + "se quedo sin fundamento, o vuelve a poner ese caso en la matriz o "
                         + "escribe el suyo propio")
+                .isEmpty();
+    }
+
+    @Test
+    @DisplayName("la deuda no se pudre: nada figura como pendiente si ya esta en la matriz")
+    void laDeudaNoSePudre() {
+        /*
+         * Cerrar un agujero y olvidarse de borrar su linea de PENDIENTES deja
+         * el fichero diciendo que sigue abierto. Paso de verdad: las cuatro
+         * entradas que habia aqui se arreglaron en la ronda de control y
+         * siguieron listadas como deuda durante toda esa ronda.
+         *
+         * Y hay algo peor que la mentira: mientras una ruta figure en
+         * PENDIENTES, la comprobacion principal la da por clasificada y deja
+         * de exigirle un caso. Una deuda vieja se convierte en un permiso
+         * permanente para no probar esa ruta.
+         */
+        Set<String> matriz = rutasQueEjercitaLaMatriz();
+
+        List<String> yaCerradas = new ArrayList<>();
+        PENDIENTES.keySet().forEach(ruta -> {
+            if (estaEnLaMatriz(ruta, matriz)) {
+                yaCerradas.add(ruta + " figura como deuda pero la matriz ya la ejercita");
+            }
+        });
+
+        assertThat(yaCerradas)
+                .as("borra estas lineas de PENDIENTES: describen agujeros que ya estan cerrados, "
+                        + "y mientras esten ahi esta prueba no le exigira un caso a esa ruta")
                 .isEmpty();
     }
 

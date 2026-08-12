@@ -120,7 +120,11 @@ class DTOTest {
     @DisplayName("MovementSaveDTO all fields via setters and AllArgsConstructor, including parentMovementId")
     void testMovementSave() {
         LocalDate now = LocalDate.now();
-        MovementSaveDTO dto = new MovementSaveDTO(1L, 2L, 3L, now, new BigDecimal("1000"), "desc", 4L, 5L, true);
+        /* El accountId (7L) entra detras del parentMovementId. Este
+           constructor posicional se rompe cada vez que la entidad crece, que
+           es justo lo que acaba de pasar; se mantiene porque comprueba que
+           @AllArgsConstructor sigue generandose y en que orden. */
+        MovementSaveDTO dto = new MovementSaveDTO(1L, 2L, 3L, now, new BigDecimal("1000"), "desc", 4L, 5L, 7L, true);
         assertEquals(1L, dto.getId());
         assertEquals(2L, dto.getUserId());
         assertEquals(3L, dto.getCategoryId());
@@ -654,12 +658,15 @@ class DTOTest {
         assertNotNull(m2.getUpdatedAt());
 
         // AllArgs
-        Movement m3 = new Movement(1L, 2L, 3L, date, new BigDecimal("50"), "d", 4L, date, 5L, true, 6L, true, true, now, now);
+        Movement m3 = new Movement(1L, 2L, 3L, date, new BigDecimal("50"), "d", 4L, date, 5L,
+                7L, false, true, 6L, true, true, now, now);
         assertEquals(new BigDecimal("50"), m3.getAmount());
         assertEquals(date, m3.getPeriodStart());
         assertEquals(5L, m3.getParentMovementId());
         assertTrue(m3.getIsTransfer());
         assertEquals(6L, m3.getTransferPairId());
+        assertEquals(7L, m3.getAccountId());
+        assertFalse(m3.getIsOpening());
     }
 
     @Test

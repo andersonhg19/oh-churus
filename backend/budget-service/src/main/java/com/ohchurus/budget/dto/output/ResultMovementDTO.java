@@ -29,4 +29,8 @@ public class ResultMovementDTO {
     private String categoryType;
     private String categoryIcon;
     private String categoryColor;
+
+    private Long accountId;
+    private String accountName;
+    private Boolean isOpening;
 }

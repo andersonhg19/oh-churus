@@ -27,6 +27,9 @@ import PeriodConfigScreen from '../screens/settings/PeriodConfigScreen';
 import HouseholdScreen from '../screens/settings/HouseholdScreen';
 import CategoriesScreen from '../screens/categories/CategoriesScreen';
 import CategoryFormScreen from '../screens/categories/CategoryFormScreen';
+import AccountsScreen from '../screens/accounts/AccountsScreen';
+import AccountFormScreen from '../screens/accounts/AccountFormScreen';
+import ReconcileScreen from '../screens/accounts/ReconcileScreen';
 
 // Budget & Consolidated screens
 import BudgetScreen from '../screens/budget/BudgetScreen';
@@ -37,7 +40,7 @@ import FastingDashboardScreen from '../screens/fasting/FastingDashboardScreen';
 import FastingHistoryScreen from '../screens/fasting/FastingHistoryScreen';
 import FastingConfigScreen from '../screens/fasting/FastingConfigScreen';
 
-import { Movement, CategoryTree, ScheduledMovement } from '../types';
+import { Movement, CategoryTree, ScheduledMovement, Account} from '../types';
 
 // --- Type definitions ---
 type AuthStackParamList = {
@@ -78,6 +81,9 @@ type SettingsStackParamList = {
   Consolidated: undefined;
   CategoriesList: undefined;
   CategoryForm: { category?: CategoryTree };
+  AccountsList: undefined;
+  AccountForm: { account?: Account };
+  Reconcile: { account: Account };
 };
 
 // --- Stacks ---
@@ -169,6 +175,9 @@ const SettingsNavigator = () => {
       <SettingsStack.Screen name="Household" component={HouseholdScreen} options={{ title: 'Nucleo Familiar' }} />
       <SettingsStack.Screen name="CategoriesList" component={CategoriesScreen} options={{ title: 'Categorias' }} />
       <SettingsStack.Screen name="CategoryForm" component={CategoryFormScreen} options={{ title: 'Categoria' }} />
+      <SettingsStack.Screen name="AccountsList" component={AccountsScreen} options={{ title: 'Cuentas' }} />
+      <SettingsStack.Screen name="AccountForm" component={AccountFormScreen} options={{ title: 'Cuenta' }} />
+      <SettingsStack.Screen name="Reconcile" component={ReconcileScreen} options={{ title: 'Conciliar' }} />
       <SettingsStack.Screen name="Consolidated" component={ConsolidatedScreen} options={{ title: 'Consolidado Mensual' }} />
     </SettingsStack.Navigator>
   );

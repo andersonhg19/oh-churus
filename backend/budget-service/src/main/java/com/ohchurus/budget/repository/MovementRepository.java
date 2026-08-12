@@ -64,6 +64,13 @@ public interface MovementRepository extends JpaRepository<Movement, Long> {
 
     boolean existsByCategoryIdAndActiveTrue(Long categoryId);
 
+    /** Todos los movimientos vivos de una cuenta. Los filtra Computables. */
+    List<Movement> findByAccountIdAndActiveTrue(Long accountId);
+
+    /** ¿Queda algo colgando de esta cuenta? Se usa para no dejarla huerfana al borrarla. */
+    boolean existsByAccountIdAndActiveTrue(Long accountId);
+
+
     // Household-aware queries: include movements from ALL household members in shared categories
     @Query("SELECT m FROM Movement m WHERE m.active = true AND m.date BETWEEN :start AND :end " +
             "AND m.confirmed = true " +

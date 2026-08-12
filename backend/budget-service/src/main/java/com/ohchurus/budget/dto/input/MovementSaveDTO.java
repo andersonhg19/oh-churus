@@ -43,5 +43,12 @@ public class MovementSaveDTO {
 
     private Long parentMovementId;
 
+    /**
+     * En que cuenta ocurrio. Opcional a proposito: si no viene, el servicio la
+     * pone en la cuenta por defecto. Exigirlo dejaria de golpe sin poder
+     * guardar a cualquier cliente que aun no conozca las cuentas.
+     */
+    private Long accountId;
+
     private Boolean confirmed = true;
 }

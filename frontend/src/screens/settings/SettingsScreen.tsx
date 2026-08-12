@@ -13,6 +13,7 @@ import { CategoryTree } from '../../types';
 type SettingsStackParamList = {
   SettingsMain: undefined;
   CategoriesList: undefined;
+  AccountsList: undefined;
   CategoryForm: { category?: CategoryTree };
   ExportImport: undefined;
   PeriodConfig: undefined;
@@ -64,6 +65,13 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
       <Card style={styles.menuItem} onPress={() => navigation.navigate('Household')}>
         <View style={styles.menuRow}>
           <AppText variant="body">🏠 Nucleo Familiar</AppText>
+          <AppText variant="body" color={colors.textMuted}>›</AppText>
+        </View>
+      </Card>
+
+      <Card style={styles.menuItem} onPress={() => navigation.navigate('AccountsList')}>
+        <View style={styles.menuRow}>
+          <AppText variant="body">🏦 Cuentas y saldos</AppText>
           <AppText variant="body" color={colors.textMuted}>›</AppText>
         </View>
       </Card>

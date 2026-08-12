@@ -24,6 +24,7 @@ import java.util.stream.Collectors;
 @Transactional
 public class BudgetAllocationServiceImpl {
 
+    private final AccountServiceImpl cuentas;
     private final BudgetAllocationRepository allocationRepository;
     private final com.ohchurus.budget.util.ControlAcceso acceso;
     private final MovementRepository movementRepository;
@@ -34,12 +35,14 @@ public class BudgetAllocationServiceImpl {
                                         MovementRepository movementRepository,
                                         CategoryRepository categoryRepository,
                                         HouseholdServiceImpl householdService,
-                                       com.ohchurus.budget.util.ControlAcceso acceso) {
+                                       com.ohchurus.budget.util.ControlAcceso acceso,
+                                        AccountServiceImpl cuentas) {
         this.allocationRepository = allocationRepository;
         this.movementRepository = movementRepository;
         this.categoryRepository = categoryRepository;
         this.householdService = householdService;
         this.acceso = acceso;
+        this.cuentas = cuentas;
     }
 
     // ===== CRUD =====
@@ -262,9 +265,17 @@ public class BudgetAllocationServiceImpl {
             LocalDate today = LocalDate.now();
             String desc = description != null ? description : "Disponibilizar";
 
+            /* Las dos patas necesitan cuenta. Un movimiento sin cuenta no
+               aparece en ningun saldo pero si cuenta en el presupuesto, que es
+               la peor clase de descuadre: invisible. Van a la cuenta por
+               defecto porque disponibilizar mueve plata entre CATEGORIAS, no
+               entre cuentas — la plata no cambia de banco al hacerlo. */
+            Long cuentaId = cuentas.porDefecto(userId).getId();
+
             // 1. Expense in shared category (visible to all household)
             Movement expense = Movement.builder()
                     .userId(userId)
+                    .accountId(cuentaId)
                     .categoryId(fromCategoryId)
                     .date(today)
                     .amount(amount)
@@ -278,6 +289,7 @@ public class BudgetAllocationServiceImpl {
             // 2. Income in personal category (visible only to owner)
             Movement income = Movement.builder()
                     .userId(userId)
+                    .accountId(cuentaId)
                     .categoryId(toCategoryId)
                     .date(today)
                     .amount(amount)

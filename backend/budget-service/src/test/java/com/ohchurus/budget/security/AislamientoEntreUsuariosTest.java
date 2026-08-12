@@ -10,6 +10,9 @@ import com.ohchurus.budget.entity.Movement;
 import com.ohchurus.budget.entity.ScheduledMovement;
 import com.ohchurus.budget.enums.CategoryType;
 import com.ohchurus.budget.enums.Frequency;
+import com.ohchurus.budget.entity.Account;
+import com.ohchurus.budget.enums.AccountKind;
+import com.ohchurus.budget.repository.AccountRepository;
 import com.ohchurus.budget.repository.BudgetAllocationRepository;
 import com.ohchurus.budget.repository.CategoryRepository;
 import com.ohchurus.budget.repository.HouseholdMemberRepository;
@@ -101,12 +104,16 @@ class AislamientoEntreUsuariosTest {
     private Long programadoDeAna;
     private Long asignacionDeAna;
     private Long hogarDeAna;
+    private Long cuentaDeAna;
+
+    @Autowired private AccountRepository cuentas;
 
     @BeforeEach
     void prepararEscenario() {
         mvc = MockMvcBuilders.webAppContextSetup(contexto).apply(springSecurity()).build();
 
         movimientos.deleteAll();
+        cuentas.deleteAll();
         asignaciones.deleteAll();
         programados.deleteAll();
         categorias.deleteAll();
@@ -122,8 +129,12 @@ class AislamientoEntreUsuariosTest {
                 .userId(ANA).name("Arriendo de Ana").type(CategoryType.EXPENSE).active(true).build());
         categoriaDeAna = cat.getId();
 
+        cuentaDeAna = cuentas.save(Account.builder()
+                .userId(ANA).name("Ahorros de Ana").kind(AccountKind.OWN)
+                .isDefault(true).active(true).build()).getId();
+
         Movement mov = movimientos.save(Movement.builder()
-                .userId(ANA).categoryId(categoriaDeAna).date(LocalDate.now())
+                .userId(ANA).accountId(cuentaDeAna).categoryId(categoriaDeAna).date(LocalDate.now())
                 .amount(new BigDecimal("1500000")).description("Arriendo de Ana")
                 .confirmed(true).active(true).isTransfer(false).build());
         movimientoDeAna = mov.getId();
@@ -320,6 +331,41 @@ class AislamientoEntreUsuariosTest {
         }
 
         @Test
+        @DisplayName("no puede sacar plata del bote comun del hogar de Ana")
+        void transferirDesdeElBoteAjeno() throws Exception {
+            /*
+             * Este caso faltaba, y lo delato el guardarrail: la comprobacion
+             * se arreglo en la ronda de control (transfer exige ahora que el
+             * hogar de la categoria de origen sea tuyo) pero nadie escribio la
+             * prueba, asi que la ruta seguia figurando como deuda pendiente y
+             * NingunEndpointSinDueno dejaba de exigirle un caso. Arreglo sin
+             * prueba es arreglo que se puede deshacer sin enterarse.
+             *
+             * El ataque: Bruno tiene un token valido y conoce el id de la
+             * categoria compartida del hogar de Ana —basta con que alguna vez
+             * se la hayan compartido, o con probar ids—. Antes bastaba con que
+             * la categoria de origen fuera COMPARTIDA; nadie miraba de quien
+             * era el hogar. Bruno se pasaba el bote comun de otra pareja a su
+             * bolsillo.
+             */
+            Long boteDeAna = categorias.save(Category.builder()
+                    .userId(ANA).name("Bote comun de Ana").type(CategoryType.EXPENSE)
+                    .householdId(hogarDeAna).active(true).build()).getId();
+            Long bolsilloDeBruno = categorias.save(Category.builder()
+                    .userId(BRUNO).name("Bolsillo de Bruno").type(CategoryType.INCOME)
+                    .active(true).build()).getId();
+            long antes = movimientos.count();
+
+            atacar("/v1/movements/transfer",
+                    "{\"fromCategoryId\":" + boteDeAna + ",\"toCategoryId\":" + bolsilloDeBruno
+                            + ",\"amount\":400000,\"description\":\"robo\"}");
+
+            assertThat(movimientos.count())
+                    .as("Bruno se llevo plata del bote comun de la pareja de Ana")
+                    .isEqualTo(antes);
+        }
+
+        @Test
         @DisplayName("no puede presupuestar sobre una categoria de Ana")
         void asignacion() throws Exception {
             /* Ana ya tiene 2.000.000 presupuestados en esta categoria. Como el
@@ -409,6 +455,83 @@ class AislamientoEntreUsuariosTest {
                     "{\"userId\":" + ANA + ",\"startDate\":\"" + LocalDate.now().minusDays(30)
                             + "\",\"endDate\":\"" + LocalDate.now().plusDays(1) + "\"}"),
                     "Arriendo de Ana");
+        }
+    }
+
+    // ========================================================================
+    @Nested
+    @DisplayName("Cuentas")
+    class Cuentas {
+
+        /*
+         * La superficie mas nueva y la mas golosa: la cuenta dice CUANTA PLATA
+         * tiene alguien. Leer el saldo de otra persona es peor que leerle un
+         * gasto suelto, porque es el resumen de todos.
+         */
+
+        @Test
+        @DisplayName("no puede ver el saldo de la cuenta de Ana")
+        void leerCuenta() throws Exception {
+            noFiltraDatosDeAna(atacar("/v1/accounts/get/" + cuentaDeAna, null), "Ahorros de Ana");
+        }
+
+        @Test
+        @DisplayName("el listado de cuentas no incluye las de Ana")
+        void listarCuentas() throws Exception {
+            noFiltraDatosDeAna(atacar("/v1/accounts/all", "{}"), "Ahorros de Ana");
+        }
+
+        @Test
+        @DisplayName("no puede renombrar ni reclasificar la cuenta de Ana")
+        void editarCuenta() throws Exception {
+            atacar("/v1/accounts/save",
+                    "{\"id\":" + cuentaDeAna + ",\"name\":\"Secuestrada\",\"kind\":\"LIABILITY\"}");
+
+            Account cuenta = cuentas.findById(cuentaDeAna).orElseThrow();
+            assertThat(cuenta.getName())
+                    .as("le renombraron la cuenta a Ana")
+                    .isEqualTo("Ahorros de Ana");
+            assertThat(cuenta.getUserId())
+                    .as("la cuenta cambio de dueno")
+                    .isEqualTo(ANA);
+        }
+
+        @Test
+        @DisplayName("no puede borrar la cuenta de Ana")
+        void borrarCuenta() throws Exception {
+            atacar("/v1/accounts/delete/" + cuentaDeAna, null);
+            assertThat(cuentas.findById(cuentaDeAna).orElseThrow().getActive())
+                    .as("le desactivaron la cuenta a Ana y sus movimientos se quedan sin sitio")
+                    .isTrue();
+        }
+
+        @Test
+        @DisplayName("no puede conciliar la cuenta de Ana: eso le inventaria un movimiento")
+        void conciliarCuenta() throws Exception {
+            long antes = movimientos.count();
+            atacar("/v1/accounts/reconcile",
+                    "{\"accountId\":" + cuentaDeAna + ",\"realBalance\":1,\"apply\":true}");
+
+            assertThat(movimientos.count())
+                    .as("conciliar la cuenta de otro le mete un ajuste dentro de sus cifras")
+                    .isEqualTo(antes);
+        }
+
+        @Test
+        @DisplayName("no puede meter un movimiento suyo dentro de la cuenta de Ana")
+        void colarMovimientoEnCuentaAjena() throws Exception {
+            /* La variante de cuentas del agujero que costo dos olas: ya no se
+               puede mandar un userId ajeno, pero mandar un accountId ajeno
+               conseguiria lo mismo por otra columna — descuadrarle el saldo a
+               otra persona con un gasto que no hizo. */
+            atacar("/v1/movements/save",
+                    "{\"categoryId\":" + categoriaDeAna + ",\"accountId\":" + cuentaDeAna
+                            + ",\"date\":\"" + LocalDate.now() + "\",\"amount\":99999,"
+                            + "\"description\":\"colado\"}");
+
+            assertThat(movimientos.findByAccountIdAndActiveTrue(cuentaDeAna))
+                    .as("a Ana le aparecio en su cuenta un movimiento que no hizo")
+                    .noneMatch(m -> "colado".equals(m.getDescription()));
         }
     }
 

@@ -87,12 +87,63 @@ export interface CategoryFilter {
 }
 
 // ---- Movement ----
+export type AccountKind = 'OWN' | 'LIABILITY';
+
+/**
+ * Una cuenta: donde esta la plata.
+ *
+ * Ojo con `balance` y `projectedBalance`: NO son campos guardados. El backend
+ * los calcula sumando los movimientos en cada peticion, asi que llegan siempre
+ * frescos y no hay nada que refrescar ni invalidar aqui.
+ *
+ *   balance          lo confirmado. Es lo que deberia decir el banco, y con lo
+ *                    que se concilia.
+ *   projectedBalance incluye lo pendiente: en que quedaria la cuenta si todo
+ *                    lo anotado llega a ocurrir.
+ *
+ * En una cuenta de clase LIABILITY (tarjeta, prestamo) el saldo es NEGATIVO
+ * cuando debes. La clase no cambia la aritmetica, solo como se presenta:
+ * "debes 400.000" en vez de "tienes -400.000".
+ */
+export interface Account {
+  id: string;
+  userId: string;
+  name: string;
+  kind: AccountKind;
+  icon?: string;
+  color?: string;
+  householdId?: number;
+  isDefault?: boolean;
+  balance: number;
+  projectedBalance: number;
+}
+
+export interface AccountList {
+  list: Account[];
+  /** Suma de TODOS los saldos con su signo. Un pasivo ya resta por si solo. */
+  netWorth: number;
+}
+
+export interface Reconciliation {
+  accountId: string;
+  date: string;
+  appBalance: number;
+  realBalance: number;
+  difference: number;
+  adjusted: boolean;
+  adjustmentId?: string;
+  message: string;
+}
+
 export interface Movement {
   id: string;
   userId: string;
   categoryId: string;
   categoryName?: string;
   categoryType?: CategoryType;
+  accountId?: string;
+  accountName?: string;
+  isOpening?: boolean;
   amount: number;
   description?: string;
   date: string;

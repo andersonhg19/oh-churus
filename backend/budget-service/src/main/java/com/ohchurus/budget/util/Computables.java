@@ -38,6 +38,39 @@ public final class Computables {
         if (m == null) return false;
         if (Boolean.FALSE.equals(m.getActive())) return false;
         if (Boolean.TRUE.equals(m.getIsTransfer())) return false;
+        /* La apertura dice cuanta plata HABIA, no cuanta entro. Si contara,
+           el dia que registras la cuenta con 2.000.000 la app te felicitaria
+           por un ingreso de dos millones que no ocurrio. */
+        if (Boolean.TRUE.equals(m.getIsOpening())) return false;
+        return m.getParentMovementId() == null;
+    }
+
+    /**
+     * ¿Este movimiento MUEVE EL SALDO de su cuenta?
+     *
+     * Es una pregunta DISTINTA de suma(), y confundirlas es exactamente el
+     * tipo de error que dejo el panel descuadrado. Las dos difieren en los dos
+     * casos que mas importan:
+     *
+     *   · La TRANSFERENCIA no suma (no es ingreso ni gasto de nadie) pero SI
+     *     mueve saldo: sacar 400.000 del bote comun y meterlos en el bolsillo
+     *     deja el bote con 400.000 menos. Un saldo que ignorase las
+     *     transferencias no cuadraria jamas con el banco.
+     *   · La APERTURA no suma (no es un ingreso) pero SI mueve saldo: es
+     *     justamente de donde sale el saldo inicial.
+     *
+     * Coinciden en lo demas: el hijo es detalle del padre y contarlo ademas
+     * del padre gastaria la plata dos veces, y lo desactivado no existe.
+     *
+     * Se exige cuenta: un movimiento sin accountId no puede mover el saldo de
+     * ninguna cuenta. Hoy no deberia haber ninguno —la V4 los repartio todos y
+     * el servicio pone la cuenta por defecto—, pero la suma no es el sitio
+     * donde enterarse de que si lo hay.
+     */
+    public static boolean afectaSaldo(Movement m) {
+        if (m == null) return false;
+        if (Boolean.FALSE.equals(m.getActive())) return false;
+        if (m.getAccountId() == null) return false;
         return m.getParentMovementId() == null;
     }
 

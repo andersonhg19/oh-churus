@@ -35,6 +35,7 @@ import java.util.stream.Collectors;
 @Transactional
 public class ScheduledMovementServiceImpl implements ScheduledMovementService {
 
+    private final AccountServiceImpl cuentas;
     private final ScheduledMovementRepository scheduledMovementRepository;
     private final MovementRepository movementRepository;
     private final CategoryRepository categoryRepository;
@@ -49,7 +50,8 @@ public class ScheduledMovementServiceImpl implements ScheduledMovementService {
                                          ScheduledMovementMapper scheduledMovementMapper,
                                          MovementMapper movementMapper,
                                          HouseholdServiceImpl householdService,
-                                         com.ohchurus.budget.util.ControlAcceso acceso) {
+                                         com.ohchurus.budget.util.ControlAcceso acceso,
+                                        AccountServiceImpl cuentas) {
         this.scheduledMovementRepository = scheduledMovementRepository;
         this.movementRepository = movementRepository;
         this.categoryRepository = categoryRepository;
@@ -57,6 +59,7 @@ public class ScheduledMovementServiceImpl implements ScheduledMovementService {
         this.movementMapper = movementMapper;
         this.householdService = householdService;
         this.acceso = acceso;
+        this.cuentas = cuentas;
     }
 
     /** Un programado es tuyo, o esta en una categoria compartida de tu hogar. */
@@ -295,6 +298,10 @@ public class ScheduledMovementServiceImpl implements ScheduledMovementService {
                                        el arriendo de uno acababa a nombre del
                                        otro solo porque abrio la app primero. */
                                     .userId(scheduled.getUserId())
+                                    /* Y su cuenta es la del dueno, por lo mismo:
+                                       un pendiente sin cuenta no saldria en
+                                       ningun saldo pero si en el presupuesto. */
+                                    .accountId(cuentas.porDefecto(scheduled.getUserId()).getId())
                                     .categoryId(scheduled.getCategoryId())
                                     .date(movementDate)
                                     .amount(amount)

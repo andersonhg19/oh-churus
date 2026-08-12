@@ -12,6 +12,10 @@ interface TextProps {
   children: React.ReactNode;
   style?: StyleProp<TextStyle>;
   numberOfLines?: number;
+  /* Para que las pruebas puedan senalar una cifra concreta sin depender del
+     texto que muestra: el texto cambia con el idioma y el formato de moneda,
+     el testID no. La auditoria pedia anadir testID justamente por esto. */
+  testID?: string;
 }
 
 const AppText: React.FC<TextProps> = ({
@@ -21,6 +25,7 @@ const AppText: React.FC<TextProps> = ({
   children,
   style,
   numberOfLines,
+  testID,
 }) => {
   const { colors } = useTheme();
 
@@ -57,6 +62,7 @@ const AppText: React.FC<TextProps> = ({
         style,
       ]}
       numberOfLines={numberOfLines}
+      testID={testID}
     >
       {children}
     </RNText>

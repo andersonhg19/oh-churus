@@ -9,8 +9,9 @@ import Button from '../../components/atoms/Button';
 import CapsuleToggle from '../../components/molecules/CapsuleToggle';
 import { spacing } from '../../theme';
 import { movementService } from '../../services/movementService';
+import { accountService } from '../../services/accountService';
 import { categoryService } from '../../services/categoryService';
-import { Movement, Category, CategoryType } from '../../types';
+import { Movement, Category, CategoryType, Account } from '../../types';
 import { formatCurrency, fechaLocalISO } from '../../utils/format';
 import { confirmarBorrado } from '../../utils/confirmar';
 import { useAccionUnica } from '../../hooks/useAccionUnica';
@@ -41,9 +42,31 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
   const [date, setDate] = useState(existing?.date || fechaLocalISO());
   const [confirmed, setConfirmed] = useState(existing?.confirmed ?? true);
 
+  /* La cuenta donde ocurre. Si no se toca, el backend lo manda a la cuenta
+     por defecto, asi que anotar rapido sigue siendo un gesto: no se obliga a
+     elegir cuenta para guardar un gasto. */
+  const [cuentas, setCuentas] = useState<Account[]>([]);
+  const [cuentaId, setCuentaId] = useState<string | null>(existing?.accountId || null);
+
   // Transfer: disponibilizar a cuenta personal
   const [isTransfer, setIsTransfer] = useState(false);
   const [personalCategoryId, setPersonalCategoryId] = useState<number | null>(null);
+
+  useEffect(() => {
+    /* Si las cuentas no cargan, el selector no aparece y el movimiento se
+       guarda en la de por defecto. Se degrada en silencio a proposito: no
+       poder anotar un gasto porque falla una lista secundaria seria peor que
+       anotarlo en la cuenta equivocada, que ademas se puede corregir. */
+    const cargarCuentas = async () => {
+      try {
+        const res = await accountService.getAll();
+        if (res.correct && res.object) setCuentas(res.object.list || []);
+      } catch {
+        setCuentas([]);
+      }
+    };
+    cargarCuentas();
+  }, []);
 
   useEffect(() => {
     const loadCategories = async () => {
@@ -138,6 +161,7 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
           description: description.trim() || undefined,
           date,
           confirmed,
+          ...(cuentaId && { accountId: cuentaId }),
           ...(parentMovement && { parentMovementId: parentMovement.id }),
         };
         const res = await movementService.save(data);
@@ -151,7 +175,7 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
     } catch (err: any) {
       showToast('error', 'Error', err.message || 'No se pudo guardar');
     }
-  }, [selectedCategory, amount, date, description, confirmed, isTransfer, personalCategoryId, isEdit, existing, parentMovement, user, navigation, showToast]);
+  }, [selectedCategory, amount, date, description, confirmed, isTransfer, personalCategoryId, cuentaId, isEdit, existing, parentMovement, user, navigation, showToast]);
 
   const { ejecutando: guardando, ejecutar: handleSave } = useAccionUnica(guardarMovimiento);
 
@@ -322,6 +346,35 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
       {/* placeholder - parent info moved above */}
 
       {/* Campos */}
+      {cuentas.length > 1 && (
+        <>
+          <AppText variant="label" style={styles.etiquetaCuenta}>¿De que cuenta salio?</AppText>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filaCuentas}>
+            {cuentas.map((cuenta) => {
+              const elegida = String(cuentaId) === String(cuenta.id);
+              return (
+                <TouchableOpacity
+                  key={cuenta.id}
+                  testID={`elegir-cuenta-${cuenta.id}`}
+                  onPress={() => setCuentaId(elegida ? null : cuenta.id)}
+                  style={[
+                    styles.chipCuenta,
+                    {
+                      backgroundColor: elegida ? colors.primary : colors.surface,
+                      borderColor: elegida ? colors.primary : colors.border,
+                    },
+                  ]}
+                >
+                  <AppText variant="caption" color={elegida ? '#FFFFFF' : colors.text}>
+                    {cuenta.name}
+                  </AppText>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </>
+      )}
+
       <Input label="Fecha" value={date} onChangeText={setDate} placeholder="YYYY-MM-DD" />
       <Input label="Nota" value={description} onChangeText={setDescription} placeholder="Descripcion (opcional)" multiline />
 
@@ -335,6 +388,15 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
 };
 
 const styles = StyleSheet.create({
+  etiquetaCuenta: { marginBottom: spacing.xs },
+  filaCuentas: { marginBottom: spacing.md },
+  chipCuenta: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: 20,
+    borderWidth: 1,
+    marginRight: spacing.sm,
+  },
   container: { flex: 1 },
   content: { padding: spacing.lg, paddingBottom: spacing.xxl * 2 },
   amountCard: {

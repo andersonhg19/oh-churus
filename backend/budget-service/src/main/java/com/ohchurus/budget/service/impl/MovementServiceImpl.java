@@ -34,17 +34,46 @@ public class MovementServiceImpl implements MovementService {
     private final MovementMapper movementMapper;
     private final HouseholdServiceImpl householdService;
     private final ControlAcceso acceso;
+    private final AccountServiceImpl cuentas;
+    private final com.ohchurus.budget.repository.AccountRepository cuentaRepo;
 
     public MovementServiceImpl(MovementRepository movementRepository,
                                CategoryRepository categoryRepository,
                                MovementMapper movementMapper,
                                HouseholdServiceImpl householdService,
-                               ControlAcceso acceso) {
+                               ControlAcceso acceso,
+                               AccountServiceImpl cuentas,
+                               com.ohchurus.budget.repository.AccountRepository cuentaRepo) {
         this.movementRepository = movementRepository;
         this.categoryRepository = categoryRepository;
         this.movementMapper = movementMapper;
         this.householdService = householdService;
         this.acceso = acceso;
+        this.cuentas = cuentas;
+        this.cuentaRepo = cuentaRepo;
+    }
+
+    /**
+     * En que cuenta cae este movimiento.
+     *
+     * Tres reglas, en orden:
+     *   1. La que diga el DTO, SI es suya. Aceptar un accountId ajeno metería
+     *      el movimiento en la cuenta de otra persona y le descuadraría el
+     *      saldo — el mismo agujero de identidad de siempre, con otra columna.
+     *   2. Si no dice nada, la cuenta por defecto ("Sin asignar").
+     *   3. Nunca null. Un movimiento sin cuenta no aparece en ningún saldo
+     *      pero sí en el presupuesto: descuadre invisible.
+     */
+    private Long cuentaPara(Long cuentaPedida, Long dueno) {
+        if (cuentaPedida != null) {
+            java.util.Optional<com.ohchurus.budget.entity.Account> c =
+                    cuentaRepo.findByIdAndActiveTrue(cuentaPedida);
+            if (c.isPresent()
+                    && (acceso.esMio(c.get().getUserId()) || acceso.esDeMiHogar(c.get().getHouseholdId()))) {
+                return c.get().getId();
+            }
+        }
+        return cuentas.porDefecto(dueno).getId();
     }
 
     /*
@@ -59,6 +88,7 @@ public class MovementServiceImpl implements MovementService {
     @Override
     public ResultDTO saveAndUpdate(MovementSaveDTO dto) {
         categoryCacheTL.remove();
+        cuentaCacheTL.remove();
         try {
             boolean isUpdate = dto.getId() != null;
             return isUpdate ? updateMovement(dto) : createMovement(dto);
@@ -97,8 +127,10 @@ public class MovementServiceImpl implements MovementService {
            {"userId": <id de Bruno>} con su propio token y la categoria
            aparecia dentro de la cuenta de Bruno. Las lecturas y los borrados
            ya estaban cerrados; la creacion se habia quedado fuera. */
+        Long dueno = com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId();
         Movement movement = Movement.builder()
-                .userId(com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId())
+                .userId(dueno)
+                .accountId(cuentaPara(dto.getAccountId(), dueno))
                 .categoryId(dto.getCategoryId())
                 .date(dto.getDate())
                 .amount(dto.getAmount())
@@ -143,6 +175,17 @@ public class MovementServiceImpl implements MovementService {
         if (dto.getConfirmed() != null) {
             movement.setConfirmed(dto.getConfirmed());
         }
+        /* Cambiar de cuenta SI se permite: apuntaste el almuerzo en efectivo y
+           en realidad lo pagaste con la tarjeta. Pasa por el mismo filtro que
+           al crear, asi que no se puede mover a la cuenta de otra persona. Si
+           el DTO no trae cuenta, se queda en la que estaba en vez de caer a la
+           de por defecto: un cliente que no conoce las cuentas no deberia
+           poder desclasificar un movimiento sin querer. */
+        if (dto.getAccountId() != null) {
+            movement.setAccountId(cuentaPara(dto.getAccountId(), movement.getUserId()));
+        } else if (movement.getAccountId() == null) {
+            movement.setAccountId(cuentas.porDefecto(movement.getUserId()).getId());
+        }
 
         Movement saved = movementRepository.save(movement);
         propagarALaOtraPata(saved);
@@ -182,6 +225,7 @@ public class MovementServiceImpl implements MovementService {
     @Transactional(readOnly = true)
     public ResultDTO getById(Long id) {
         categoryCacheTL.remove();
+        cuentaCacheTL.remove();
         Optional<Movement> movement = movementRepository.findByIdAndActiveTrue(id);
         if (movement.isEmpty() || !puedoTocar(movement.get())) {
             return new ResultDTO(false, "Movement not found", 404);
@@ -193,6 +237,7 @@ public class MovementServiceImpl implements MovementService {
     @Transactional(readOnly = true)
     public ResultDTO getAll(MovementFilterDTO filter) {
         categoryCacheTL.remove();
+        cuentaCacheTL.remove();
         Pageable pageable = PageRequest.of(filter.getPage(), filter.getSize(), Sort.by("date").descending());
 
         List<Long> householdIds = filter.getUserId() != null
@@ -235,6 +280,7 @@ public class MovementServiceImpl implements MovementService {
     @Override
     public ResultDTO confirmWithAmount(Long id, java.math.BigDecimal newAmount) {
         categoryCacheTL.remove();
+        cuentaCacheTL.remove();
         Optional<Movement> movement = movementRepository.findByIdAndActiveTrue(id);
         if (movement.isEmpty() || !puedoTocar(movement.get())) {
             return new ResultDTO(false, "Movement not found", 404);
@@ -257,6 +303,7 @@ public class MovementServiceImpl implements MovementService {
     @Transactional(readOnly = true)
     public ResultDTO getByPeriod(Long userId, LocalDate startDate, LocalDate endDate) {
         categoryCacheTL.remove();
+        cuentaCacheTL.remove();
         List<Long> hIds = householdService.getHouseholdIds(userId);
         List<Movement> movements = !hIds.isEmpty()
                 ? movementRepository.findHouseholdByPeriod(userId, hIds, startDate, endDate)
@@ -274,6 +321,7 @@ public class MovementServiceImpl implements MovementService {
     @Transactional(readOnly = true)
     public ResultDTO getChildren(Long parentId) {
         categoryCacheTL.remove();
+        cuentaCacheTL.remove();
         Optional<Movement> parentOpt = movementRepository.findByIdAndActiveTrue(parentId);
         if (parentOpt.isEmpty() || !puedoTocar(parentOpt.get())) {
             return new ResultDTO(false, "Parent movement not found", 404);
@@ -346,6 +394,20 @@ public class MovementServiceImpl implements MovementService {
                 dto.setCategoryColor(cat.getColor());
             }
         }
+        /* El nombre de la cuenta viaja con el movimiento por lo mismo que el de
+           la categoria: para que la lista se pueda pintar sin una segunda
+           llamada por fila. Mismo cache por peticion. */
+        if (dto.getAccountId() != null) {
+            java.util.Map<Long, com.ohchurus.budget.entity.Account> cache = cuentaCacheTL.get();
+            com.ohchurus.budget.entity.Account cuenta = cache.computeIfAbsent(dto.getAccountId(),
+                    id -> cuentaRepo.findByIdAndActiveTrue(id).orElse(null));
+            if (cuenta != null) {
+                dto.setAccountName(cuenta.getName());
+            }
+        }
         return dto;
     }
+
+    private static final ThreadLocal<java.util.Map<Long, com.ohchurus.budget.entity.Account>> cuentaCacheTL =
+            ThreadLocal.withInitial(java.util.HashMap::new);
 }

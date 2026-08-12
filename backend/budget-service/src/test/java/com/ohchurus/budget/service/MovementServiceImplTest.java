@@ -87,6 +87,29 @@ class MovementServiceImplTest {
 
 
 
+    /* Las cuentas entraron con la ola 3: todo movimiento tiene que caer en
+       alguna, y si el DTO no dice cual, el servicio pone la de por defecto.
+       Aqui se le da una cualquiera para poder seguir probando la LOGICA; que
+       no se pueda colar un movimiento en la cuenta de otra persona lo
+       demuestra la seccion "Cuentas" de AislamientoEntreUsuariosTest. */
+    @Mock
+    private com.ohchurus.budget.service.impl.AccountServiceImpl cuentas;
+
+    @Mock
+    private com.ohchurus.budget.repository.AccountRepository cuentaRepo;
+
+    @BeforeEach
+    void darleUnaCuentaALosMovimientos() {
+        com.ohchurus.budget.entity.Account cuenta = com.ohchurus.budget.entity.Account.builder()
+                .id(500L).userId(1L).name("Sin asignar")
+                .kind(com.ohchurus.budget.enums.AccountKind.OWN)
+                .isDefault(true).active(true).build();
+        org.mockito.Mockito.lenient().when(cuentas.porDefecto(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(cuenta);
+        org.mockito.Mockito.lenient().when(cuentaRepo.findByIdAndActiveTrue(
+                org.mockito.ArgumentMatchers.any())).thenReturn(java.util.Optional.of(cuenta));
+    }
+
     @InjectMocks
     private MovementServiceImpl movementService;
 

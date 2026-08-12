@@ -328,6 +328,16 @@ El trabajo de Karate espera a que el gateway responda por
 `/AUTH-SERVICE/oh-churus/actuator/health` y `/BUDGET-SERVICE/...` antes de
 empezar, en vez de dormir un rato y cruzar los dedos.
 
+> **SonarCloud esta en rojo y no es por el codigo.** El escaner corta con
+> `403` al pedir `https://api.sonarcloud.io/analysis/jres`: el secreto
+> `SONAR_TOKEN` se genero el 10 de junio de 2026 y los tokens de SonarCloud
+> caducan. Todos los analisis de junio pasaron; todos los de agosto fallan en
+> ese mismo punto, antes incluso de mirar una linea de codigo.
+> Se arregla generando un token nuevo en SonarCloud
+> (*My Account -> Security*) y actualizando el secreto del repositorio con
+> `gh secret set SONAR_TOKEN`. No bloquea nada: quien decide es `pruebas.yml`,
+> y por eso se separaron.
+
 ---
 
 ## 6. Donde esta cada cosa

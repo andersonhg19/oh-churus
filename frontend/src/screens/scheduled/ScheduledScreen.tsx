@@ -7,10 +7,12 @@ import AppText from '../../components/atoms/Text';
 import Card from '../../components/atoms/Card';
 import Button from '../../components/atoms/Button';
 import EmptyState from '../../components/molecules/EmptyState';
+import EstadoError from '../../components/molecules/EstadoError';
 import Spinner from '../../components/atoms/Spinner';
 import { spacing } from '../../theme';
 import { scheduledService } from '../../services/scheduledService';
 import { ScheduledMovement } from '../../types';
+import { useCarga, exigir } from '../../hooks/useCarga';
 import { formatCurrency } from '../../utils/format';
 import { getFrequencyLabel } from '../../utils/labels';
 import { useFocusEffect } from '@react-navigation/native';
@@ -28,42 +30,25 @@ const ScheduledScreen: React.FC<Props> = ({ navigation }) => {
   const { showToast } = useToast();
   const { user } = useAuth();
   const [items, setItems] = useState<ScheduledMovement[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [generating, setGenerating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  const fetchScheduled = useCallback(async () => {
+  const traerProgramados = useCallback(async () => {
     if (!user) return;
-    try {
-      setError(null);
-      const res = await scheduledService.getAll({
-        userId: user.userId,
-        page: 0,
-        size: 50,
-      });
-      if (res.correct && res.object) {
-        setItems(res.object.list || []);
-      }
-    } catch {
-      setError('Error al cargar datos. Intenta de nuevo.');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
+    const res = await scheduledService.getAll({
+      userId: user.userId,
+      page: 0,
+      size: 50,
+    });
+    setItems(exigir(res)?.list || []);
   }, [user]);
+
+  const { cargando, refrescando, error, cargar, refrescar } = useCarga(traerProgramados);
 
   useFocusEffect(
     useCallback(() => {
-      setLoading(true);
-      fetchScheduled();
-    }, [fetchScheduled]),
+      cargar();
+    }, [cargar]),
   );
-
-  const onRefresh = () => {
-    setRefreshing(true);
-    fetchScheduled();
-  };
 
   const handleGenerate = async () => {
     if (!user) return;
@@ -72,6 +57,8 @@ const ScheduledScreen: React.FC<Props> = ({ navigation }) => {
       const res = await scheduledService.generatePending(user.userId, user.budgetStartDay || 1);
       if (res.correct) {
         showToast('success', 'Listo', `Se generaron ${Array.isArray(res.object) ? res.object.length : 0} movimientos pendientes`);
+        // Generar cambia la lista: refrescarla aqui evita tener que salir y volver.
+        await cargar();
       } else {
         showToast('error', 'Error', res.message);
       }
@@ -82,7 +69,15 @@ const ScheduledScreen: React.FC<Props> = ({ navigation }) => {
     }
   };
 
-  if (loading) return <Spinner fullScreen />;
+  if (cargando) return <Spinner fullScreen />;
+
+  if (error) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <EstadoError mensaje={error} onReintentar={cargar} />
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -103,7 +98,6 @@ const ScheduledScreen: React.FC<Props> = ({ navigation }) => {
           />
         </View>
       </View>
-      {error && <AppText variant="body" color={colors.danger} style={{ textAlign: 'center', padding: 16 }}>{error}</AppText>}
 
       <FlatList
         data={items}
@@ -139,7 +133,7 @@ const ScheduledScreen: React.FC<Props> = ({ navigation }) => {
           />
         }
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+          <RefreshControl refreshing={refrescando} onRefresh={refrescar} tintColor={colors.primary} />
         }
       />
 

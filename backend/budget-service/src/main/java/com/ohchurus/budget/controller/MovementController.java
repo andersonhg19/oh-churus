@@ -3,15 +3,13 @@ package com.ohchurus.budget.controller;
 import com.ohchurus.budget.dto.input.MovementFilterDTO;
 import com.ohchurus.budget.dto.input.MovementSaveDTO;
 import com.ohchurus.budget.dto.input.PeriodRequestDTO;
+import com.ohchurus.budget.dto.input.TransferenciaDTO;
 import com.ohchurus.budget.dto.output.ResultDTO;
 import com.ohchurus.budget.service.MovementService;
 import com.ohchurus.budget.service.impl.BudgetAllocationServiceImpl;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.math.BigDecimal;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/v1/movements")
@@ -77,12 +75,9 @@ public class MovementController {
     }
 
     @PostMapping(value = "/transfer", produces = "application/json")
-    public ResponseEntity<ResultDTO> transfer(@RequestBody Map<String, Object> body) {
+    public ResponseEntity<ResultDTO> transfer(@Valid @RequestBody TransferenciaDTO body) {
         Long userId = com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId();
-        Long fromCategoryId = Long.valueOf(body.get("fromCategoryId").toString());
-        Long toCategoryId = Long.valueOf(body.get("toCategoryId").toString());
-        BigDecimal amount = new BigDecimal(body.get("amount").toString());
-        String description = body.containsKey("description") ? (String) body.get("description") : null;
-        return ResponseEntity.ok(budgetAllocationService.transfer(userId, fromCategoryId, toCategoryId, amount, description));
+        return ResponseEntity.ok(budgetAllocationService.transfer(userId, body.getFromCategoryId(),
+                body.getToCategoryId(), body.getAmount(), body.getDescription()));
     }
 }

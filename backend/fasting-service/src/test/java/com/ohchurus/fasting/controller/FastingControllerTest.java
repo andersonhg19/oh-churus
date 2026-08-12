@@ -36,6 +36,24 @@ class FastingControllerTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+    /* La identidad ya no llega en el cuerpo: sale del token. Estas pruebas son
+       unitarias / con los filtros apagados, asi que no hay token; se planta a
+       mano para poder seguir probando la LOGICA. Que un extrano NO pueda es lo
+       que comprueba AislamientoEnAyunoTest, con la aplicacion levantada. */
+    @org.junit.jupiter.api.BeforeEach
+    void plantarIdentidad() {
+        var auth = new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                "usuario@ohchurus.com", null, java.util.Collections.emptyList());
+        auth.setDetails(3L);
+        org.springframework.security.core.context.SecurityContextHolder.getContext()
+                .setAuthentication(auth);
+    }
+
+    @org.junit.jupiter.api.AfterEach
+    void limpiarIdentidad() {
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+    }
+
 
     @MockBean
     private FastingServiceImpl fastingService;

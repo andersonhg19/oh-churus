@@ -34,6 +34,14 @@ public interface BudgetAllocationRepository extends JpaRepository<BudgetAllocati
     // Personal only for a user
     List<BudgetAllocation> findByUserIdAndPeriodStartAndActiveTrue(Long userId, LocalDate periodStart);
 
+    /* Al expulsar a alguien del hogar, sus asignaciones sobre categorias de ese
+       hogar quedaban huerfanas: seguian activas y contando en un presupuesto
+       cuya categoria el expulsado ya no ve. Estas dos consultas las recogen
+       para desactivarlas. */
+    List<BudgetAllocation> findByUserIdAndActiveTrueAndCategoryIdIn(Long userId, List<Long> categoryIds);
+
+    List<BudgetAllocation> findByUserIdAndHouseholdIdAndActiveTrue(Long userId, Long householdId);
+
     // Find allocations from previous period that need auto-close
     @Query("SELECT a FROM BudgetAllocation a WHERE a.active = true AND a.status = 'ACTIVE' " +
             "AND a.periodEnd < :today")

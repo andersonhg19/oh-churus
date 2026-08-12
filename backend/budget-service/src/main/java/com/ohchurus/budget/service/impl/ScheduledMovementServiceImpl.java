@@ -130,11 +130,16 @@ public class ScheduledMovementServiceImpl implements ScheduledMovementService {
         return new ResultDTO(scheduledMovementMapper.toResultDTO(saved));
     }
 
+    /*
+     * Un credito a 6 meses que empieza el 15 de enero termina el 14 de julio,
+     * no el 15: el 15 de julio ya es la cuota numero 7. Antes se devolvia
+     * startDate.plusMonths(n) y el programado generaba una ocurrencia de mas.
+     */
     private LocalDate calculateEndDate(LocalDate startDate, Integer durationMonths) {
         if (durationMonths == null || startDate == null) {
             return null;
         }
-        return startDate.plusMonths(durationMonths);
+        return startDate.plusMonths(durationMonths).minusDays(1);
     }
 
     @Override
@@ -263,9 +268,9 @@ public class ScheduledMovementServiceImpl implements ScheduledMovementService {
 
                     // Verificar si la frecuencia aplica para este periodo
                     if (shouldGenerateForPeriod(scheduled, iterPeriodStart, iterPeriodEnd)) {
-                        boolean alreadyExists = movementRepository
-                                .existsByScheduledMovementIdAndDateBetweenAndActiveTrue(
-                                        scheduled.getId(), iterPeriodStart, iterPeriodEnd);
+                        LocalDate periodoDeLaOcurrencia = periodoCanonico(iterPeriodStart);
+                        boolean alreadyExists = movementRepository.existeOcurrenciaDelPeriodo(
+                                scheduled.getId(), periodoDeLaOcurrencia, iterPeriodStart, iterPeriodEnd);
 
                         if (!alreadyExists) {
                             int day = scheduled.getDayOfMonth() != null
@@ -282,12 +287,17 @@ public class ScheduledMovementServiceImpl implements ScheduledMovementService {
                                     ? scheduled.getAmount() : BigDecimal.ZERO;
 
                             Movement movement = Movement.builder()
-                                    .userId(userId)
+                                    /* El pendiente es del DUENO del programado,
+                                       no de quien refresca el panel. En un hogar
+                                       el arriendo de uno acababa a nombre del
+                                       otro solo porque abrio la app primero. */
+                                    .userId(scheduled.getUserId())
                                     .categoryId(scheduled.getCategoryId())
                                     .date(movementDate)
                                     .amount(amount)
                                     .description(scheduled.getName())
                                     .scheduledMovementId(scheduled.getId())
+                                    .periodStart(periodoDeLaOcurrencia)
                                     .confirmed(false)
                                     .active(true)
                                     .build();
@@ -308,6 +318,19 @@ public class ScheduledMovementServiceImpl implements ScheduledMovementService {
             log.error("Error generating pending movements: {}", e.getMessage(), e);
             return new ResultDTO(false, "Error generating pending movements", 500);
         }
+    }
+
+    /**
+     * El periodo con el que se identifica una ocurrencia, en forma canonica.
+     *
+     * Cada miembro del hogar elige su propio dia de corte, asi que el dia NO
+     * puede formar parte de la clave: Ana con corte 1 y Bruno con corte 15
+     * abrian dos periodos distintos para el mismo mes y el arriendo se generaba
+     * dos veces. El mes si es el mismo para los dos, porque la fecha de la
+     * ocurrencia siempre cae dentro del periodo que empieza ese mes.
+     */
+    private LocalDate periodoCanonico(LocalDate inicioDelPeriodo) {
+        return YearMonth.from(inicioDelPeriodo).atDay(1);
     }
 
     private LocalDate advancePeriod(LocalDate periodStart, int budgetStartDay) {

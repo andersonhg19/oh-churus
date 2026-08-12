@@ -198,7 +198,14 @@ public class FastingServiceImpl {
     public ResultDTO editSession(Long sessionId, LocalDateTime newStartTime, LocalDateTime newEndTime) {
         try {
             Optional<FastingSession> opt = sessionRepository.findById(sessionId);
-            if (opt.isEmpty()) return new ResultDTO(false, "Session not found", 404);
+            /* Se contesta "no existe" y no "no puedes": decir "no puedes"
+               confirmaria que ese id existe, y con ids consecutivos se puede
+               averiguar cuantos ayunos lleva otra persona. Antes no se
+               comprobaba nada: bastaba el id para editar el ayuno de otro. */
+            if (opt.isEmpty()
+                    || !com.ohchurus.fasting.util.SecurityUtils.esDelUsuario(opt.get().getUserId())) {
+                return new ResultDTO(false, "Session not found", 404);
+            }
 
             FastingSession session = opt.get();
             if (!Boolean.TRUE.equals(session.getActive())) return new ResultDTO(false, "Session not active", 400);

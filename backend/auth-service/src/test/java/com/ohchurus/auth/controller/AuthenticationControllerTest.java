@@ -146,8 +146,14 @@ class AuthenticationControllerTest {
         verify(userService).register(any());
     }
 
+    /* Estas dos pruebas exigian un 400 de Spring. Certificaban justo lo que
+       rompe al frontend: toda la API habla ResultDTO con HTTP 200 y el
+       frontend solo sabe leer eso, asi que un 400 en el registro se veia como
+       "Request failed with status code 400" en vez de "falta el nombre".
+       Ahora se exige 200, correct:false y el nombre del campo malo. */
+
     @Test
-    @DisplayName("POST /v1/auth/register - Should return 400 when name is missing")
+    @DisplayName("POST /v1/auth/register - sin nombre: 200 con correct:false y el campo que falla")
     void registerMissingName() throws Exception {
         UserSaveDTO dto = new UserSaveDTO();
         dto.setEmail("new@ohchurus.com");
@@ -157,11 +163,14 @@ class AuthenticationControllerTest {
         mockMvc.perform(post("/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto)))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.correct").value(false))
+                .andExpect(jsonPath("$.message").value(
+                        org.hamcrest.Matchers.containsString("'name'")));
     }
 
     @Test
-    @DisplayName("POST /v1/auth/register - Should return 400 for invalid email format")
+    @DisplayName("POST /v1/auth/register - correo mal escrito: 200 con correct:false y el campo que falla")
     void registerInvalidEmailFormat() throws Exception {
         UserSaveDTO dto = new UserSaveDTO();
         dto.setName("New User");
@@ -171,6 +180,9 @@ class AuthenticationControllerTest {
         mockMvc.perform(post("/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto)))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.correct").value(false))
+                .andExpect(jsonPath("$.message").value(
+                        org.hamcrest.Matchers.containsString("'email'")));
     }
 }

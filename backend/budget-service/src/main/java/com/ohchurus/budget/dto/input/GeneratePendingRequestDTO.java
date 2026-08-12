@@ -11,8 +11,8 @@ public class GeneratePendingRequestDTO {
        campo entero romperia nada (Spring ignora lo desconocido) pero deja sin
        sitio a los DTOs de guardado, que si necesitan escribirlo al crear. */
     private Long userId;
-    @NotNull(message = "budgetStartDay is required")
-    @Min(value = 1, message = "budgetStartDay must be between 1 and 31")
-    @Max(value = 31, message = "budgetStartDay must be between 1 and 31")
+    @NotNull(message = "es obligatorio")
+    @Min(value = 1, message = "debe estar entre 1 y 31")
+    @Max(value = 31, message = "debe estar entre 1 y 31")
     private Integer budgetStartDay;
 }

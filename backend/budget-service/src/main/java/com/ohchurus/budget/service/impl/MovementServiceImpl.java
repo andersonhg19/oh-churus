@@ -123,7 +123,14 @@ public class MovementServiceImpl implements MovementService {
         /* El dueno NUNCA cambia en una actualizacion. Antes se reasignaba al
            userId que viniera en el cuerpo, asi que mandar el id de un
            movimiento ajeno bastaba para quedarse con el. */
-        movement.setCategoryId(dto.getCategoryId());
+
+        /* Una pata de transferencia no puede cambiar de categoria: la salida
+           vive en el bote comun y la entrada en el bolsillo personal, y mover
+           una de las dos al otro lado convierte el par en dos salidas (o dos
+           entradas) y descuadra el consolidado. */
+        if (!esTransferencia(movement)) {
+            movement.setCategoryId(dto.getCategoryId());
+        }
         movement.setDate(dto.getDate());
         movement.setAmount(dto.getAmount());
         movement.setDescription(dto.getDescription());
@@ -133,8 +140,37 @@ public class MovementServiceImpl implements MovementService {
         }
 
         Movement saved = movementRepository.save(movement);
+        propagarALaOtraPata(saved);
         log.info("Movement updated: id={}", saved.getId());
         return new ResultDTO(enrichWithCategory(movementMapper.toResultDTO(saved)));
+    }
+
+    private boolean esTransferencia(Movement m) {
+        return Boolean.TRUE.equals(m.getIsTransfer());
+    }
+
+    /**
+     * Una transferencia son DOS movimientos, no uno.
+     *
+     * Borrar ya desactivaba los dos, pero editar cambiaba una sola pata:
+     * corregir una transferencia de 500.000 a 300.000 dejaba el consolidado
+     * descuadrado en 200.000 que no existen, y no habia forma de arreglarlo
+     * desde la app. Se propaga en la MISMA transaccion, no despues: si falla
+     * el guardado de la segunda pata, tampoco se guarda la primera.
+     *
+     * Se propagan importe y fecha, que es lo que define cuanta plata se movio
+     * y cuando. La categoria no, porque cada pata vive en un lado distinto.
+     */
+    private void propagarALaOtraPata(Movement pata) {
+        if (!esTransferencia(pata) || pata.getTransferPairId() == null) {
+            return;
+        }
+        movementRepository.findByIdAndActiveTrue(pata.getTransferPairId()).ifPresent(otra -> {
+            otra.setAmount(pata.getAmount());
+            otra.setDate(pata.getDate());
+            movementRepository.save(otra);
+            log.info("Transfer pair kept in sync: id={} follows id={}", otra.getId(), pata.getId());
+        });
     }
 
     @Override
@@ -205,6 +241,9 @@ public class MovementServiceImpl implements MovementService {
         }
         entity.setConfirmed(true);
         Movement saved = movementRepository.save(entity);
+        /* Confirmar con otro importe es la otra puerta por la que se editaba
+           una sola pata de la transferencia. */
+        propagarALaOtraPata(saved);
         log.info("Movement confirmed: id={}, amount={}", saved.getId(), saved.getAmount());
         return new ResultDTO(enrichWithCategory(movementMapper.toResultDTO(saved)));
     }

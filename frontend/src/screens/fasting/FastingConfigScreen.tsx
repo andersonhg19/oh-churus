@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useToast } from '../../contexts/ToastContext';
@@ -7,8 +7,11 @@ import AppText from '../../components/atoms/Text';
 import Card from '../../components/atoms/Card';
 import Input from '../../components/atoms/Input';
 import Button from '../../components/atoms/Button';
+import Spinner from '../../components/atoms/Spinner';
+import EstadoError from '../../components/molecules/EstadoError';
 import { spacing } from '../../theme';
 import { fastingService } from '../../services/fastingService';
+import { useCarga, exigir } from '../../hooks/useCarga';
 import { useFocusEffect } from '@react-navigation/native';
 
 interface Preset {
@@ -32,33 +35,35 @@ const FastingConfigScreen: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [currentPlan, setCurrentPlan] = useState<any>(null);
 
-  useEffect(() => {
-    const loadPresets = async () => {
-      try {
-        const res = await fastingService.getPresets();
-        if (res.correct) setPresets(res.object || []);
-      } catch { /* silent */ }
-    };
-    loadPresets();
-  }, []);
-
-  const fetchPlan = useCallback(async () => {
+  /*
+   * Sin presets no hay nada que elegir y el formulario arranca con valores
+   * inventados: si la carga falla hay que decirlo, no dejar la rejilla vacia
+   * fingiendo que el backend no ofrece ningun plan.
+   */
+  const traerConfiguracion = useCallback(async () => {
     if (!user) return;
-    try {
-      const res = await fastingService.getPlan(user.userId);
-      if (res.correct && res.object) {
-        const p = res.object;
-        setCurrentPlan(p);
-        setSelectedPlan(p.planType);
-        setCustomFasting(String(p.fastingHours));
-        setCustomEating(String(p.eatingHours));
-        setSuggestedStart(p.suggestedStartTime || '20:00');
-        setReminders(p.remindersEnabled || false);
-      }
-    } catch { /* silent */ }
+    const [presetsRes, planRes] = await Promise.all([
+      fastingService.getPresets(),
+      fastingService.getPlan(user.userId),
+    ]);
+    setPresets(exigir(presetsRes) || []);
+
+    // getPlan responde correct:false mientras el usuario no haya elegido plan:
+    // eso es "aun sin configurar", no un fallo que merezca pantalla de error.
+    if (planRes.correct && planRes.object) {
+      const p = planRes.object;
+      setCurrentPlan(p);
+      setSelectedPlan(p.planType);
+      setCustomFasting(String(p.fastingHours));
+      setCustomEating(String(p.eatingHours));
+      setSuggestedStart(p.suggestedStartTime || '20:00');
+      setReminders(p.remindersEnabled || false);
+    }
   }, [user]);
 
-  useFocusEffect(useCallback(() => { fetchPlan(); }, [fetchPlan]));
+  const { cargando, error, cargar } = useCarga(traerConfiguracion);
+
+  useFocusEffect(useCallback(() => { cargar(); }, [cargar]));
 
   const isCustom = selectedPlan === 'CUSTOM';
 
@@ -93,6 +98,16 @@ const FastingConfigScreen: React.FC = () => {
       showToast('error', 'Error', err.message || 'No se pudo guardar');
     } finally { setSaving(false); }
   };
+
+  if (cargando) return <Spinner fullScreen />;
+
+  if (error) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <EstadoError mensaje={error} onReintentar={cargar} />
+      </View>
+    );
+  }
 
   return (
     <ScrollView

@@ -1,11 +1,12 @@
 import React from 'react';
-import { View, StyleSheet, ScrollView, Alert, Platform } from 'react-native';
+import { View, StyleSheet, ScrollView } from 'react-native';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import AppText from '../../components/atoms/Text';
 import Card from '../../components/atoms/Card';
 import Button from '../../components/atoms/Button';
 import { spacing } from '../../theme';
+import { confirmarAccion } from '../../utils/confirmar';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { CategoryTree } from '../../types';
 
@@ -25,16 +26,13 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
   const { colors, isDark, toggleTheme } = useTheme();
   const { user, logout } = useAuth();
 
-  const handleLogout = () => {
-    if (Platform.OS === 'web') {
-      if (window.confirm('Cerrar sesion?')) logout();
-    } else {
-      Alert.alert('Cerrar sesion', 'Estas seguro?', [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Si, salir', style: 'destructive', onPress: logout },
-      ]);
-    }
-  };
+  const handleLogout = () =>
+    confirmarAccion({
+      titulo: 'Cerrar sesion',
+      mensaje: 'Estas seguro?',
+      textoConfirmar: 'Si, salir',
+      onConfirmar: logout,
+    });
 
   return (
     <ScrollView

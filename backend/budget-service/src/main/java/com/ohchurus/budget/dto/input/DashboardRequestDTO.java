@@ -21,8 +21,8 @@ public class DashboardRequestDTO {
        sitio a los DTOs de guardado, que si necesitan escribirlo al crear. */
     private Long userId;
 
-    @Min(value = 1, message = "budgetStartDay must be between 1 and 31")
-    @Max(value = 31, message = "budgetStartDay must be between 1 and 31")
+    @Min(value = 1, message = "debe estar entre 1 y 31")
+    @Max(value = 31, message = "debe estar entre 1 y 31")
     private Integer budgetStartDay = 1;
 
     private LocalDate referenceDate;

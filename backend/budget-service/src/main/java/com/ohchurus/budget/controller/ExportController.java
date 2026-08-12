@@ -1,6 +1,7 @@
 package com.ohchurus.budget.controller;
 
 import com.ohchurus.budget.dto.input.DashboardRequestDTO;
+import com.ohchurus.budget.dto.output.ResultDTO;
 import com.ohchurus.budget.service.impl.ExcelExportService;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
@@ -30,10 +31,11 @@ public class ExportController {
     }
 
     @PostMapping(value = "/excel", produces = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    public ResponseEntity<byte[]> exportExcel(@Valid @RequestBody DashboardRequestDTO request) {
+    public ResponseEntity<Object> exportExcel(@Valid @RequestBody DashboardRequestDTO request) {
+        Long userId = com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId();
         try {
             byte[] excelBytes = excelExportService.exportPeriod(
-                    com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId(), request.getBudgetStartDay(), request.getReferenceDate());
+                    userId, request.getBudgetStartDay(), request.getReferenceDate());
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
@@ -42,8 +44,15 @@ public class ExportController {
 
             return ResponseEntity.ok().headers(headers).body(excelBytes);
         } catch (Exception e) {
-            log.error("Error exporting Excel for user {}: {}", request.getUserId(), e.getMessage(), e);
-            return ResponseEntity.internalServerError().build();
+            /* Antes: internalServerError().build(), un 500 con el cuerpo VACIO.
+               Quien pulsaba "Descargar Excel" no recibia ni un byte ni una
+               explicacion. Ahora sale el mismo ResultDTO que el resto de la
+               API, en JSON, para que se pueda contar que ha pasado. */
+            log.error("Error exportando el Excel del usuario {}: {}", userId, e.getMessage(), e);
+            return ResponseEntity.ok()
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(new ResultDTO(false,
+                            "No se pudo generar el Excel del periodo. Intentalo de nuevo.", 500));
         }
     }
 }

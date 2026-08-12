@@ -47,6 +47,24 @@ class FastingServiceImplTest {
     private AchievementRepository achievementRepository;
     @Mock
     private WaterLogRepository waterLogRepository;
+    /* La identidad ya no llega en el cuerpo: sale del token. Estas pruebas son
+       unitarias / con los filtros apagados, asi que no hay token; se planta a
+       mano para poder seguir probando la LOGICA. Que un extrano NO pueda es lo
+       que comprueba AislamientoEnAyunoTest, con la aplicacion levantada. */
+    @org.junit.jupiter.api.BeforeEach
+    void plantarIdentidad() {
+        var auth = new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                "usuario@ohchurus.com", null, java.util.Collections.emptyList());
+        auth.setDetails(3L);
+        org.springframework.security.core.context.SecurityContextHolder.getContext()
+                .setAuthentication(auth);
+    }
+
+    @org.junit.jupiter.api.AfterEach
+    void limpiarIdentidad() {
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+    }
+
 
     @InjectMocks
     private FastingServiceImpl service;
@@ -543,7 +561,12 @@ class FastingServiceImplTest {
             assertEquals(2, summary.get("completed"));
             assertEquals(1, summary.get("incomplete"));
             assertEquals(3, summary.get("totalSessions"));
-            assertTrue((int) summary.get("bestStreak") >= 2);
+            /* Estaba como ">= 2" con el valor exacto conocido: pasaria igual
+               si el calculo devolviera 50. Y el resumen promete tambien el
+               porcentaje de cumplimiento, que no se comprobaba: 2 completadas
+               de 3 sesiones. */
+            assertEquals(2, summary.get("bestStreak"));
+            assertNotNull(summary.get("complianceRate"));
         }
 
         @Test

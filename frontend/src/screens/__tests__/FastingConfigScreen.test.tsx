@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, waitFor } from '@testing-library/react-native';
+import { render, waitFor, fireEvent } from '@testing-library/react-native';
 import FastingConfigScreen from '../fasting/FastingConfigScreen';
 import { ThemeProvider } from '../../contexts/ThemeContext';
 import * as AuthContext from '../../contexts/AuthContext';
@@ -41,5 +41,45 @@ describe('FastingConfigScreen', () => {
     const { getByText } = render(<FastingConfigScreen />, { wrapper: Wrapper });
     await waitFor(() => expect(fastingService.getPresets).toHaveBeenCalled());
     expect(getByText(/Planes predefinidos/)).toBeTruthy();
+  });
+
+  /* El catch vacio dejaba la rejilla de planes vacia cuando fallaba la carga:
+     igual que si el backend no ofreciera ningun plan predefinido. */
+  it('muestra el mensaje del backend cuando fallan los presets', async () => {
+    (fastingService.getPresets as jest.Mock).mockResolvedValue({
+      correct: false, message: 'Presets no disponibles',
+    });
+
+    const { getByText } = render(<FastingConfigScreen />, { wrapper: Wrapper });
+
+    await waitFor(() => expect(getByText('Presets no disponibles')).toBeTruthy());
+    expect(getByText('Reintentar')).toBeTruthy();
+  });
+
+  it('reintentar vuelve a pedir los datos y pinta la pantalla', async () => {
+    (fastingService.getPresets as jest.Mock).mockResolvedValueOnce({
+      correct: false, message: 'Sin conexion con el servicio de ayuno',
+    });
+
+    const { getByText } = render(<FastingConfigScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(getByText('Sin conexion con el servicio de ayuno')).toBeTruthy());
+
+    fireEvent.press(getByText('Reintentar'));
+
+    await waitFor(() => expect(getByText(/Planes predefinidos/)).toBeTruthy());
+  });
+
+  /* getPlan responde correct:false mientras el usuario no ha elegido plan:
+     eso NO puede pintarse como fallo o nadie podria configurar el primero. */
+  it('un usuario sin plan ve el formulario, no la pantalla de error', async () => {
+    (fastingService.getPlan as jest.Mock).mockResolvedValue({
+      correct: false, message: 'El usuario no tiene plan',
+    });
+
+    const { getByText, queryByText } = render(<FastingConfigScreen />, { wrapper: Wrapper });
+
+    await waitFor(() => expect(getByText(/Planes predefinidos/)).toBeTruthy());
+    expect(queryByText('El usuario no tiene plan')).toBeNull();
+    expect(queryByText('Reintentar')).toBeNull();
   });
 });

@@ -1,12 +1,17 @@
 import React from 'react';
-import { render, fireEvent } from '@testing-library/react-native';
+import { render, fireEvent, waitFor } from '@testing-library/react-native';
 import { Alert } from 'react-native';
 import ScheduledFormScreen from '../scheduled/ScheduledFormScreen';
 import { ThemeProvider } from '../../contexts/ThemeContext';
 import * as AuthContext from '../../contexts/AuthContext';
+import { scheduledService } from '../../services/scheduledService';
+import { confirmarUltimaAlerta } from '../../test-utils';
 
 jest.mock('../../services/scheduledService', () => ({
-  scheduledService: { save: jest.fn().mockResolvedValue({ correct: true }) },
+  scheduledService: {
+    save: jest.fn().mockResolvedValue({ correct: true }),
+    delete: jest.fn().mockResolvedValue({ correct: true }),
+  },
 }));
 
 jest.mock('../../services/categoryService', () => ({
@@ -101,6 +106,23 @@ describe('ScheduledFormScreen', () => {
     );
     fireEvent.press(getByText('Cancelar'));
     expect(mockNavigation.goBack).toHaveBeenCalled();
+  });
+
+  it('no borra el programado hasta que se confirma el dialogo', async () => {
+    const scheduled = {
+      id: 's1', userId: '1', categoryId: 'c2', categoryType: 'EXPENSE' as const,
+      name: 'Arriendo', amount: 1500000, frequency: 'MONTHLY' as const, startDate: '2026-01-01',
+    };
+    const route = { params: { scheduled } } as any;
+    const { getByText } = render(
+      <ScheduledFormScreen navigation={mockNavigation} route={route} />,
+      { wrapper: Wrapper },
+    );
+    fireEvent.press(getByText('Eliminar programado'));
+    expect(scheduledService.delete).not.toHaveBeenCalled();
+
+    confirmarUltimaAlerta();
+    await waitFor(() => expect(scheduledService.delete).toHaveBeenCalledWith('s1'));
   });
 
   it('allows selecting frequency', () => {

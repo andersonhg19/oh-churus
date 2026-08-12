@@ -41,7 +41,26 @@ public interface MovementRepository extends JpaRepository<Movement, Long> {
 
     List<Movement> findByUserIdAndConfirmedFalseAndActiveTrue(Long userId);
 
-    boolean existsByScheduledMovementIdAndDateBetweenAndActiveTrue(Long scheduledMovementId, LocalDate startDate, LocalDate endDate);
+    /**
+     * ¿Ya se genero la ocurrencia de este programado para este periodo?
+     *
+     * Dos detalles deliberados, cada uno nacido de un bug:
+     *
+     *  · NO se filtra por active. Borrar un pendiente tiene que significar
+     *    "omite esta ocurrencia": antes reaparecia en el siguiente refresco del
+     *    panel y no habia forma de quitarlo. La fila desactivada es la lapida
+     *    que impide que resucite.
+     *  · El segundo termino es solo para las ocurrencias creadas ANTES de que
+     *    existiera periodStart, que lo tienen nulo. Sin el, el primer refresco
+     *    tras el despliegue duplicaria todos los pendientes vivos.
+     */
+    @Query("SELECT COUNT(m) > 0 FROM Movement m WHERE m.scheduledMovementId = :programadoId " +
+            "AND (m.periodStart = :periodo " +
+            "     OR (m.periodStart IS NULL AND m.date BETWEEN :desde AND :hasta))")
+    boolean existeOcurrenciaDelPeriodo(@Param("programadoId") Long programadoId,
+                                       @Param("periodo") LocalDate periodo,
+                                       @Param("desde") LocalDate desde,
+                                       @Param("hasta") LocalDate hasta);
 
     boolean existsByCategoryIdAndActiveTrue(Long categoryId);
 

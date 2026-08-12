@@ -24,22 +24,22 @@ public class CategorySaveDTO {
        sitio a los DTOs de guardado, que si necesitan escribirlo al crear. */
     private Long userId;
 
-    @NotBlank(message = "Name is required")
-    @Size(max = 100, message = "Name must not exceed 100 characters")
+    @NotBlank(message = "es obligatorio")
+    @Size(max = 100, message = "no puede superar los 100 caracteres")
     private String name;
 
-    @Size(max = 255, message = "Description must not exceed 255 characters")
+    @Size(max = 255, message = "no puede superar los 255 caracteres")
     private String description;
 
     private Long parentId;
 
-    @Size(max = 50, message = "Icon must not exceed 50 characters")
+    @Size(max = 50, message = "no puede superar los 50 caracteres")
     private String icon;
 
-    @Size(max = 7, message = "Color must not exceed 7 characters")
+    @Size(max = 7, message = "no puede superar los 7 caracteres")
     private String color;
 
-    @NotNull(message = "Type is required (INCOME or EXPENSE)")
+    @NotNull(message = "es obligatorio (INCOME o EXPENSE)")
     private CategoryType type;
 
     private Long householdId;

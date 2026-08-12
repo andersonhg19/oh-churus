@@ -1,5 +1,5 @@
 import { fechaLocalISO } from '../../utils/format';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useToast } from '../../contexts/ToastContext';
@@ -8,6 +8,8 @@ import AppText from '../../components/atoms/Text';
 import Input from '../../components/atoms/Input';
 import Button from '../../components/atoms/Button';
 import { spacing } from '../../theme';
+import { confirmarBorrado } from '../../utils/confirmar';
+import { useAccionUnica } from '../../hooks/useAccionUnica';
 import { scheduledService } from '../../services/scheduledService';
 import { categoryService } from '../../services/categoryService';
 import { validateRequired, validateAmount, validateDate, validateCategory, validateDayOfMonth, validateDuration, validateAll } from '../../utils/validators';
@@ -57,7 +59,6 @@ const ScheduledFormScreen: React.FC<Props> = ({ navigation, route }) => {
   const [startDate, setStartDate] = useState(existing?.startDate || fechaLocalISO());
   const [durationMonths, setDurationMonths] = useState(existing?.durationMonths ? String(existing.durationMonths) : '');
   const [dayOfMonth, setDayOfMonth] = useState(existing?.dayOfMonth ? String(existing.dayOfMonth) : '');
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const loadCategories = async () => {
@@ -82,7 +83,11 @@ const ScheduledFormScreen: React.FC<Props> = ({ navigation, route }) => {
     loadCategories();
   }, [user, existing]);
 
-  const handleDelete = async () => {
+  // Borrar un programado cancela ademas sus pendientes: exige confirmacion.
+  const handleDelete = () =>
+    confirmarBorrado(`el programado "${existing?.name || ''}"`, () => { borrar(); });
+
+  const borrarProgramado = useCallback(async () => {
     if (!existing) return;
     try {
       const res = await scheduledService.delete(String(existing.id));
@@ -95,9 +100,11 @@ const ScheduledFormScreen: React.FC<Props> = ({ navigation, route }) => {
     } catch (err: any) {
       showToast('error', 'Error', err.message || 'No se pudo eliminar');
     }
-  };
+  }, [existing, navigation, showToast]);
 
-  const handleSave = async () => {
+  const { ejecutando: borrando, ejecutar: borrar } = useAccionUnica(borrarProgramado);
+
+  const guardarProgramado = useCallback(async () => {
     const error = validateAll(
       validateRequired(name, 'Nombre'),
       validateCategory(selectedCategory?.id ? String(selectedCategory.id) : null),
@@ -110,7 +117,6 @@ const ScheduledFormScreen: React.FC<Props> = ({ navigation, route }) => {
       showToast('warning', 'Validacion', error);
       return;
     }
-    setLoading(true);
     try {
       const data: Partial<ScheduledMovement> = {
         ...(isEdit && { id: existing.id }),
@@ -131,10 +137,10 @@ const ScheduledFormScreen: React.FC<Props> = ({ navigation, route }) => {
       }
     } catch (err: any) {
       showToast('error', 'Error', err.message || 'No se pudo guardar');
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [name, selectedCategory, amount, frequency, startDate, durationMonths, dayOfMonth, isEdit, existing, user, navigation, showToast]);
+
+  const { ejecutando: guardando, ejecutar: handleSave } = useAccionUnica(guardarProgramado);
 
   return (
     <ScrollView
@@ -228,9 +234,9 @@ const ScheduledFormScreen: React.FC<Props> = ({ navigation, route }) => {
       <Input label="Duracion (meses)" value={durationMonths} onChangeText={setDurationMonths} placeholder="Opcional" keyboardType="numeric" />
       <Input label="Dia del mes" value={dayOfMonth} onChangeText={setDayOfMonth} placeholder="1-31 (opcional)" keyboardType="numeric" />
 
-      <Button title={isEdit ? 'Actualizar' : 'Guardar'} onPress={handleSave} loading={loading} size="large" style={styles.saveBtn} />
+      <Button title={isEdit ? 'Actualizar' : 'Guardar'} onPress={handleSave} loading={guardando} disabled={borrando} size="large" style={styles.saveBtn} />
       {isEdit && (
-        <Button title="Eliminar programado" onPress={handleDelete} variant="danger" style={styles.deleteBtn} />
+        <Button title="Eliminar programado" onPress={handleDelete} loading={borrando} disabled={guardando} variant="danger" style={styles.deleteBtn} />
       )}
       <Button title="Cancelar" onPress={() => navigation.goBack()} variant="outline" style={styles.cancelBtn} />
     </ScrollView>

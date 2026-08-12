@@ -96,6 +96,18 @@ describe('CategoriesScreen', () => {
     await waitFor(() => expect(getAllByText('+').length).toBeGreaterThanOrEqual(1));
   });
 
+  it('muestra el mensaje del backend cuando correct es false', async () => {
+    (categoryService.getTree as jest.Mock).mockResolvedValue({
+      correct: false, message: 'El arbol de categorias no esta disponible', object: null,
+    });
+    const { getByText, queryByText } = render(
+      <CategoriesScreen navigation={mockNavigation} route={mockRoute} />,
+      { wrapper: Wrapper },
+    );
+    await waitFor(() => expect(getByText('El arbol de categorias no esta disponible')).toBeTruthy());
+    expect(queryByText('Sin categorias')).toBeNull();
+  });
+
   it('shows error on fetch failure', async () => {
     (categoryService.getTree as jest.Mock).mockRejectedValue(new Error('fail'));
     const { getByText } = render(

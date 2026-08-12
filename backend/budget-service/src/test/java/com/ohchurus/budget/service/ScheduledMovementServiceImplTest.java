@@ -145,18 +145,22 @@ class ScheduledMovementServiceImplTest {
         @Test
         @DisplayName("Should create scheduled with duration and calculate endDate")
         void shouldCreateWithDuration() {
+            /* Esta prueba defendia el bug: exigia que un credito a 12 meses que
+               empieza el 1 de enero de 2026 terminara el 1 de enero de 2027, o
+               sea 13 cuotas. Doce meses desde el 1 de enero acaban el 31 de
+               diciembre. */
             testSaveDTO.setDurationMonths(12);
 
             ScheduledMovement withEnd = ScheduledMovement.builder()
                     .id(2L).userId(1L).categoryId(10L).name("Loan")
                     .amount(new BigDecimal("500000.00")).frequency(Frequency.MONTHLY)
                     .startDate(LocalDate.of(2026, 1, 1))
-                    .endDate(LocalDate.of(2027, 1, 1))
+                    .endDate(LocalDate.of(2026, 12, 31))
                     .durationMonths(12).active(true).build();
 
             ResultScheduledMovementDTO withEndDTO = new ResultScheduledMovementDTO();
             withEndDTO.setId(2L);
-            withEndDTO.setEndDate(LocalDate.of(2027, 1, 1));
+            withEndDTO.setEndDate(LocalDate.of(2026, 12, 31));
 
             when(categoryRepository.findByIdAndActiveTrue(10L)).thenReturn(Optional.of(testCategory));
             when(scheduledMovementRepository.save(any(ScheduledMovement.class))).thenReturn(withEnd);
@@ -166,7 +170,7 @@ class ScheduledMovementServiceImplTest {
 
             assertTrue(result.isCorrect());
             verify(scheduledMovementRepository).save(argThat(s ->
-                    s.getEndDate() != null && s.getEndDate().equals(LocalDate.of(2027, 1, 1))));
+                    s.getEndDate() != null && s.getEndDate().equals(LocalDate.of(2026, 12, 31))));
         }
 
         @Test
@@ -365,8 +369,8 @@ class ScheduledMovementServiceImplTest {
             when(householdService.getHouseholdIds(1L)).thenReturn(Collections.emptyList());
             when(scheduledMovementRepository.findByUserIdAndActiveTrue(1L))
                     .thenReturn(List.of(testScheduled));
-            when(movementRepository.existsByScheduledMovementIdAndDateBetweenAndActiveTrue(
-                    eq(1L), any(LocalDate.class), any(LocalDate.class))).thenReturn(false);
+            when(movementRepository.existeOcurrenciaDelPeriodo(
+                    eq(1L), any(LocalDate.class), any(LocalDate.class), any(LocalDate.class))).thenReturn(false);
 
             Movement savedMovement = Movement.builder()
                     .id(100L).userId(1L).categoryId(10L)
@@ -396,8 +400,8 @@ class ScheduledMovementServiceImplTest {
             when(householdService.getHouseholdIds(1L)).thenReturn(Collections.emptyList());
             when(scheduledMovementRepository.findByUserIdAndActiveTrue(1L))
                     .thenReturn(List.of(testScheduled));
-            when(movementRepository.existsByScheduledMovementIdAndDateBetweenAndActiveTrue(
-                    eq(1L), any(LocalDate.class), any(LocalDate.class))).thenReturn(true);
+            when(movementRepository.existeOcurrenciaDelPeriodo(
+                    eq(1L), any(LocalDate.class), any(LocalDate.class), any(LocalDate.class))).thenReturn(true);
 
             ResultDTO result = scheduledMovementService.generatePending(1L, 1);
 
@@ -482,8 +486,8 @@ class ScheduledMovementServiceImplTest {
             when(householdService.getHouseholdIds(1L)).thenReturn(Collections.emptyList());
             when(scheduledMovementRepository.findByUserIdAndActiveTrue(1L))
                     .thenReturn(List.of(quarterly));
-            when(movementRepository.existsByScheduledMovementIdAndDateBetweenAndActiveTrue(
-                    eq(4L), any(LocalDate.class), any(LocalDate.class))).thenReturn(false);
+            when(movementRepository.existeOcurrenciaDelPeriodo(
+                    eq(4L), any(LocalDate.class), any(LocalDate.class), any(LocalDate.class))).thenReturn(false);
 
             Movement savedMovement = Movement.builder()
                     .id(101L).userId(1L).categoryId(10L)
@@ -512,8 +516,8 @@ class ScheduledMovementServiceImplTest {
 
             when(householdService.getHouseholdIds(1L)).thenReturn(Collections.emptyList());
             when(scheduledMovementRepository.findByUserIdAndActiveTrue(1L)).thenReturn(List.of(weekly));
-            when(movementRepository.existsByScheduledMovementIdAndDateBetweenAndActiveTrue(
-                    eq(5L), any(LocalDate.class), any(LocalDate.class))).thenReturn(false);
+            when(movementRepository.existeOcurrenciaDelPeriodo(
+                    eq(5L), any(LocalDate.class), any(LocalDate.class), any(LocalDate.class))).thenReturn(false);
 
             Movement saved = Movement.builder().id(102L).userId(1L).categoryId(10L)
                     .date(LocalDate.now()).amount(new BigDecimal("150000.00"))
@@ -539,8 +543,8 @@ class ScheduledMovementServiceImplTest {
 
             when(householdService.getHouseholdIds(1L)).thenReturn(Collections.emptyList());
             when(scheduledMovementRepository.findByUserIdAndActiveTrue(1L)).thenReturn(List.of(daily));
-            when(movementRepository.existsByScheduledMovementIdAndDateBetweenAndActiveTrue(
-                    eq(10L), any(LocalDate.class), any(LocalDate.class))).thenReturn(false);
+            when(movementRepository.existeOcurrenciaDelPeriodo(
+                    eq(10L), any(LocalDate.class), any(LocalDate.class), any(LocalDate.class))).thenReturn(false);
 
             Movement saved = Movement.builder().id(110L).userId(1L).categoryId(10L)
                     .date(LocalDate.now()).amount(new BigDecimal("5000.00"))
@@ -567,8 +571,8 @@ class ScheduledMovementServiceImplTest {
 
             when(householdService.getHouseholdIds(1L)).thenReturn(Collections.emptyList());
             when(scheduledMovementRepository.findByUserIdAndActiveTrue(1L)).thenReturn(List.of(noDayScheduled));
-            when(movementRepository.existsByScheduledMovementIdAndDateBetweenAndActiveTrue(
-                    eq(6L), any(LocalDate.class), any(LocalDate.class))).thenReturn(false);
+            when(movementRepository.existeOcurrenciaDelPeriodo(
+                    eq(6L), any(LocalDate.class), any(LocalDate.class), any(LocalDate.class))).thenReturn(false);
 
             Movement saved = Movement.builder().id(103L).userId(1L).categoryId(10L)
                     .date(LocalDate.now()).amount(new BigDecimal("50000.00"))
@@ -594,8 +598,8 @@ class ScheduledMovementServiceImplTest {
 
             when(householdService.getHouseholdIds(1L)).thenReturn(Collections.emptyList());
             when(scheduledMovementRepository.findByUserIdAndActiveTrue(1L)).thenReturn(List.of(nullAmount));
-            when(movementRepository.existsByScheduledMovementIdAndDateBetweenAndActiveTrue(
-                    eq(7L), any(LocalDate.class), any(LocalDate.class))).thenReturn(false);
+            when(movementRepository.existeOcurrenciaDelPeriodo(
+                    eq(7L), any(LocalDate.class), any(LocalDate.class), any(LocalDate.class))).thenReturn(false);
 
             Movement saved = Movement.builder().id(104L).userId(1L).categoryId(10L)
                     .date(LocalDate.now()).amount(BigDecimal.ZERO)

@@ -143,8 +143,11 @@ class UserControllerTest {
                 .andExpect(jsonPath("$.errorCode").value(103));
     }
 
+    /* Exigia un 400 de Spring: certificaba justo lo que rompe al frontend, que
+       solo sabe leer ResultDTO con HTTP 200. Ahora se exige 200, correct:false
+       y el nombre del campo malo. */
     @Test
-    @DisplayName("POST /v1/users/save - Should return 400 when email is missing")
+    @DisplayName("POST /v1/users/save - sin correo: 200 con correct:false y el campo que falla")
     void saveUserMissingEmail() throws Exception {
         UserSaveDTO dto = new UserSaveDTO();
         dto.setName("Test User");
@@ -154,7 +157,10 @@ class UserControllerTest {
         mockMvc.perform(post("/v1/users/save")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto)))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.correct").value(false))
+                .andExpect(jsonPath("$.message").value(
+                        org.hamcrest.Matchers.containsString("'email'")));
     }
 
     @Test

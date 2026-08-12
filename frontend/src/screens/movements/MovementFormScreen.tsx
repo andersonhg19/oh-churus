@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useToast } from '../../contexts/ToastContext';
@@ -12,6 +12,8 @@ import { movementService } from '../../services/movementService';
 import { categoryService } from '../../services/categoryService';
 import { Movement, Category, CategoryType } from '../../types';
 import { formatCurrency, fechaLocalISO } from '../../utils/format';
+import { confirmarBorrado } from '../../utils/confirmar';
+import { useAccionUnica } from '../../hooks/useAccionUnica';
 import { getIconEmoji } from '../../utils/iconMap';
 import { validateAmount, validateDate, validateCategory, validateAll } from '../../utils/validators';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -38,7 +40,6 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
   const [description, setDescription] = useState(existing?.description || '');
   const [date, setDate] = useState(existing?.date || fechaLocalISO());
   const [confirmed, setConfirmed] = useState(existing?.confirmed ?? true);
-  const [loading, setLoading] = useState(false);
 
   // Transfer: disponibilizar a cuenta personal
   const [isTransfer, setIsTransfer] = useState(false);
@@ -77,7 +78,14 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
     }
   };
 
-  const handleDelete = async () => {
+  // Borrar un movimiento se ejecutaba al primer toque, sin vuelta atras.
+  const handleDelete = () =>
+    confirmarBorrado(
+      existing?.description || 'este movimiento',
+      () => { borrar(); },
+    );
+
+  const borrarMovimiento = useCallback(async () => {
     if (!existing) return;
     try {
       const res = await movementService.delete(String(existing.id));
@@ -90,9 +98,11 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
     } catch (err: any) {
       showToast('error', 'Error', err.message || 'No se pudo eliminar');
     }
-  };
+  }, [existing, navigation, showToast]);
 
-  const handleSave = async () => {
+  const { ejecutando: borrando, ejecutar: borrar } = useAccionUnica(borrarMovimiento);
+
+  const guardarMovimiento = useCallback(async () => {
     const error = validateAll(
       validateCategory(selectedCategory?.id ? String(selectedCategory.id) : null),
       validateAmount(amount),
@@ -102,7 +112,6 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
       showToast('warning', 'Validacion', error);
       return;
     }
-    setLoading(true);
     try {
       // If transfer mode, use transfer endpoint
       if (isTransfer && personalCategoryId && !isEdit) {
@@ -141,10 +150,10 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
       }
     } catch (err: any) {
       showToast('error', 'Error', err.message || 'No se pudo guardar');
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [selectedCategory, amount, date, description, confirmed, isTransfer, personalCategoryId, isEdit, existing, parentMovement, user, navigation, showToast]);
+
+  const { ejecutando: guardando, ejecutar: handleSave } = useAccionUnica(guardarMovimiento);
 
   const typeColor = movementType === 'INCOME' ? colors.income : colors.expense;
 
@@ -317,9 +326,9 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
       <Input label="Nota" value={description} onChangeText={setDescription} placeholder="Descripcion (opcional)" multiline />
 
       {/* Acciones */}
-      <Button title={isTransfer ? 'Disponibilizar' : isEdit ? 'Actualizar' : parentMovement ? 'Registrar sub-gasto' : 'Guardar'} onPress={handleSave} loading={loading} size="large" style={styles.saveBtn} />
+      <Button title={isTransfer ? 'Disponibilizar' : isEdit ? 'Actualizar' : parentMovement ? 'Registrar sub-gasto' : 'Guardar'} onPress={handleSave} loading={guardando} disabled={borrando} size="large" style={styles.saveBtn} />
       {isEdit && (
-        <Button title="Eliminar" onPress={handleDelete} variant="danger" style={styles.deleteBtn} />
+        <Button title="Eliminar" onPress={handleDelete} loading={borrando} disabled={guardando} variant="danger" style={styles.deleteBtn} />
       )}
     </ScrollView>
   );

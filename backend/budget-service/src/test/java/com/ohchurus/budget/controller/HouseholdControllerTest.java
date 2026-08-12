@@ -97,6 +97,34 @@ class HouseholdControllerTest {
     }
 
     @Test
+    @DisplayName("POST /invite delega el correo al servicio, que resuelve el id")
+    void shouldInviteByEmail() throws Exception {
+        when(householdService.invitarPorCorreo(eq(100L), eq("bruno@ohchurus.com"))).thenReturn(successResult);
+
+        mockMvc.perform(post("/v1/household/invite")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                Map.of("householdId", 100, "email", "bruno@ohchurus.com"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.correct").value(true));
+
+        verify(householdService).invitarPorCorreo(100L, "bruno@ohchurus.com");
+    }
+
+    @Test
+    @DisplayName("POST /invite con un correo mal formado no llega al servicio")
+    void shouldRejectMalformedEmail() throws Exception {
+        mockMvc.perform(post("/v1/household/invite")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                Map.of("householdId", 100, "email", "no-soy-un-correo"))))
+                .andExpect(jsonPath("$.correct").value(false));
+
+        org.mockito.Mockito.verify(householdService, org.mockito.Mockito.never())
+                .invitarPorCorreo(any(), any());
+    }
+
+    @Test
     @DisplayName("POST /remove-member should delegate to service")
     void shouldRemoveMember() throws Exception {
         when(householdService.removeMember(eq(100L), eq(2L))).thenReturn(successResult);

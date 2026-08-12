@@ -111,7 +111,18 @@ class AuthenticationServiceImplTest {
         AuthenticationResponse response = authenticationService.authenticate(request);
 
         assertNotNull(response.getToken());
-        assertTrue(response.getToken().split("\\.").length == 3); // JWT has 3 parts
+
+        /* Contar que el token tiene tres trozos lo cumple CUALQUIER JWT, lleve
+           los claims o no: el test prometia comprobar userId y name y no
+           comprobaba ninguno. Y ahora importa de verdad, porque el filtro de
+           los tres servicios saca de aqui el userId: si ese claim faltara, la
+           identidad se quedaria sin resolver en toda la plataforma. */
+        var decodificado = com.auth0.jwt.JWT.require(
+                        com.auth0.jwt.algorithms.Algorithm.HMAC256("test-secret-key"))
+                .build().verify(response.getToken());
+        assertEquals("test@ohchurus.com", decodificado.getSubject());
+        assertEquals(testUser.getId(), decodificado.getClaim("userId").asLong());
+        assertEquals(testUser.getName(), decodificado.getClaim("name").asString());
     }
 
     @Nested

@@ -135,9 +135,15 @@ class CategoryControllerTest {
                     .andExpect(status().isOk());
         }
 
+        /* Estas dos pruebas exigian un 400 de Spring. Certificaban justo lo que
+           rompe al frontend: toda la API habla ResultDTO con HTTP 200 y el
+           frontend solo sabe leer eso, asi que un 400 se convertia en
+           "Request failed with status code 400". Ahora se exige lo que de
+           verdad hace falta: 200, correct:false y el nombre del campo malo. */
+
         @Test
-        @DisplayName("Should return 400 when name is blank")
-        void shouldReturn400WhenNameBlank() throws Exception {
+        @DisplayName("nombre en blanco: 200 con correct:false y el campo que falla")
+        void nombreEnBlancoRespondeDentroDelContrato() throws Exception {
             CategorySaveDTO dto = new CategorySaveDTO();
             dto.setUserId(1L);
             dto.setName("");
@@ -146,12 +152,15 @@ class CategoryControllerTest {
             mockMvc.perform(post("/v1/categories/save")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
-                    .andExpect(status().isBadRequest());
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.correct").value(false))
+                    .andExpect(jsonPath("$.message").value(
+                            org.hamcrest.Matchers.containsString("'name'")));
         }
 
         @Test
-        @DisplayName("Should return 400 when type is missing")
-        void shouldReturn400WhenTypeMissing() throws Exception {
+        @DisplayName("tipo ausente: 200 con correct:false y el campo que falla")
+        void tipoAusenteRespondeDentroDelContrato() throws Exception {
             CategorySaveDTO dto = new CategorySaveDTO();
             dto.setUserId(1L);
             dto.setName("Food");
@@ -159,7 +168,10 @@ class CategoryControllerTest {
             mockMvc.perform(post("/v1/categories/save")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
-                    .andExpect(status().isBadRequest());
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.correct").value(false))
+                    .andExpect(jsonPath("$.message").value(
+                            org.hamcrest.Matchers.containsString("'type'")));
         }
     }
 

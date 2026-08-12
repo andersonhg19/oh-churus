@@ -112,6 +112,15 @@ describe('DashboardScreen', () => {
     expect((movementService.confirm as jest.Mock).mock.calls[0][0]).toBe('p1');
   });
 
+  it('muestra el mensaje del backend cuando correct es false, no un balance en cero', async () => {
+    (dashboardService.getSummary as jest.Mock).mockResolvedValue({
+      correct: false, message: 'Tu sesion expiro, vuelve a entrar', object: null,
+    });
+    const { getByText, queryByText } = render(<DashboardScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(getByText('Tu sesion expiro, vuelve a entrar')).toBeTruthy());
+    expect(queryByText('Todo al dia')).toBeNull();
+  });
+
   it('shows error on fetch failure', async () => {
     (dashboardService.getSummary as jest.Mock).mockRejectedValue(new Error('fail'));
     const { getByText } = render(<DashboardScreen />, { wrapper: Wrapper });

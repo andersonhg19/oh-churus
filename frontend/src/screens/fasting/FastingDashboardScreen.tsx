@@ -9,8 +9,10 @@ import Button from '../../components/atoms/Button';
 import Input from '../../components/atoms/Input';
 import Card from '../../components/atoms/Card';
 import Spinner from '../../components/atoms/Spinner';
+import EstadoError from '../../components/molecules/EstadoError';
 import { spacing } from '../../theme';
 import { fastingService } from '../../services/fastingService';
+import { useCarga, exigir } from '../../hooks/useCarga';
 import { useFocusEffect } from '@react-navigation/native';
 import Svg, { Circle } from 'react-native-svg';
 
@@ -21,7 +23,6 @@ const FastingDashboardScreen: React.FC = () => {
 
   const [plan, setPlan] = useState<any>(null);
   const [session, setSession] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const timerRef = useRef<any>(null);
@@ -35,24 +36,28 @@ const FastingDashboardScreen: React.FC = () => {
   const [editDate, setEditDate] = useState('');
   const [editTime, setEditTime] = useState('');
 
-  const fetchData = useCallback(async () => {
+  const traerAyuno = useCallback(async () => {
     if (!user) return;
-    try {
-      const [planRes, sessionRes, waterRes, achRes] = await Promise.all([
-        fastingService.getPlan(user.userId),
-        fastingService.getActiveSession(user.userId),
-        fastingService.getWaterToday(user.userId),
-        fastingService.getAchievements(user.userId),
-      ]);
-      if (planRes.correct) setPlan(planRes.object);
-      if (sessionRes.correct) setSession(sessionRes.object);
-      if (waterRes.correct) setWater(waterRes.object);
-      if (achRes.correct) setAchievements(achRes.object || []);
-    } catch { /* silent */ }
-    finally { setLoading(false); }
+    const [planRes, sessionRes, waterRes, achRes] = await Promise.all([
+      fastingService.getPlan(user.userId),
+      fastingService.getActiveSession(user.userId),
+      fastingService.getWaterToday(user.userId),
+      fastingService.getAchievements(user.userId),
+    ]);
+    /*
+     * getPlan responde correct:false con 404 cuando el usuario todavia no ha
+     * elegido plan. Eso es "sin plan configurado", no un fallo: es el unico
+     * correct:false de esta pantalla que NO debe pintarse como error.
+     */
+    setPlan(planRes.correct ? planRes.object : null);
+    setSession(exigir(sessionRes) || null);
+    setWater(exigir(waterRes) || null);
+    setAchievements(exigir(achRes) || []);
   }, [user]);
 
-  useFocusEffect(useCallback(() => { setLoading(true); fetchData(); }, [fetchData]));
+  const { cargando, refrescando, error, cargar, refrescar } = useCarga(traerAyuno);
+
+  useFocusEffect(useCallback(() => { cargar(); }, [cargar]));
 
   // Timer
   useEffect(() => {
@@ -110,6 +115,9 @@ const FastingDashboardScreen: React.FC = () => {
     try {
       const res = await fastingService.cancelFasting(user!.userId);
       if (res.correct) { setSession(null); showToast('info', 'Ayuno cancelado'); }
+      // Sin este else, cancelar un ayuno que el backend rechazaba no hacia
+      // absolutamente nada visible: el boton parecia roto.
+      else showToast('error', 'Error', res.message);
     } catch { showToast('error', 'Error'); }
     finally { setActing(false); }
   };
@@ -127,7 +135,15 @@ const FastingDashboardScreen: React.FC = () => {
     return d.toLocaleString('es-CO', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   };
 
-  if (loading) return <Spinner fullScreen />;
+  if (cargando) return <Spinner fullScreen />;
+
+  if (error) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <EstadoError mensaje={error} onReintentar={cargar} />
+      </View>
+    );
+  }
 
   const isActive = session?.status === 'IN_PROGRESS';
   const totalSeconds = (plan?.fastingHours || 16) * 3600;
@@ -162,7 +178,7 @@ const FastingDashboardScreen: React.FC = () => {
       <ScrollView
         style={[styles.container, { backgroundColor: colors.background }]}
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={false} onRefresh={fetchData} tintColor={colors.primary} />}
+        refreshControl={<RefreshControl refreshing={refrescando} onRefresh={refrescar} tintColor={colors.primary} />}
       >
         <AppText variant="subtitle" style={styles.title}>Ayuno Intermitente 🕐</AppText>
 
@@ -294,7 +310,10 @@ const FastingDashboardScreen: React.FC = () => {
                     setWater((prev: any) => prev ? { ...prev, glasses: (prev.glasses || 0) + 1 } : prev);
                     try {
                       const res = await fastingService.addWater(user.userId, 1);
+                      // El pintado optimista miente si el backend dice que no:
+                      // hay que devolver el vaso y contar por que.
                       if (res.correct) setWater(res.object);
+                      else { setWater((prev: any) => prev ? { ...prev, glasses: Math.max(0, (prev.glasses || 0) - 1) } : prev); showToast('error', 'Error', res.message); }
                     } catch { showToast('error', 'Error al registrar agua'); }
                     finally { setWaterBusy(false); }
                   }}
@@ -311,6 +330,7 @@ const FastingDashboardScreen: React.FC = () => {
                     try {
                       const res = await fastingService.addWater(user.userId, -1);
                       if (res.correct) setWater(res.object);
+                      else { setWater((prev: any) => prev ? { ...prev, glasses: (prev.glasses || 0) + 1 } : prev); showToast('error', 'Error', res.message); }
                     } catch { showToast('error', 'Error'); }
                     finally { setWaterBusy(false); }
                   }}

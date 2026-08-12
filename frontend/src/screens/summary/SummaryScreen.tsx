@@ -5,6 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import AppText from '../../components/atoms/Text';
 import Spinner from '../../components/atoms/Spinner';
 import EmptyState from '../../components/molecules/EmptyState';
+import EstadoError from '../../components/molecules/EstadoError';
 import PeriodNavigator from '../../components/molecules/PeriodNavigator';
 import DonutChart from '../../components/molecules/DonutChart';
 import CapsuleToggle from '../../components/molecules/CapsuleToggle';
@@ -13,6 +14,7 @@ import { spacing } from '../../theme';
 import { dashboardService } from '../../services/dashboardService';
 import { movementService } from '../../services/movementService';
 import { CategorySummary, DashboardSummary, Movement } from '../../types';
+import { useCarga, exigir } from '../../hooks/useCarga';
 import { getStartOfPeriod, getEndOfPeriod, navigatePeriod } from '../../utils/periodUtils';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -36,41 +38,34 @@ const SummaryScreen: React.FC<Props> = ({ navigation }) => {
   const [categoryData, setCategoryData] = useState<CategorySummary[]>([]);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [allMovements, setAllMovements] = useState<Movement[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
 
   const periodEnd = getEndOfPeriod(budgetDay, periodStart);
 
-  const fetchData = useCallback(async (refDate: string) => {
+  const traerResumen = useCallback(async () => {
     if (!user) return;
-    try {
-      // Fetch independently so one failure doesn't block others
-      const [catRes, sumRes] = await Promise.all([
-        dashboardService.getByCategory(user.userId, budgetDay, refDate),
-        dashboardService.getSummary(user.userId, budgetDay, refDate),
-      ]);
-      if (catRes.correct && catRes.object) setCategoryData(catRes.object);
-      if (sumRes.correct && sumRes.object) setSummary(sumRes.object);
+    const [catRes, sumRes] = await Promise.all([
+      dashboardService.getByCategory(user.userId, budgetDay, periodStart),
+      dashboardService.getSummary(user.userId, budgetDay, periodStart),
+    ]);
+    setCategoryData(exigir(catRes) || []);
+    setSummary(exigir(sumRes) || null);
 
-      try {
-        const pStart = getStartOfPeriod(budgetDay, new Date(refDate));
-        const pEnd = getEndOfPeriod(budgetDay, pStart);
-        const movRes = await movementService.getAll({ userId: user.userId, startDate: pStart, endDate: pEnd, page: 0, size: 200 });
-        if (movRes.correct && movRes.object) setAllMovements(movRes.object.list || []);
-      } catch { /* movements fetch is optional for budget bars */ }
-    } catch {
-      // silent
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [user, budgetDay]);
+    // Los movimientos solo alimentan las barras presupuesto-vs-real: si fallan,
+    // la dona y los totales siguen siendo correctos, asi que no tumban la pantalla.
+    try {
+      const pStart = getStartOfPeriod(budgetDay, new Date(periodStart));
+      const pEnd = getEndOfPeriod(budgetDay, pStart);
+      const movRes = await movementService.getAll({ userId: user.userId, startDate: pStart, endDate: pEnd, page: 0, size: 200 });
+      if (movRes.correct && movRes.object) setAllMovements(movRes.object.list || []);
+    } catch { /* las barras se quedan sin presupuesto, el resumen no */ }
+  }, [user, budgetDay, periodStart]);
+
+  const { cargando, refrescando, error, cargar, refrescar } = useCarga(traerResumen);
 
   useFocusEffect(
     useCallback(() => {
-      setLoading(true);
-      fetchData(periodStart);
-    }, [fetchData, periodStart]),
+      cargar();
+    }, [cargar]),
   );
 
   const currentPeriodStart = getStartOfPeriod(budgetDay, new Date());
@@ -123,13 +118,21 @@ const SummaryScreen: React.FC<Props> = ({ navigation }) => {
     });
   };
 
-  if (loading) return <Spinner fullScreen />;
+  if (cargando) return <Spinner fullScreen />;
+
+  if (error) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <EstadoError mensaje={error} onReintentar={cargar} />
+      </View>
+    );
+  }
 
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(periodStart); }} tintColor={colors.primary} />}
+      refreshControl={<RefreshControl refreshing={refrescando} onRefresh={refrescar} tintColor={colors.primary} />}
     >
       <AppText variant="subtitle" style={styles.title}>Resumen</AppText>
 

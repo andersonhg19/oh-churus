@@ -5,12 +5,19 @@ import CategoryFormScreen from '../categories/CategoryFormScreen';
 import { ThemeProvider } from '../../contexts/ThemeContext';
 import * as AuthContext from '../../contexts/AuthContext';
 import { categoryService } from '../../services/categoryService';
+import { householdService } from '../../services/householdService';
+import { confirmarUltimaAlerta } from '../../test-utils';
 
 jest.mock('../../services/categoryService', () => ({
   categoryService: {
     save: jest.fn().mockResolvedValue({ correct: true }),
     getTree: jest.fn().mockResolvedValue({ correct: true, object: [] }),
+    delete: jest.fn().mockResolvedValue({ correct: true }),
   },
+}));
+
+jest.mock('../../services/householdService', () => ({
+  householdService: { getByUser: jest.fn() },
 }));
 
 jest.spyOn(Alert, 'alert');
@@ -28,7 +35,10 @@ const Wrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 );
 
 describe('CategoryFormScreen', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (householdService.getByUser as jest.Mock).mockResolvedValue({ correct: true, object: [] });
+  });
 
   it('renders new category form', () => {
     const route = { params: {} } as any;
@@ -111,6 +121,65 @@ describe('CategoryFormScreen', () => {
     fireEvent.press(getByText('Guardar'));
     await waitFor(() => expect(categoryService.save).toHaveBeenCalled());
     expect(mockNavigation.goBack).toHaveBeenCalled();
+  });
+
+  it('no borra la categoria hasta que se confirma el dialogo', async () => {
+    const category = { id: '9', userId: '1', name: 'Mercado', type: 'EXPENSE' as const, children: [] };
+    const route = { params: { category } } as any;
+    const { getByText } = render(
+      <CategoryFormScreen navigation={mockNavigation} route={route} />,
+      { wrapper: Wrapper },
+    );
+    fireEvent.press(getByText('Eliminar'));
+    expect(categoryService.delete).not.toHaveBeenCalled();
+
+    confirmarUltimaAlerta();
+    await waitFor(() => expect(categoryService.delete).toHaveBeenCalledWith('9'));
+  });
+
+  it('un doble toque en Guardar no crea dos categorias', async () => {
+    const route = { params: {} } as any;
+    const { getByText, getByPlaceholderText } = render(
+      <CategoryFormScreen navigation={mockNavigation} route={route} />,
+      { wrapper: Wrapper },
+    );
+    fireEvent.changeText(getByPlaceholderText('Nombre de la categoría'), 'Mercado');
+    const guardar = getByText('Guardar');
+    fireEvent.press(guardar);
+    fireEvent.press(guardar);
+    await waitFor(() => expect(categoryService.save).toHaveBeenCalled());
+    expect(categoryService.save).toHaveBeenCalledTimes(1);
+  });
+
+  /* El catch vacio escondia el fallo del hogar: el selector Personal/Compartida
+     simplemente no aparecia, asi que la categoria se guardaba como personal sin
+     que nadie supiera que compartirla habia dejado de ser una opcion. */
+  it('avisa con el mensaje del backend cuando el nucleo familiar no carga', async () => {
+    (householdService.getByUser as jest.Mock).mockResolvedValue({
+      correct: false, message: 'No se pudo consultar el nucleo',
+    });
+    const route = { params: {} } as any;
+    const { queryByText } = render(
+      <CategoryFormScreen navigation={mockNavigation} route={route} />,
+      { wrapper: Wrapper },
+    );
+
+    await waitFor(() =>
+      expect((globalThis as any).__mockShowToast).toHaveBeenCalledWith(
+        'error', 'Error', 'No se pudo consultar el nucleo'));
+    expect(queryByText('Alcance')).toBeNull();
+  });
+
+  it('avisa cuando la consulta del nucleo familiar revienta', async () => {
+    (householdService.getByUser as jest.Mock).mockRejectedValue(new Error('Sin red'));
+    const route = { params: {} } as any;
+    render(
+      <CategoryFormScreen navigation={mockNavigation} route={route} />,
+      { wrapper: Wrapper },
+    );
+
+    await waitFor(() =>
+      expect((globalThis as any).__mockShowToast).toHaveBeenCalledWith('error', 'Error', 'Sin red'));
   });
 
   it('shows an error toast when save fails', async () => {

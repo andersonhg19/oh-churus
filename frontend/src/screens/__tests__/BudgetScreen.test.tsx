@@ -1,6 +1,8 @@
 import React from 'react';
 import { render, waitFor, fireEvent } from '@testing-library/react-native';
+import { Alert } from 'react-native';
 import BudgetScreen from '../budget/BudgetScreen';
+import { confirmarUltimaAlerta } from '../../test-utils';
 import { ThemeProvider } from '../../contexts/ThemeContext';
 import * as AuthContext from '../../contexts/AuthContext';
 import { budgetAllocationService } from '../../services/budgetAllocationService';
@@ -21,6 +23,8 @@ jest.mock('../../services/categoryService', () => ({
 jest.mock('../../services/movementService', () => ({
   movementService: { transfer: jest.fn() },
 }));
+
+jest.spyOn(Alert, 'alert');
 
 jest.spyOn(AuthContext, 'useAuth').mockReturnValue({
   user: { userId: '1', name: 'A', email: 'a@b.com', budgetStartDay: 1 },
@@ -47,7 +51,9 @@ describe('BudgetScreen', () => {
     expect(budgetAllocationService.list).toHaveBeenCalled();
   });
 
-  it('renders an allocation card and deletes it', async () => {
+  // Esta prueba certificaba que "Eliminar" borraba al primer toque, sin preguntar.
+  // Ahora exige la confirmacion: el borrado solo ocurre tras aceptar el dialogo.
+  it('renders an allocation card and deletes it only after confirming', async () => {
     (budgetAllocationService.list as jest.Mock).mockResolvedValue({
       correct: true,
       object: [{ id: 1, categoryId: 10, categoryName: 'Arriendo', categoryColor: '#FF0000', amount: 500000, actualSpent: 300000, percentage: 60, variance: 200000 }],
@@ -58,7 +64,24 @@ describe('BudgetScreen', () => {
     await waitFor(() => expect(getByText('Arriendo')).toBeTruthy());
     expect(getByText(/favorable/)).toBeTruthy();
     fireEvent.press(getByText('Eliminar'));
+    expect(budgetAllocationService.delete).not.toHaveBeenCalled();
+    expect(Alert.alert).toHaveBeenCalled();
+    confirmarUltimaAlerta();
     await waitFor(() => expect(budgetAllocationService.delete).toHaveBeenCalledWith(1));
+  });
+
+  it('does not delete the allocation when the confirmation is dismissed', async () => {
+    (budgetAllocationService.list as jest.Mock).mockResolvedValue({
+      correct: true,
+      object: [{ id: 1, categoryId: 10, categoryName: 'Arriendo', categoryColor: '#FF0000', amount: 500000, actualSpent: 300000, percentage: 60, variance: 200000 }],
+    });
+
+    const { getByText } = render(<BudgetScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(getByText('Arriendo')).toBeTruthy());
+    fireEvent.press(getByText('Eliminar'));
+    const botones = (Alert.alert as unknown as jest.Mock).mock.calls[0][2];
+    botones.find((b: any) => b.style === 'cancel').onPress?.();
+    expect(budgetAllocationService.delete).not.toHaveBeenCalled();
   });
 
   it('adds a new allocation through the modal', async () => {

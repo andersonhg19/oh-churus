@@ -331,8 +331,17 @@ public class BudgetAllocationServiceImpl {
                 boolean isTransfer = Boolean.TRUE.equals(m.getIsTransfer());
 
                 if (isTransfer) {
-                    if (isShared) transferOut = transferOut.add(amt);
-                    else transferIn = transferIn.add(amt);
+                    /* Solo cuenta la pata COMPARTIDA, y cuenta por las dos.
+                       La pata personal vive en el bolsillo de quien
+                       disponibilizo, asi que la pareja no la ve: cuando Bruno
+                       abria el consolidado veia salir 400.000 del bote comun y
+                       no veia entrarlos en ninguna parte, y compartido +
+                       personal no daba el total. Como el par es atomico, la
+                       entrada vale exactamente lo que la salida. */
+                    if (isShared) {
+                        transferOut = transferOut.add(amt);
+                        transferIn = transferIn.add(amt);
+                    }
                 } else if (isShared) {
                     if (isIncome) sharedIncome = sharedIncome.add(amt);
                     else sharedExpense = sharedExpense.add(amt);

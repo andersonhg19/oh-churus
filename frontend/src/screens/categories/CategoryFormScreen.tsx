@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useToast } from '../../contexts/ToastContext';
@@ -11,6 +11,8 @@ import ColorPicker from '../../components/molecules/ColorPicker';
 import IconPicker from '../../components/molecules/IconPicker';
 import ParentCategoryPicker from '../../components/molecules/ParentCategoryPicker';
 import { spacing } from '../../theme';
+import { confirmarBorrado } from '../../utils/confirmar';
+import { useAccionUnica } from '../../hooks/useAccionUnica';
 import { validateRequired } from '../../utils/validators';
 import { categoryService } from '../../services/categoryService';
 import { Category, CategoryTree, CategoryType } from '../../types';
@@ -40,22 +42,37 @@ const CategoryFormScreen: React.FC<Props> = ({ navigation, route }) => {
   const [color, setColor] = useState(existing?.color || '');
   const [shared, setShared] = useState(!!existing?.householdId);
   const [householdId, setHouseholdId] = useState<number | null>(null);
-  const [loading, setLoading] = useState(false);
 
+  /*
+   * Si el hogar no carga, el selector Personal/Compartida desaparece sin
+   * explicacion y la categoria se guarda como personal creyendo el usuario que
+   * la comparte. Se avisa por toast y no con pantalla de error: el resto del
+   * formulario sigue siendo perfectamente usable sin hogar.
+   */
   useEffect(() => {
-    const loadHousehold = async () => {
+    const cargarHogar = async () => {
       if (!user) return;
       try {
         const res = await householdService.getByUser(user.userId);
-        if (res.correct && res.object && res.object.length > 0) {
+        if (!res.correct) {
+          showToast('error', 'Error', res.message || 'No se pudo cargar el nucleo familiar');
+          return;
+        }
+        if (res.object && res.object.length > 0) {
           setHouseholdId(res.object[0].householdId);
         }
-      } catch { /* silent */ }
+      } catch (err: any) {
+        showToast('error', 'Error', err.message || 'No se pudo cargar el nucleo familiar');
+      }
     };
-    loadHousehold();
-  }, [user]);
+    cargarHogar();
+  }, [user, showToast]);
 
-  const handleDelete = async () => {
+  // Borrar una categoria arrastra sus movimientos: nunca al primer toque.
+  const handleDelete = () =>
+    confirmarBorrado(`la categoria "${existing?.name || ''}"`, () => { borrar(); });
+
+  const borrarCategoria = useCallback(async () => {
     if (!existing) return;
     try {
       const res = await categoryService.delete(String(existing.id));
@@ -67,15 +84,16 @@ const CategoryFormScreen: React.FC<Props> = ({ navigation, route }) => {
     } catch (err: any) {
       showToast('error', 'Error', err.message || 'No se pudo eliminar');
     }
-  };
+  }, [existing, navigation, showToast]);
 
-  const handleSave = async () => {
+  const { ejecutando: borrando, ejecutar: borrar } = useAccionUnica(borrarCategoria);
+
+  const guardarCategoria = useCallback(async () => {
     const error = validateRequired(name, 'Nombre de la categoria');
     if (error) {
       showToast('warning', 'Validacion', error);
       return;
     }
-    setLoading(true);
     try {
       const data: any = {
         ...(isEdit && { id: existing.id }),
@@ -96,10 +114,10 @@ const CategoryFormScreen: React.FC<Props> = ({ navigation, route }) => {
       }
     } catch (err: any) {
       showToast('error', 'Error', err.message || 'No se pudo guardar');
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [name, description, type, parentId, icon, color, shared, householdId, isEdit, existing, user, navigation, showToast]);
+
+  const { ejecutando: guardando, ejecutar: handleSave } = useAccionUnica(guardarCategoria);
 
   return (
     <ScrollView
@@ -226,12 +244,13 @@ const CategoryFormScreen: React.FC<Props> = ({ navigation, route }) => {
       <Button
         title={isEdit ? 'Actualizar' : 'Guardar'}
         onPress={handleSave}
-        loading={loading}
+        loading={guardando}
+        disabled={borrando}
         size="large"
         style={styles.saveBtn}
       />
       {isEdit && (
-        <Button title="Eliminar" onPress={handleDelete} variant="danger" style={styles.deleteBtn} />
+        <Button title="Eliminar" onPress={handleDelete} loading={borrando} disabled={guardando} variant="danger" style={styles.deleteBtn} />
       )}
       <Button
         title="Cancelar"

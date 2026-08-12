@@ -88,7 +88,7 @@ class ScheduledMovementServiceImplEdgeCasesTest {
     }
 
     private void stubGeneration() {
-        when(movementRepository.existsByScheduledMovementIdAndDateBetweenAndActiveTrue(anyLong(), any(), any()))
+        when(movementRepository.existeOcurrenciaDelPeriodo(anyLong(), any(), any(), any()))
                 .thenReturn(false);
         when(movementRepository.save(any(Movement.class))).thenAnswer(i -> {
             Movement m = i.getArgument(0); m.setId(999L); return m;
@@ -181,7 +181,7 @@ class ScheduledMovementServiceImplEdgeCasesTest {
         when(scheduledMovementRepository.findByUserIdAndActiveTrue(USER_ID))
                 .thenReturn(List.of(scheduled(1L, Frequency.MONTHLY,
                         LocalDate.now().withDayOfMonth(1), null, new BigDecimal("1000"), null)));
-        when(movementRepository.existsByScheduledMovementIdAndDateBetweenAndActiveTrue(anyLong(), any(), any()))
+        when(movementRepository.existeOcurrenciaDelPeriodo(anyLong(), any(), any(), any()))
                 .thenReturn(true);
 
         ResultDTO r = service.generatePending(USER_ID, 1);
@@ -236,9 +236,12 @@ class ScheduledMovementServiceImplEdgeCasesTest {
             when(scheduledMovementMapper.toResultDTO(any(ScheduledMovement.class)))
                     .thenReturn(new ResultScheduledMovementDTO());
 
+            /* Esta prueba defendia el bug: daba por bueno que 6 meses desde el
+               15 de enero terminaran el 15 de julio, cuando ese dia ya es la
+               septima cuota. El ultimo dia cubierto es el 14. */
             service.saveAndUpdate(saveDto(6, LocalDate.of(2026, 1, 15)));
             verify(scheduledMovementRepository).save(argThat(s ->
-                    LocalDate.of(2026, 7, 15).equals(s.getEndDate())));
+                    LocalDate.of(2026, 7, 14).equals(s.getEndDate())));
         }
 
         @Test

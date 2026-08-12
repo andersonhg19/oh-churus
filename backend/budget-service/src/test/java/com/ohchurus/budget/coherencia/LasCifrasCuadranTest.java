@@ -9,10 +9,12 @@ import com.ohchurus.budget.entity.Household;
 import com.ohchurus.budget.entity.HouseholdMember;
 import com.ohchurus.budget.entity.Movement;
 import com.ohchurus.budget.enums.CategoryType;
+import com.ohchurus.budget.repository.BudgetAllocationRepository;
 import com.ohchurus.budget.repository.CategoryRepository;
 import com.ohchurus.budget.repository.HouseholdMemberRepository;
 import com.ohchurus.budget.repository.HouseholdRepository;
 import com.ohchurus.budget.repository.MovementRepository;
+import com.ohchurus.budget.repository.ScheduledMovementRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -75,6 +77,8 @@ class LasCifrasCuadranTest {
     @Autowired private CategoryRepository categorias;
     @Autowired private HouseholdRepository hogares;
     @Autowired private HouseholdMemberRepository miembros;
+    @Autowired private BudgetAllocationRepository asignaciones;
+    @Autowired private ScheduledMovementRepository programados;
     @Value("${secret}") private String secreto;
 
     private final ObjectMapper json = new ObjectMapper();
@@ -84,7 +88,12 @@ class LasCifrasCuadranTest {
     @BeforeEach
     void montarEscenario() {
         mvc = MockMvcBuilders.webAppContextSetup(contexto).apply(springSecurity()).build();
+        /* Se vacia TODO y en este orden porque ahora hay claves foraneas de
+           verdad: dejar una asignacion o un programado de otra clase de prueba
+           colgando de una categoria impide borrar la categoria. */
         movimientos.deleteAll();
+        asignaciones.deleteAll();
+        programados.deleteAll();
         categorias.deleteAll();
         miembros.deleteAll();
         hogares.deleteAll();

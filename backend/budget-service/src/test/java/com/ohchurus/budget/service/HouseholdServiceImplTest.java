@@ -33,6 +33,15 @@ class HouseholdServiceImplTest {
 
     @Mock
     private HouseholdMemberRepository memberRepository;
+
+    @Mock
+    private com.ohchurus.budget.repository.CategoryRepository categoryRepository;
+
+    @Mock
+    private com.ohchurus.budget.repository.BudgetAllocationRepository allocationRepository;
+
+    @Mock
+    private com.ohchurus.budget.client.DirectorioDeUsuarios directorio;
     /* addMember/removeMember exigen ahora que quien llama sea el OWNER de ese
        hogar. Antes no comprobaban nada: cualquiera enviaba {householdId, su
        userId} y entraba en la casa de otra pareja. Estas pruebas se ejecutan
@@ -50,6 +59,11 @@ class HouseholdServiceImplTest {
                 .thenReturn(Optional.of(HouseholdMember.builder()
                         .id(1L).householdId(HOUSEHOLD_ID).userId(USER_ID)
                         .role("OWNER").active(true).build()));
+        /* Ahora se exige que el hogar exista y siga activo antes de tocarlo:
+           un hogar borrado dejaba sus filas de miembros activas y su OWNER
+           podia seguir metiendo gente en una casa que ya no existe. */
+        org.mockito.Mockito.lenient().when(householdRepository.findByIdAndActiveTrue(HOUSEHOLD_ID))
+                .thenReturn(Optional.of(household()));
     }
 
     @org.junit.jupiter.api.AfterEach
@@ -205,6 +219,121 @@ class HouseholdServiceImplTest {
 
             assertFalse(result.isCorrect());
             assertEquals(500, result.getErrorCode());
+        }
+    }
+
+    @Nested
+    @DisplayName("invitarPorCorreo")
+    class InvitarPorCorreoTests {
+
+        @Test
+        @DisplayName("Resuelve el correo contra el directorio y mete a ese usuario")
+        void invitaAlDuenoDelCorreo() {
+            when(directorio.idPorCorreo("bruno@ohchurus.com")).thenReturn(2L);
+            when(memberRepository.existsByHouseholdIdAndUserIdAndActiveTrue(HOUSEHOLD_ID, 2L)).thenReturn(false);
+            when(memberRepository.save(any(HouseholdMember.class))).thenReturn(member(2L));
+
+            ResultDTO result = householdService.invitarPorCorreo(HOUSEHOLD_ID, "bruno@ohchurus.com");
+
+            assertTrue(result.isCorrect());
+            verify(memberRepository).save(argThat(m -> Long.valueOf(2L).equals(m.getUserId())
+                    && "MEMBER".equals(m.getRole())));
+        }
+
+        @Test
+        @DisplayName("Un correo que no existe no mete a nadie")
+        void correoDesconocido() {
+            when(directorio.idPorCorreo("nadie@ohchurus.com")).thenReturn(null);
+
+            ResultDTO result = householdService.invitarPorCorreo(HOUSEHOLD_ID, "nadie@ohchurus.com");
+
+            assertFalse(result.isCorrect());
+            assertEquals(404, result.getErrorCode());
+            verify(memberRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("No se invita a un hogar que no existe")
+        void hogarInexistente() {
+            when(householdRepository.findByIdAndActiveTrue(999L)).thenReturn(Optional.empty());
+
+            ResultDTO result = householdService.invitarPorCorreo(999L, "bruno@ohchurus.com");
+
+            assertFalse(result.isCorrect());
+            assertEquals(404, result.getErrorCode());
+            verify(directorio, never()).idPorCorreo(any());
+        }
+    }
+
+    @Nested
+    @DisplayName("Al expulsar se limpia el rastro del expulsado")
+    class LimpiezaAlExpulsar {
+
+        /* Sacar a alguien solo apagaba su fila de miembro. Sus subcategorias
+           personales seguian colgando de una categoria del hogar que ya no ve
+           —desaparecian del arbol— y sus asignaciones sobre categorias del
+           hogar quedaban activas apuntando a algo invisible. */
+
+        @Test
+        @DisplayName("La subcategoria personal del expulsado sube a raiz")
+        void subcategoriaSubeARaiz() {
+            com.ohchurus.budget.entity.Category delHogar = com.ohchurus.budget.entity.Category.builder()
+                    .id(10L).userId(USER_ID).name("Arriendo").householdId(HOUSEHOLD_ID).active(true).build();
+            com.ohchurus.budget.entity.Category hijaDelExpulsado = com.ohchurus.budget.entity.Category.builder()
+                    .id(11L).userId(2L).name("Mi parte").parentId(10L).active(true).build();
+
+            when(memberRepository.findByHouseholdIdAndUserIdAndActiveTrue(HOUSEHOLD_ID, 2L))
+                    .thenReturn(Optional.of(member(2L)));
+            when(categoryRepository.findByHouseholdIdAndActiveTrue(HOUSEHOLD_ID)).thenReturn(List.of(delHogar));
+            when(categoryRepository.findByParentIdAndActiveTrue(10L)).thenReturn(List.of(hijaDelExpulsado));
+
+            ResultDTO result = householdService.removeMember(HOUSEHOLD_ID, 2L);
+
+            assertTrue(result.isCorrect());
+            assertNull(hijaDelExpulsado.getParentId());
+            verify(categoryRepository).save(hijaDelExpulsado);
+        }
+
+        @Test
+        @DisplayName("La subcategoria de OTRO miembro no se toca")
+        void noTocaLoDeLosDemas() {
+            com.ohchurus.budget.entity.Category delHogar = com.ohchurus.budget.entity.Category.builder()
+                    .id(10L).userId(USER_ID).name("Arriendo").householdId(HOUSEHOLD_ID).active(true).build();
+            com.ohchurus.budget.entity.Category hijaDelQueSeQueda = com.ohchurus.budget.entity.Category.builder()
+                    .id(12L).userId(USER_ID).name("Su parte").parentId(10L).active(true).build();
+
+            when(memberRepository.findByHouseholdIdAndUserIdAndActiveTrue(HOUSEHOLD_ID, 2L))
+                    .thenReturn(Optional.of(member(2L)));
+            when(categoryRepository.findByHouseholdIdAndActiveTrue(HOUSEHOLD_ID)).thenReturn(List.of(delHogar));
+            when(categoryRepository.findByParentIdAndActiveTrue(10L)).thenReturn(List.of(hijaDelQueSeQueda));
+
+            householdService.removeMember(HOUSEHOLD_ID, 2L);
+
+            assertEquals(Long.valueOf(10L), hijaDelQueSeQueda.getParentId());
+            verify(categoryRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("Sus asignaciones sobre categorias del hogar se desactivan")
+        void asignacionesHuerfanasSeDesactivan() {
+            com.ohchurus.budget.entity.Category delHogar = com.ohchurus.budget.entity.Category.builder()
+                    .id(10L).userId(USER_ID).name("Arriendo").householdId(HOUSEHOLD_ID).active(true).build();
+            com.ohchurus.budget.entity.BudgetAllocation asignacion =
+                    com.ohchurus.budget.entity.BudgetAllocation.builder()
+                            .id(70L).userId(2L).categoryId(10L)
+                            .periodStart(java.time.LocalDate.now()).periodEnd(java.time.LocalDate.now())
+                            .allocatedAmount(java.math.BigDecimal.TEN).active(true).build();
+
+            when(memberRepository.findByHouseholdIdAndUserIdAndActiveTrue(HOUSEHOLD_ID, 2L))
+                    .thenReturn(Optional.of(member(2L)));
+            when(categoryRepository.findByHouseholdIdAndActiveTrue(HOUSEHOLD_ID)).thenReturn(List.of(delHogar));
+            when(allocationRepository.findByUserIdAndActiveTrueAndCategoryIdIn(2L, List.of(10L)))
+                    .thenReturn(List.of(asignacion));
+
+            householdService.removeMember(HOUSEHOLD_ID, 2L);
+
+            assertFalse(asignacion.getActive());
+            verify(allocationRepository).save(asignacion);
         }
     }
 

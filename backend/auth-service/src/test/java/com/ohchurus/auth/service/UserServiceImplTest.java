@@ -40,6 +40,24 @@ class UserServiceImplTest {
 
     @Mock
     private UserMapper userMapper;
+    /* La identidad ya no llega por parametro: sale del token, y varias
+       operaciones exigen ahora que sea TU cuenta. Estas pruebas son unitarias
+       y no hay token, asi que se planta a mano para poder seguir probando la
+       LOGICA. Que un extrano NO pueda lo comprueba AislamientoDeCuentasTest. */
+    @org.junit.jupiter.api.BeforeEach
+    void plantarIdentidad() {
+        var auth = new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                "test@ohchurus.com", null, java.util.Collections.emptyList());
+        auth.setDetails(1L);
+        org.springframework.security.core.context.SecurityContextHolder.getContext()
+                .setAuthentication(auth);
+    }
+
+    @org.junit.jupiter.api.AfterEach
+    void limpiarIdentidad() {
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+    }
+
 
     @InjectMocks
     private UserServiceImpl userService;
@@ -300,12 +318,17 @@ class UserServiceImplTest {
         @Test
         @DisplayName("Should return error when not found")
         void shouldReturnErrorWhenNotFound() {
-            when(userRepository.findByIdAndActiveTrue(99L)).thenReturn(Optional.empty());
-
+            /* Un id que no es el tuyo se rechaza SIN consultar la base. La
+               respuesta es la misma que para un id inexistente —"no
+               encontrado"— a proposito: distinguir "no existe" de "existe pero
+               no es tuyo" permitiria averiguar cuantas cuentas hay probando
+               numeros. Por eso aqui ya no hace falta simular el repositorio:
+               no se llega a el. */
             ResultDTO result = userService.getById(99L);
 
             assertFalse(result.isCorrect());
             assertEquals(103, result.getErrorCode());
+            verify(userRepository, never()).findByIdAndActiveTrue(99L);
         }
     }
 
@@ -313,15 +336,21 @@ class UserServiceImplTest {
     @DisplayName("getAll")
     class GetAllTests {
 
+        /* /v1/users/all dejo de ser un directorio abierto: sin correo en el
+           filtro te devuelve SOLO a ti, y con correo hace coincidencia exacta.
+           Antes cualquier autenticado listaba a todos los usuarios de la
+           plataforma con nombre y correo, y con un LIKE: buscar "a" los sacaba
+           a todos. El unico uso legitimo —invitar al hogar por correo— sigue
+           funcionando porque siempre pregunta por un correo concreto. */
+
         @Test
-        @DisplayName("Should return paginated list")
-        void shouldReturnPaginatedList() {
+        @DisplayName("sin filtro de correo devuelve SOLO al usuario autenticado")
+        void sinCorreoSoloDevuelveAlPropio() {
             UserFilterDTO filter = new UserFilterDTO();
             filter.setPage(0);
             filter.setSize(10);
 
-            Page<User> page = new PageImpl<>(List.of(testUser));
-            when(userRepository.findAllWithFilters(any(), any(), any(Pageable.class))).thenReturn(page);
+            when(userRepository.findByIdAndActiveTrue(1L)).thenReturn(Optional.of(testUser));
             when(userMapper.toResultDTO(testUser)).thenReturn(testResultDTO);
 
             ResultDTO result = userService.getAll(filter);
@@ -330,15 +359,14 @@ class UserServiceImplTest {
             @SuppressWarnings("unchecked")
             Map<String, Object> response = (Map<String, Object>) result.getObject();
             assertEquals(1, ((List<?>) response.get("list")).size());
-            assertEquals(0, response.get("page"));
+            verify(userRepository, never()).findAllWithFilters(any(), any(), any(Pageable.class));
         }
 
         @Test
-        @DisplayName("Should return empty list when no users")
-        void shouldReturnEmptyList() {
+        @DisplayName("sin sesion no devuelve a nadie")
+        void sinSesionNoDevuelveNada() {
+            org.springframework.security.core.context.SecurityContextHolder.clearContext();
             UserFilterDTO filter = new UserFilterDTO();
-            Page<User> emptyPage = new PageImpl<>(List.of());
-            when(userRepository.findAllWithFilters(any(), any(), any(Pageable.class))).thenReturn(emptyPage);
 
             ResultDTO result = userService.getAll(filter);
 
@@ -349,39 +377,43 @@ class UserServiceImplTest {
         }
 
         @Test
-        @DisplayName("Should pass name filter to repository")
-        void shouldPassNameFilterToRepository() {
-            UserFilterDTO filter = new UserFilterDTO();
-            filter.setName("Test");
-            filter.setPage(0);
-            filter.setSize(10);
-
-            Page<User> page = new PageImpl<>(List.of(testUser));
-            when(userRepository.findAllWithFilters(eq("Test"), any(), any(Pageable.class))).thenReturn(page);
-            when(userMapper.toResultDTO(testUser)).thenReturn(testResultDTO);
-
-            ResultDTO result = userService.getAll(filter);
-
-            assertTrue(result.isCorrect());
-            verify(userRepository).findAllWithFilters(eq("Test"), any(), any(Pageable.class));
-        }
-
-        @Test
-        @DisplayName("Should pass email filter to repository")
-        void shouldPassEmailFilterToRepository() {
+        @DisplayName("con correo hace coincidencia EXACTA, nunca parcial")
+        void conCorreoCoincidenciaExacta() {
             UserFilterDTO filter = new UserFilterDTO();
             filter.setEmail("test@ohchurus.com");
             filter.setPage(0);
             filter.setSize(10);
 
-            Page<User> page = new PageImpl<>(List.of(testUser));
-            when(userRepository.findAllWithFilters(any(), eq("test@ohchurus.com"), any(Pageable.class))).thenReturn(page);
+            when(userRepository.findByEmailAndActiveTrue("test@ohchurus.com"))
+                    .thenReturn(Optional.of(testUser));
             when(userMapper.toResultDTO(testUser)).thenReturn(testResultDTO);
 
             ResultDTO result = userService.getAll(filter);
 
             assertTrue(result.isCorrect());
-            verify(userRepository).findAllWithFilters(any(), eq("test@ohchurus.com"), any(Pageable.class));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> response = (Map<String, Object>) result.getObject();
+            assertEquals(1, ((List<?>) response.get("list")).size());
+            /* La clave: se busca por igualdad, no con el LIKE de antes. */
+            verify(userRepository).findByEmailAndActiveTrue("test@ohchurus.com");
+            verify(userRepository, never()).findAllWithFilters(any(), any(), any(Pageable.class));
+        }
+
+        @Test
+        @DisplayName("un correo que no existe no devuelve nada")
+        void correoInexistente() {
+            UserFilterDTO filter = new UserFilterDTO();
+            filter.setEmail("nadie@ohchurus.com");
+
+            when(userRepository.findByEmailAndActiveTrue("nadie@ohchurus.com"))
+                    .thenReturn(Optional.empty());
+
+            ResultDTO result = userService.getAll(filter);
+
+            assertTrue(result.isCorrect());
+            @SuppressWarnings("unchecked")
+            Map<String, Object> response = (Map<String, Object>) result.getObject();
+            assertTrue(((List<?>) response.get("list")).isEmpty());
         }
     }
 
@@ -404,12 +436,15 @@ class UserServiceImplTest {
         @Test
         @DisplayName("Should fail when user not found for deletion")
         void shouldFailWhenUserNotFoundForDeletion() {
-            when(userRepository.findByIdAndActiveTrue(99L)).thenReturn(Optional.empty());
-
+            /* Igual que en getById: borrar una cuenta ajena se corta antes de
+               tocar la base. Antes cualquier autenticado desactivaba la cuenta
+               de otro con solo su id y el dueno se quedaba fuera sin saber por
+               que. */
             ResultDTO result = userService.delete(99L);
 
             assertFalse(result.isCorrect());
             assertEquals(103, result.getErrorCode());
+            verify(userRepository, never()).save(any());
         }
     }
 

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { View, StyleSheet, FlatList, RefreshControl } from 'react-native';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -6,12 +6,16 @@ import AppText from '../../components/atoms/Text';
 import Input from '../../components/atoms/Input';
 import MovementItem from '../../components/molecules/MovementItem';
 import EmptyState from '../../components/molecules/EmptyState';
+import EstadoError from '../../components/molecules/EstadoError';
 import CapsuleToggle from '../../components/molecules/CapsuleToggle';
+import PeriodNavigator from '../../components/molecules/PeriodNavigator';
 import Spinner from '../../components/atoms/Spinner';
 import { spacing } from '../../theme';
 import { movementService } from '../../services/movementService';
 import { Movement } from '../../types';
-import { useNavigation } from '@react-navigation/native';
+import { useCarga, exigir } from '../../hooks/useCarga';
+import { getStartOfPeriod, getEndOfPeriod, navigatePeriod } from '../../utils/periodUtils';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 
 type FilterMode = 'ALL' | 'CONFIRMED' | 'PENDING';
 
@@ -21,35 +25,77 @@ const MovementsListScreen: React.FC = () => {
   const rootNav = useNavigation<any>();
 
   const [movements, setMovements] = useState<Movement[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
   const [filterMode, setFilterMode] = useState<FilterMode>('ALL');
 
-  const fetchData = useCallback(async () => {
+  /*
+   * El navegador de periodo venia de MovementsScreen, una pantalla completa
+   * —con sus pruebas— que nunca llego a registrarse en ninguna ruta: nadie
+   * podia abrirla. Sin el, esta lista mostraba los ultimos 100 movimientos
+   * sueltos, sin forma de mirar el mes pasado, que es justo lo que se quiere
+   * hacer con un presupuesto mensual. Se trae aqui y la huerfana se retira.
+   */
+  const diaDeCorte = user?.budgetStartDay ?? 1;
+  const [inicioPeriodo, setInicioPeriodo] = useState(() => getStartOfPeriod(diaDeCorte, new Date()));
+  const [finPeriodo, setFinPeriodo] = useState(() =>
+    getEndOfPeriod(diaDeCorte, getStartOfPeriod(diaDeCorte, new Date())));
+
+  const cambiarPeriodo = (direccion: 'prev' | 'next') => {
+    const { start, end } = navigatePeriod(inicioPeriodo, diaDeCorte, direccion);
+    setInicioPeriodo(start);
+    setFinPeriodo(end);
+  };
+
+  /* No se puede navegar al futuro: un periodo que no ha empezado esta vacio
+     por definicion y solo confunde. */
+  const puedeAvanzar = inicioPeriodo < getStartOfPeriod(diaDeCorte, new Date());
+
+  const traerMovimientos = useCallback(async () => {
     if (!user) return;
-    try {
-      const filter: any = { userId: user.userId, page: 0, size: 100 };
-      if (filterMode === 'CONFIRMED') filter.confirmed = true;
-      if (filterMode === 'PENDING') filter.confirmed = false;
+    const filter: any = {
+      userId: user.userId,
+      page: 0,
+      size: 100,
+      startDate: inicioPeriodo,
+      endDate: finPeriodo,
+    };
+    if (filterMode === 'CONFIRMED') filter.confirmed = true;
+    if (filterMode === 'PENDING') filter.confirmed = false;
 
-      const res = await movementService.getAll(filter);
-      if (res.correct && res.object) {
-        setMovements(res.object.list || []);
-      }
-    } catch {
-      // silent
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [user, filterMode]);
+    const res = await movementService.getAll(filter);
+    setMovements(exigir(res)?.list || []);
+  }, [user, filterMode, inicioPeriodo, finPeriodo]);
 
-  // Fetch on mount and when filter changes
+  const { cargando, refrescando, error, cargar, refrescar } = useCarga(traerMovimientos);
+
+  /*
+   * Antes esta lista solo se pedia en el montaje: creabas o editabas un
+   * movimiento en el modal, volvias, y seguia la lista vieja. Al enfocar se
+   * vuelve a pedir.
+   */
+  useFocusEffect(
+    useCallback(() => {
+      cargar();
+    }, [cargar]),
+  );
+
+  /*
+   * Recargar cuando cambian el periodo o el filtro, explicitamente.
+   *
+   * Funcionaba de rebote: useFocusEffect vuelve a ejecutarse cuando cambia la
+   * identidad de su callback, y esta cambia porque `cargar` depende de los
+   * filtros. Es cierto, pero es un efecto lateral que se rompe en cuanto
+   * alguien memoiza algo, y no se ve leyendo el codigo. Mejor decirlo.
+   */
+  const esElPrimerRender = useRef(true);
   useEffect(() => {
-    setLoading(true);
-    fetchData();
-  }, [fetchData]);
+    if (esElPrimerRender.current) {
+      esElPrimerRender.current = false;
+      return;
+    }
+    cargar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inicioPeriodo, finPeriodo, filterMode]);
 
   const filtered = search.trim()
     ? movements.filter(m =>
@@ -57,10 +103,26 @@ const MovementsListScreen: React.FC = () => {
         (m.categoryName || '').toLowerCase().includes(search.toLowerCase()))
     : movements;
 
-  if (loading) return <Spinner fullScreen />;
+  if (cargando) return <Spinner fullScreen />;
+
+  if (error) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <EstadoError mensaje={error} onReintentar={cargar} />
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <PeriodNavigator
+        periodStart={inicioPeriodo}
+        periodEnd={finPeriodo}
+        onPrevious={() => cambiarPeriodo('prev')}
+        onNext={() => cambiarPeriodo('next')}
+        canGoNext={puedeAvanzar}
+      />
+
       <View style={styles.header}>
         <Input
           label=""
@@ -91,10 +153,8 @@ const MovementsListScreen: React.FC = () => {
             movement={item}
             onPress={() => rootNav.navigate('MovementFormModal', { movement: item })}
             onConfirm={async () => {
-              try {
-                await movementService.confirm(String(item.id));
-                fetchData();
-              } catch {}
+              await movementService.confirm(String(item.id)).catch(() => null);
+              cargar();
             }}
           />
         )}
@@ -103,7 +163,7 @@ const MovementsListScreen: React.FC = () => {
           <EmptyState title="Sin resultados" message={search ? 'Intenta otra busqueda' : 'No hay movimientos'} icon="🔍" />
         }
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(); }} tintColor={colors.primary} />
+          <RefreshControl refreshing={refrescando} onRefresh={refrescar} tintColor={colors.primary} />
         }
       />
     </View>

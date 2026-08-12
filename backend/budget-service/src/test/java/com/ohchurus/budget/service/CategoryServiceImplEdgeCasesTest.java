@@ -178,19 +178,33 @@ class CategoryServiceImplEdgeCasesTest {
         }
 
         @Test
-        @DisplayName("Should drop orphan children whose parent is not in the result set")
+        @DisplayName("El hijo cuyo padre no es visible se promueve a raiz, no se pierde")
         @SuppressWarnings("unchecked")
-        void orphanChildDropped() {
-            Category orphan = cat(2L, 999L); // parent 999 not present
+        void hijoSinPadreVisibleSubeARaiz() {
+            /* Esta prueba certificaba el bug: exigia que el huerfano NO
+               apareciera ("orphan is neither a root nor attached"). Pasaba al
+               salir de un nucleo familiar —la subcategoria personal colgaba de
+               una categoria del hogar— y la categoria desaparecia de la
+               pantalla sin borrarse ni avisar. Ahora se exige lo contrario. */
+            Category orphan = cat(2L, 999L); // el padre 999 no esta en el resultado
+
+            ResultCategoryTreeDTO dtoDelHuerfano = new ResultCategoryTreeDTO();
+            dtoDelHuerfano.setId(2L);
+            dtoDelHuerfano.setName("Huerfano");
 
             when(householdService.getHouseholdIds(USER_ID)).thenReturn(java.util.Collections.emptyList());
             when(categoryRepository.findByUserIdAndActiveTrue(USER_ID)).thenReturn(List.of(orphan));
-            when(categoryMapper.toTreeDTO(orphan)).thenReturn(new ResultCategoryTreeDTO());
+            when(categoryMapper.toTreeDTO(orphan)).thenReturn(dtoDelHuerfano);
 
             ResultDTO r = service.getTree(USER_ID);
             assertTrue(r.isCorrect());
             List<ResultCategoryTreeDTO> roots = (List<ResultCategoryTreeDTO>) r.getObject();
-            assertTrue(roots.isEmpty()); // orphan is neither a root nor attached
+            /* Contar uno no bastaba: pasaba igual si el arbol devolviera
+               cualquier otro nodo. Lo que importa es que la raiz sea ESE
+               huerfano, que es justo la categoria que antes desaparecia. */
+            assertEquals(1, roots.size());
+            assertEquals(2L, roots.get(0).getId());
+            assertEquals("Huerfano", roots.get(0).getName());
         }
     }
 }

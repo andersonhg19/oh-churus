@@ -217,6 +217,13 @@ public class CategoryServiceImpl implements CategoryService {
                 ResultCategoryTreeDTO parent = dtoMap.get(cat.getParentId());
                 if (parent != null) {
                     parent.getChildren().add(dto);
+                } else {
+                    /* Padre no visible -> el hijo sube a raiz en vez de caerse
+                       del arbol. Pasaba al salir de un nucleo familiar: las
+                       subcategorias personales colgaban de una categoria del
+                       hogar y, al dejar de verse el padre, desaparecian de la
+                       pantalla sin borrarse ni avisar. */
+                    roots.add(dto);
                 }
             }
         }

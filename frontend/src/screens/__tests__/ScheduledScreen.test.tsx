@@ -95,6 +95,18 @@ describe('ScheduledScreen', () => {
     await waitFor(() => expect(getByText('Sin programados')).toBeTruthy());
   });
 
+  it('muestra el mensaje del backend cuando correct es false', async () => {
+    (scheduledService.getAll as jest.Mock).mockResolvedValue({
+      correct: false, message: 'No tienes acceso a estos programados', object: null,
+    });
+    const { getByText, queryByText } = render(
+      <ScheduledScreen navigation={mockNavigation} route={mockRoute} />,
+      { wrapper: Wrapper },
+    );
+    await waitFor(() => expect(getByText('No tienes acceso a estos programados')).toBeTruthy());
+    expect(queryByText('Sin programados')).toBeNull();
+  });
+
   it('shows error on fetch failure', async () => {
     (scheduledService.getAll as jest.Mock).mockRejectedValue(new Error('fail'));
     const { getByText } = render(

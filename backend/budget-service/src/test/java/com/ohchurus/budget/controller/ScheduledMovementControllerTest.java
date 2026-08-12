@@ -124,9 +124,15 @@ class ScheduledMovementControllerTest {
                     .andExpect(jsonPath("$.correct").value(false));
         }
 
+        /* Estas pruebas exigian un 400 de Spring. Certificaban justo lo que
+           rompe al frontend: toda la API habla ResultDTO con HTTP 200 y el
+           frontend solo sabe leer eso, asi que un 400 se convertia en
+           "Request failed with status code 400". Ahora se exige lo que de
+           verdad hace falta: 200, correct:false y el nombre del campo malo. */
+
         @Test
-        @DisplayName("Should return 400 when name is blank")
-        void shouldReturn400WhenNameBlank() throws Exception {
+        @DisplayName("nombre en blanco: 200 con correct:false y el campo que falla")
+        void nombreEnBlancoRespondeDentroDelContrato() throws Exception {
             ScheduledMovementSaveDTO dto = new ScheduledMovementSaveDTO();
             dto.setUserId(1L);
             dto.setCategoryId(1L);
@@ -137,12 +143,15 @@ class ScheduledMovementControllerTest {
             mockMvc.perform(post("/v1/scheduled/save")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
-                    .andExpect(status().isBadRequest());
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.correct").value(false))
+                    .andExpect(jsonPath("$.message").value(
+                            org.hamcrest.Matchers.containsString("'name'")));
         }
 
         @Test
-        @DisplayName("Should return 400 when frequency is missing")
-        void shouldReturn400WhenFrequencyMissing() throws Exception {
+        @DisplayName("frecuencia ausente: 200 con correct:false y el campo que falla")
+        void frecuenciaAusenteRespondeDentroDelContrato() throws Exception {
             ScheduledMovementSaveDTO dto = new ScheduledMovementSaveDTO();
             dto.setUserId(1L);
             dto.setCategoryId(1L);
@@ -152,7 +161,10 @@ class ScheduledMovementControllerTest {
             mockMvc.perform(post("/v1/scheduled/save")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
-                    .andExpect(status().isBadRequest());
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.correct").value(false))
+                    .andExpect(jsonPath("$.message").value(
+                            org.hamcrest.Matchers.containsString("'frequency'")));
         }
 
         @Test
@@ -312,15 +324,18 @@ class ScheduledMovementControllerTest {
         }
 
         @Test
-        @DisplayName("Should return 400 when budgetStartDay is missing")
-        void shouldReturn400WhenBudgetStartDayMissing() throws Exception {
+        @DisplayName("sin budgetStartDay: 200 con correct:false y el campo que falla")
+        void sinBudgetStartDayRespondeDentroDelContrato() throws Exception {
             GeneratePendingRequestDTO dto = new GeneratePendingRequestDTO();
             dto.setUserId(1L);
 
             mockMvc.perform(post("/v1/scheduled/generate-pending")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
-                    .andExpect(status().isBadRequest());
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.correct").value(false))
+                    .andExpect(jsonPath("$.message").value(
+                            org.hamcrest.Matchers.containsString("'budgetStartDay'")));
         }
     }
 

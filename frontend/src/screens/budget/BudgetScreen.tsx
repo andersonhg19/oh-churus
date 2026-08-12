@@ -23,6 +23,7 @@ import { categoryService } from '../../services/categoryService';
 import { movementService } from '../../services/movementService';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { formatCurrency } from '../../utils/format';
+import { confirmarBorrado } from '../../utils/confirmar';
 import { getStartOfPeriod, getEndOfPeriod, navigatePeriod } from '../../utils/periodUtils';
 import { CategoryTree } from '../../types';
 
@@ -173,7 +174,12 @@ const BudgetScreen: React.FC = () => {
     }
   };
 
-  const handleDeleteAllocation = async (id: number) => {
+  // El presupuesto de una categoria se borraba al primer toque, en una fila
+  // llena de otras filas: demasiado facil de pulsar sin querer.
+  const handleDeleteAllocation = (id: number, categoria: string) =>
+    confirmarBorrado(`el presupuesto de "${categoria}"`, () => { borrarAsignacion(id); });
+
+  const borrarAsignacion = async (id: number) => {
     try {
       const res = await budgetAllocationService.delete(id);
       if (res.correct) {
@@ -293,7 +299,7 @@ const BudgetScreen: React.FC = () => {
                     ) : null}
                     <AppText variant="body" style={styles.categoryName}>{alloc.categoryName}</AppText>
                   </View>
-                  <TouchableOpacity onPress={() => handleDeleteAllocation(alloc.id)}>
+                  <TouchableOpacity onPress={() => handleDeleteAllocation(alloc.id, alloc.categoryName)}>
                     <AppText variant="caption" color={colors.expense}>Eliminar</AppText>
                   </TouchableOpacity>
                 </View>

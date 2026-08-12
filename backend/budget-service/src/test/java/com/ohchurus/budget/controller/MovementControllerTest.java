@@ -142,9 +142,15 @@ class MovementControllerTest {
                     .andExpect(status().isOk());
         }
 
+        /* Estas tres pruebas exigian un 400 de Spring. Certificaban justo lo
+           que rompe al frontend: toda la API habla ResultDTO con HTTP 200 y el
+           frontend solo sabe leer eso, asi que un 400 se convertia en
+           "Request failed with status code 400". Ahora se exige lo que de
+           verdad hace falta: 200, correct:false y el nombre del campo malo. */
+
         @Test
-        @DisplayName("Should return 400 when amount is missing")
-        void shouldReturn400WhenAmountMissing() throws Exception {
+        @DisplayName("sin importe: 200 con correct:false y el campo que falla")
+        void sinImporteRespondeDentroDelContrato() throws Exception {
             MovementSaveDTO dto = new MovementSaveDTO();
             dto.setUserId(1L);
             dto.setCategoryId(1L);
@@ -153,12 +159,15 @@ class MovementControllerTest {
             mockMvc.perform(post("/v1/movements/save")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
-                    .andExpect(status().isBadRequest());
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.correct").value(false))
+                    .andExpect(jsonPath("$.message").value(
+                            org.hamcrest.Matchers.containsString("'amount'")));
         }
 
         @Test
-        @DisplayName("Should return 400 when date is missing")
-        void shouldReturn400WhenDateMissing() throws Exception {
+        @DisplayName("sin fecha: 200 con correct:false y el campo que falla")
+        void sinFechaRespondeDentroDelContrato() throws Exception {
             MovementSaveDTO dto = new MovementSaveDTO();
             dto.setUserId(1L);
             dto.setCategoryId(1L);
@@ -167,12 +176,15 @@ class MovementControllerTest {
             mockMvc.perform(post("/v1/movements/save")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
-                    .andExpect(status().isBadRequest());
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.correct").value(false))
+                    .andExpect(jsonPath("$.message").value(
+                            org.hamcrest.Matchers.containsString("'date'")));
         }
 
         @Test
-        @DisplayName("Should return 400 when amount is less than 0.01")
-        void shouldReturn400WhenAmountTooSmall() throws Exception {
+        @DisplayName("importe menor que 0.01: 200 con correct:false y el campo que falla")
+        void importeDemasiadoPequenoRespondeDentroDelContrato() throws Exception {
             MovementSaveDTO dto = new MovementSaveDTO();
             dto.setUserId(1L);
             dto.setCategoryId(1L);
@@ -182,7 +194,10 @@ class MovementControllerTest {
             mockMvc.perform(post("/v1/movements/save")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
-                    .andExpect(status().isBadRequest());
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.correct").value(false))
+                    .andExpect(jsonPath("$.message").value(
+                            org.hamcrest.Matchers.containsString("'amount'")));
         }
     }
 
@@ -381,8 +396,8 @@ class MovementControllerTest {
         }
 
         @Test
-        @DisplayName("Should return 400 when startDate is missing")
-        void shouldReturn400WhenStartDateMissing() throws Exception {
+        @DisplayName("sin startDate: 200 con correct:false y el campo que falla")
+        void sinStartDateRespondeDentroDelContrato() throws Exception {
             PeriodRequestDTO dto = new PeriodRequestDTO();
             dto.setUserId(1L);
             dto.setEndDate(LocalDate.of(2026, 3, 31));
@@ -390,7 +405,10 @@ class MovementControllerTest {
             mockMvc.perform(post("/v1/movements/by-period")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(dto)))
-                    .andExpect(status().isBadRequest());
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.correct").value(false))
+                    .andExpect(jsonPath("$.message").value(
+                            org.hamcrest.Matchers.containsString("'startDate'")));
         }
     }
 

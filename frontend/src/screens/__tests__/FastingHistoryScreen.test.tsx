@@ -41,4 +41,13 @@ describe('FastingHistoryScreen', () => {
     await waitFor(() => expect(fastingService.getHistory).toHaveBeenCalled());
     expect(fastingService.getSummary).toHaveBeenCalled();
   });
+
+  it('muestra el mensaje del backend cuando el historial falla', async () => {
+    (fastingService.getHistory as jest.Mock).mockResolvedValue({
+      correct: false, message: 'No se pudo leer el historial de ayuno', object: null,
+    });
+    const { getByText } = render(<FastingHistoryScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(getByText('No se pudo leer el historial de ayuno')).toBeTruthy());
+    expect(getByText('Reintentar')).toBeTruthy();
+  });
 });

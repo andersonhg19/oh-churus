@@ -92,6 +92,23 @@ describe('FastingDashboardScreen', () => {
     await waitFor(() => expect(fastingService.addWater).toHaveBeenCalledWith('3', 1));
   });
 
+  it('muestra el mensaje del backend cuando la sesion activa falla', async () => {
+    (fastingService.getPlan as jest.Mock).mockResolvedValue({ correct: true, object: activePlan });
+    (fastingService.getActiveSession as jest.Mock).mockResolvedValue({
+      correct: false, message: 'No se pudo leer tu ayuno en curso', object: null,
+    });
+    const { getByText, queryByText } = render(<FastingDashboardScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(getByText('No se pudo leer tu ayuno en curso')).toBeTruthy());
+    expect(queryByText('Iniciar Ayuno')).toBeNull();
+  });
+
+  it('sin plan configurado NO es un error: sigue siendo estado vacio', async () => {
+    // getPlan responde correct:false con 404 cuando el usuario aun no elige plan.
+    const { getByText, queryByText } = render(<FastingDashboardScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(getByText(/No tienes un plan configurado/)).toBeTruthy());
+    expect(queryByText('Reintentar')).toBeNull();
+  });
+
   it('cancels an active fast', async () => {
     (fastingService.getPlan as jest.Mock).mockResolvedValue({ correct: true, object: activePlan });
     (fastingService.getActiveSession as jest.Mock).mockResolvedValue({

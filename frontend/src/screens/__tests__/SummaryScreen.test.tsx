@@ -37,6 +37,18 @@ describe('SummaryScreen', () => {
     (dashboardService.getByCategory as jest.Mock).mockResolvedValue({ correct: true, object: [] });
   });
 
+  it('muestra el mensaje del backend cuando el resumen falla', async () => {
+    (dashboardService.getByCategory as jest.Mock).mockResolvedValue({
+      correct: false, message: 'No se pudo calcular el periodo', object: null,
+    });
+    const { getByText, queryByText } = render(
+      <SummaryScreen navigation={mockNavigation} route={{ params: {} } as any} />, { wrapper: Wrapper },
+    );
+    await waitFor(() => expect(getByText('No se pudo calcular el periodo')).toBeTruthy());
+    // "Sin datos" es la pantalla del usuario nuevo; un fallo no puede parecerse a eso.
+    expect(queryByText('Sin datos')).toBeNull();
+  });
+
   it('loads category breakdown on mount', async () => {
     render(<SummaryScreen navigation={mockNavigation} route={{ params: {} } as any} />, { wrapper: Wrapper });
     await waitFor(() => expect(dashboardService.getByCategory).toHaveBeenCalled());

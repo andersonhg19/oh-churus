@@ -47,6 +47,12 @@ public class UserServiceImpl implements UserService {
      * secuestrar la cuenta de cualquiera sin estar autenticado. Aqui no hay
      * decision posible: siempre crea.
      */
+    /** ¿El id es el del usuario autenticado? Sin sesion, siempre no. */
+    private boolean esYo(Long id) {
+        Long yo = com.ohchurus.auth.util.SecurityUtils.getAuthenticatedUserId();
+        return yo != null && yo.equals(id);
+    }
+
     @Override
     public ResultDTO register(UserRegisterDTO dto) {
         try {
@@ -101,6 +107,12 @@ public class UserServiceImpl implements UserService {
     }
 
     private ResultDTO updateUser(UserSaveDTO dto) {
+        /* Editar la cuenta de otro no es una operacion que exista en esta app.
+           Se responde "no encontrado" y no "no puedes", para no confirmar que
+           ese id existe. */
+        if (!esYo(dto.getId())) {
+            return new ResultDTO(false, "User not found", 103);
+        }
         Optional<User> existing = userRepository.findByIdAndActiveTrue(dto.getId());
         if (existing.isEmpty()) {
             return new ResultDTO(false, "User not found", 103);
@@ -130,6 +142,11 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional(readOnly = true)
     public ResultDTO getById(Long id) {
+        /* Solo tu propia cuenta. Antes cualquier autenticado leia la ficha de
+           cualquiera probando ids consecutivos: nombre y correo de todos. */
+        if (!com.ohchurus.auth.util.SecurityUtils.getAuthenticatedUserId().equals(id) && !esYo(id)) {
+            return new ResultDTO(false, "User not found", 103);
+        }
         Optional<User> user = userRepository.findByIdAndActiveTrue(id);
         if (user.isEmpty()) {
             return new ResultDTO(false, "User not found", 103);
@@ -140,12 +157,36 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional(readOnly = true)
     public ResultDTO getAll(UserFilterDTO filter) {
+        /*
+         * ESTO NO ES UN DIRECTORIO ABIERTO.
+         *
+         * Cualquier autenticado podia listar a TODOS los usuarios de la
+         * plataforma con nombre y correo, y de paso con un LIKE: buscar "a"
+         * los sacaba a todos.
+         *
+         * Se usa para UNA cosa legitima: invitar al nucleo familiar por correo
+         * (budget-service pregunta por un correo concreto). Ese caso necesita
+         * conocer el correo de antemano, que es exactamente el permiso social
+         * que da una invitacion. Asi que:
+         *   · sin correo en el filtro -> solo te devuelves a ti mismo,
+         *   · con correo -> coincidencia EXACTA, nunca parcial.
+         * Se pierde el listado libre, que no lo usaba ninguna pantalla.
+         */
+        String correoBuscado = filter.getEmail() == null ? null : filter.getEmail().trim();
         Pageable pageable = PageRequest.of(filter.getPage(), filter.getSize(), Sort.by("name").ascending());
 
-        Page<User> page = userRepository.findAllWithFilters(
-                filter.getName(),
-                filter.getEmail(),
-                pageable);
+        Page<User> page;
+        if (correoBuscado == null || correoBuscado.isEmpty()) {
+            Long yo = com.ohchurus.auth.util.SecurityUtils.getAuthenticatedUserId();
+            List<User> soloYo = (yo == null)
+                    ? List.of()
+                    : userRepository.findByIdAndActiveTrue(yo).map(List::of).orElse(List.of());
+            page = new org.springframework.data.domain.PageImpl<>(soloYo, pageable, soloYo.size());
+        } else {
+            List<User> exacto = userRepository.findByEmailAndActiveTrue(correoBuscado)
+                    .map(List::of).orElse(List.of());
+            page = new org.springframework.data.domain.PageImpl<>(exacto, pageable, exacto.size());
+        }
 
         List<ResultUserDTO> list = page.getContent().stream()
                 .map(userMapper::toResultDTO)
@@ -163,6 +204,12 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public ResultDTO delete(Long id) {
+        /* Darse de baja es cosa de uno. Sin esta comprobacion, cualquier
+           usuario autenticado desactivaba la cuenta de otro con solo su id, y
+           el dueno se quedaba sin poder entrar sin saber por que. */
+        if (!esYo(id)) {
+            return new ResultDTO(false, "User not found", 103);
+        }
         Optional<User> user = userRepository.findByIdAndActiveTrue(id);
         if (user.isEmpty()) {
             return new ResultDTO(false, "User not found", 103);

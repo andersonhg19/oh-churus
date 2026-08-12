@@ -5,9 +5,11 @@ import { useAuth } from '../../contexts/AuthContext';
 import AppText from '../../components/atoms/Text';
 import Card from '../../components/atoms/Card';
 import Spinner from '../../components/atoms/Spinner';
+import EstadoError from '../../components/molecules/EstadoError';
 import PeriodNavigator from '../../components/molecules/PeriodNavigator';
 import { spacing } from '../../theme';
 import { fastingService } from '../../services/fastingService';
+import { useCarga, exigir } from '../../hooks/useCarga';
 import { getStartOfPeriod, getEndOfPeriod, navigatePeriod } from '../../utils/periodUtils';
 import { useFocusEffect } from '@react-navigation/native';
 
@@ -28,27 +30,33 @@ const FastingHistoryScreen: React.FC = () => {
   const periodEnd = getEndOfPeriod(budgetDay, periodStart);
   const [history, setHistory] = useState<any>(null);
   const [summary, setSummary] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
 
-  const fetchData = useCallback(async (refDate: string) => {
+  const traerHistorial = useCallback(async () => {
     if (!user) return;
-    try {
-      const [hRes, sRes] = await Promise.all([
-        fastingService.getHistory(user.userId, budgetDay, refDate),
-        fastingService.getSummary(user.userId, budgetDay, refDate),
-      ]);
-      if (hRes.correct) setHistory(hRes.object);
-      if (sRes.correct) setSummary(sRes.object);
-    } catch { /* silent */ }
-    finally { setLoading(false); }
-  }, [user, budgetDay]);
+    const [hRes, sRes] = await Promise.all([
+      fastingService.getHistory(user.userId, budgetDay, periodStart),
+      fastingService.getSummary(user.userId, budgetDay, periodStart),
+    ]);
+    setHistory(exigir(hRes) || null);
+    setSummary(exigir(sRes) || null);
+  }, [user, budgetDay, periodStart]);
 
-  useFocusEffect(useCallback(() => { setLoading(true); fetchData(periodStart); }, [fetchData, periodStart]));
+  const { cargando, refrescando, error, cargar, refrescar } = useCarga(traerHistorial);
+
+  useFocusEffect(useCallback(() => { cargar(); }, [cargar]));
 
   const currentPeriodStart = getStartOfPeriod(budgetDay, new Date());
   const canGoNext = periodStart < currentPeriodStart;
 
-  if (loading) return <Spinner fullScreen />;
+  if (cargando) return <Spinner fullScreen />;
+
+  if (error) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <EstadoError mensaje={error} onReintentar={cargar} />
+      </View>
+    );
+  }
 
   const days = history?.days || [];
 
@@ -56,7 +64,7 @@ const FastingHistoryScreen: React.FC = () => {
     <ScrollView
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={false} onRefresh={() => fetchData(periodStart)} tintColor={colors.primary} />}
+      refreshControl={<RefreshControl refreshing={refrescando} onRefresh={refrescar} tintColor={colors.primary} />}
     >
       <AppText variant="subtitle" style={styles.title}>Historial</AppText>
 

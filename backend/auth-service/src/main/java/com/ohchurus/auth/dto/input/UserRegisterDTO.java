@@ -28,20 +28,20 @@ import lombok.Setter;
 @AllArgsConstructor
 public class UserRegisterDTO {
 
-    @NotBlank(message = "Name is required")
-    @Size(max = 100, message = "Name must not exceed 100 characters")
+    @NotBlank(message = "es obligatorio")
+    @Size(max = 100, message = "no puede superar los 100 caracteres")
     private String name;
 
-    @NotBlank(message = "Email is required")
-    @Email(message = "Invalid email format")
-    @Size(max = 150, message = "Email must not exceed 150 characters")
+    @NotBlank(message = "es obligatorio")
+    @Email(message = "no tiene formato de correo valido")
+    @Size(max = 150, message = "no puede superar los 150 caracteres")
     private String email;
 
-    @NotBlank(message = "Password is required")
-    @Size(min = 6, max = 100, message = "Password must be between 6 and 100 characters")
+    @NotBlank(message = "es obligatorio")
+    @Size(min = 6, max = 100, message = "debe tener entre 6 y 100 caracteres")
     private String password;
 
-    @Min(value = 1, message = "Budget start day must be between 1 and 31")
-    @Max(value = 31, message = "Budget start day must be between 1 and 31")
+    @Min(value = 1, message = "debe estar entre 1 y 31")
+    @Max(value = 31, message = "debe estar entre 1 y 31")
     private Integer budgetStartDay;
 }

@@ -26,17 +26,17 @@ public class MovementSaveDTO {
        sitio a los DTOs de guardado, que si necesitan escribirlo al crear. */
     private Long userId;
 
-    @NotNull(message = "categoryId is required")
+    @NotNull(message = "es obligatorio")
     private Long categoryId;
 
-    @NotNull(message = "date is required")
+    @NotNull(message = "es obligatorio")
     private LocalDate date;
 
-    @NotNull(message = "amount is required")
-    @DecimalMin(value = "0.01", message = "amount must be greater than 0")
+    @NotNull(message = "es obligatorio")
+    @DecimalMin(value = "0.01", message = "debe ser mayor que 0")
     private BigDecimal amount;
 
-    @Size(max = 255, message = "description must not exceed 255 characters")
+    @Size(max = 255, message = "no puede superar los 255 caracteres")
     private String description;
 
     private Long scheduledMovementId;

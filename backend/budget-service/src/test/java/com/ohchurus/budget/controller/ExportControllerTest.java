@@ -76,8 +76,12 @@ class ExportControllerTest {
                 .andExpect(content().bytes(fake));
     }
 
+    /* Esta prueba defendia un 500 con el cuerpo VACIO: quien pulsaba
+       "Descargar Excel" y fallaba la generacion no recibia ni un byte ni una
+       explicacion, y el frontend —que solo sabe leer ResultDTO— se quedaba
+       mudo. Ahora se exige que el fallo se pueda leer. */
     @Test
-    @DisplayName("POST /excel should return 500 when generation fails")
+    @DisplayName("POST /excel: si falla la generacion devuelve un ResultDTO legible, no un 500 vacio")
     void shouldReturnErrorOnFailure() throws Exception {
         when(excelExportService.exportPeriod(eq(1L), anyInt(), any()))
                 .thenThrow(new IOException("boom"));
@@ -85,7 +89,11 @@ class ExportControllerTest {
         mockMvc.perform(post("/v1/export/excel")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("userId", 1))))
-                .andExpect(status().isInternalServerError());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.correct").value(false))
+                .andExpect(jsonPath("$.errorCode").value(500))
+                .andExpect(jsonPath("$.message").value(
+                        org.hamcrest.Matchers.containsString("Excel")));
     }
 
     @Test

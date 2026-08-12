@@ -654,8 +654,9 @@ class DTOTest {
         assertNotNull(m2.getUpdatedAt());
 
         // AllArgs
-        Movement m3 = new Movement(1L, 2L, 3L, date, new BigDecimal("50"), "d", 4L, 5L, true, 6L, true, true, now, now);
+        Movement m3 = new Movement(1L, 2L, 3L, date, new BigDecimal("50"), "d", 4L, date, 5L, true, 6L, true, true, now, now);
         assertEquals(new BigDecimal("50"), m3.getAmount());
+        assertEquals(date, m3.getPeriodStart());
         assertEquals(5L, m3.getParentMovementId());
         assertTrue(m3.getIsTransfer());
         assertEquals(6L, m3.getTransferPairId());

@@ -5,10 +5,12 @@ import { useAuth } from '../../contexts/AuthContext';
 import AppText from '../../components/atoms/Text';
 import CategoryItem from '../../components/molecules/CategoryItem';
 import EmptyState from '../../components/molecules/EmptyState';
+import EstadoError from '../../components/molecules/EstadoError';
 import Spinner from '../../components/atoms/Spinner';
 import { spacing } from '../../theme';
 import { categoryService } from '../../services/categoryService';
 import { CategoryTree } from '../../types';
+import { useCarga, exigir } from '../../hooks/useCarga';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
@@ -24,37 +26,20 @@ const CategoriesScreen: React.FC<Props> = ({ navigation }) => {
   const { user } = useAuth();
   const [tree, setTree] = useState<CategoryTree[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  const fetchCategories = useCallback(async () => {
+  const traerCategorias = useCallback(async () => {
     if (!user) return;
-    try {
-      setError(null);
-      const res = await categoryService.getTree(user.userId);
-      if (res.correct) {
-        setTree(res.object || []);
-      }
-    } catch {
-      setError('Error al cargar datos. Intenta de nuevo.');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
+    const res = await categoryService.getTree(user.userId);
+    setTree(exigir(res) || []);
   }, [user]);
+
+  const { cargando, refrescando, error, cargar, refrescar } = useCarga(traerCategorias);
 
   useFocusEffect(
     useCallback(() => {
-      setLoading(true);
-      fetchCategories();
-    }, [fetchCategories]),
+      cargar();
+    }, [cargar]),
   );
-
-  const onRefresh = () => {
-    setRefreshing(true);
-    fetchCategories();
-  };
 
   const toggleExpand = (id: string) => {
     setExpanded((prev) => {
@@ -82,17 +67,25 @@ const CategoriesScreen: React.FC<Props> = ({ navigation }) => {
     );
   };
 
-  if (loading) return <Spinner fullScreen />;
+  if (cargando) return <Spinner fullScreen />;
+
+  if (error) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <AppText variant="subtitle" style={styles.header}>Categorias</AppText>
+        <EstadoError mensaje={error} onReintentar={cargar} />
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <AppText variant="subtitle" style={styles.header}>Categorias</AppText>
-      {error && <AppText variant="body" color={colors.danger} style={{ textAlign: 'center', padding: 16 }}>{error}</AppText>}
 
       <ScrollView
         contentContainerStyle={tree.length === 0 ? styles.emptyContainer : styles.listContent}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+          <RefreshControl refreshing={refrescando} onRefresh={refrescar} tintColor={colors.primary} />
         }
       >
         {tree.length === 0 ? (

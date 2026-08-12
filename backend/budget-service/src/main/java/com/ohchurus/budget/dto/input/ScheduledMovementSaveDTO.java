@@ -25,25 +25,25 @@ public class ScheduledMovementSaveDTO {
        sitio a los DTOs de guardado, que si necesitan escribirlo al crear. */
     private Long userId;
 
-    @NotNull(message = "categoryId is required")
+    @NotNull(message = "es obligatorio")
     private Long categoryId;
 
-    @NotBlank(message = "name is required")
-    @Size(max = 100, message = "name must not exceed 100 characters")
+    @NotBlank(message = "es obligatorio")
+    @Size(max = 100, message = "no puede superar los 100 caracteres")
     private String name;
 
-    @DecimalMin(value = "0.01", message = "amount must be greater than 0")
+    @DecimalMin(value = "0.01", message = "debe ser mayor que 0")
     private BigDecimal amount;
 
-    @NotNull(message = "frequency is required")
+    @NotNull(message = "es obligatorio")
     private Frequency frequency;
 
     private Integer durationMonths;
 
-    @NotNull(message = "startDate is required")
+    @NotNull(message = "es obligatorio")
     private LocalDate startDate;
 
-    @Min(value = 1, message = "dayOfMonth must be between 1 and 31")
-    @Max(value = 31, message = "dayOfMonth must be between 1 and 31")
+    @Min(value = 1, message = "debe estar entre 1 y 31")
+    @Max(value = 31, message = "debe estar entre 1 y 31")
     private Integer dayOfMonth;
 }

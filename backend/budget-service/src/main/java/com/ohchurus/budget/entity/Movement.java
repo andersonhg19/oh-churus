@@ -42,6 +42,16 @@ public class Movement {
 
     private Long scheduledMovementId;
 
+    /*
+     * Periodo (primer dia del mes) al que pertenece esta ocurrencia de un
+     * programado. Existe porque la clave de idempotencia no puede ser la fecha:
+     * bastaba con mover la fecha de un pendiente a otro mes —o editar el
+     * programado— para que el generador lo volviera a crear y el arriendo
+     * apareciera dos veces. Con este campo la clave es (scheduledMovementId,
+     * periodStart) y no depende de nada que el usuario pueda cambiar.
+     */
+    private LocalDate periodStart;
+
     private Long parentMovementId;
 
     @Column(nullable = false)

@@ -31,6 +31,10 @@ frontend/.env.*.local
 # === Database backups / dumps (no deben ir al repo) ===
 backups/
 *.sql
+# ...pero las migraciones de Flyway SI van al repo: son el esquema. Sin esta
+# excepcion el *.sql de arriba se las tragaba y al clonar el proyecto no habria
+# con que crear las tablas (ddl-auto=validate no las inventa).
+!backend/*/src/main/resources/db/migration/**/*.sql
 
 # === OS ===
 .DS_Store

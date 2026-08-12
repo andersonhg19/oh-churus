@@ -5,10 +5,12 @@ import { useAuth } from '../../contexts/AuthContext';
 import AppText from '../../components/atoms/Text';
 import Spinner from '../../components/atoms/Spinner';
 import EmptyState from '../../components/molecules/EmptyState';
+import EstadoError from '../../components/molecules/EstadoError';
 import MovementItem from '../../components/molecules/MovementItem';
 import { spacing } from '../../theme';
 import { movementService } from '../../services/movementService';
 import { Movement } from '../../types';
+import { useCarga, exigir } from '../../hooks/useCarga';
 import { formatCurrency } from '../../utils/format';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -27,41 +29,39 @@ const CategoryDrillDownScreen: React.FC<Props> = ({ route }) => {
   const { categoryId, categoryName, color, startDate, endDate } = route.params;
 
   const [movements, setMovements] = useState<Movement[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
 
-  const fetchMovements = useCallback(async () => {
+  const traerMovimientos = useCallback(async () => {
     if (!user) return;
-    try {
-      const res = await movementService.getAll({
-        userId: user.userId,
-        categoryId: categoryId,
-        startDate,
-        endDate,
-        page: 0,
-        size: 100,
-      });
-      if (res.correct && res.object) {
-        setMovements(res.object.list || []);
-      }
-    } catch {
-      // silent
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
+    const res = await movementService.getAll({
+      userId: user.userId,
+      categoryId: categoryId,
+      startDate,
+      endDate,
+      page: 0,
+      size: 100,
+    });
+    setMovements(exigir(res)?.list || []);
   }, [user, categoryId, startDate, endDate]);
+
+  const { cargando, refrescando, error, cargar, refrescar } = useCarga(traerMovimientos);
 
   useFocusEffect(
     useCallback(() => {
-      setLoading(true);
-      fetchMovements();
-    }, [fetchMovements]),
+      cargar();
+    }, [cargar]),
   );
 
   const total = movements.reduce((sum, m) => sum + (m.amount || 0), 0);
 
-  if (loading) return <Spinner fullScreen />;
+  if (cargando) return <Spinner fullScreen />;
+
+  if (error) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <EstadoError mensaje={error} onReintentar={cargar} />
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -83,11 +83,8 @@ const CategoryDrillDownScreen: React.FC<Props> = ({ route }) => {
         keyExtractor={(item) => String(item.id)}
         renderItem={({ item }) => (
           <MovementItem movement={item} onPress={() => rootNavigation.navigate('MovementFormModal', { movement: item })} onConfirm={async () => {
-            try {
-              const { movementService } = require('../../services/movementService');
-              await movementService.confirm(String(item.id));
-              fetchMovements();
-            } catch {}
+            await movementService.confirm(String(item.id)).catch(() => null);
+            cargar();
           }} />
         )}
         contentContainerStyle={movements.length === 0 ? styles.emptyContainer : styles.listContent}
@@ -95,7 +92,7 @@ const CategoryDrillDownScreen: React.FC<Props> = ({ route }) => {
           <EmptyState title="Sin movimientos" message="No hay movimientos en esta categoria" icon="📭" />
         }
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchMovements(); }} tintColor={colors.primary} />
+          <RefreshControl refreshing={refrescando} onRefresh={refrescar} tintColor={colors.primary} />
         }
       />
     </View>

@@ -10,12 +10,14 @@ import Card from '../../components/atoms/Card';
 import StatCard from '../../components/molecules/StatCard';
 import MovementItem from '../../components/molecules/MovementItem';
 import EmptyState from '../../components/molecules/EmptyState';
+import EstadoError from '../../components/molecules/EstadoError';
 import PeriodNavigator from '../../components/molecules/PeriodNavigator';
 import Spinner from '../../components/atoms/Spinner';
 import { spacing } from '../../theme';
 import { dashboardService } from '../../services/dashboardService';
 import { movementService } from '../../services/movementService';
 import { DashboardSummary, Movement } from '../../types';
+import { useCarga, exigir } from '../../hooks/useCarga';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { formatCurrency } from '../../utils/format';
 import { getStartOfPeriod, getEndOfPeriod, navigatePeriod } from '../../utils/periodUtils';
@@ -28,9 +30,6 @@ const DashboardScreen: React.FC = () => {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [splitSummary, setSplitSummary] = useState<any>(null);
   const [pending, setPending] = useState<Movement[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'total' | 'shared' | 'personal'>('total');
 
   // Confirm modal state
@@ -41,37 +40,27 @@ const DashboardScreen: React.FC = () => {
   const [periodStart, setPeriodStart] = useState(() => getStartOfPeriod(budgetDay, new Date()));
   const [periodEnd, setPeriodEnd] = useState(() => getEndOfPeriod(budgetDay, getStartOfPeriod(budgetDay, new Date())));
 
-  const fetchForPeriod = useCallback(async (refDate: string) => {
+  const traerPanel = useCallback(async () => {
     if (!user) return;
-    try {
-      setError(null);
-      const [summaryRes, pendingRes, splitRes] = await Promise.all([
-        dashboardService.getSummary(user.userId, budgetDay, refDate),
-        dashboardService.getPending(user.userId, budgetDay, refDate),
-        dashboardService.getSplitSummary(user.userId, budgetDay, refDate),
-      ]);
-      if (summaryRes.correct) setSummary(summaryRes.object);
-      if (pendingRes.correct) setPending(pendingRes.object || []);
-      if (splitRes.correct) setSplitSummary(splitRes.object);
-    } catch {
-      setError('Error al cargar datos. Intenta de nuevo.');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [user, budgetDay]);
+    const [summaryRes, pendingRes, splitRes] = await Promise.all([
+      dashboardService.getSummary(user.userId, budgetDay, periodStart),
+      dashboardService.getPending(user.userId, budgetDay, periodStart),
+      dashboardService.getSplitSummary(user.userId, budgetDay, periodStart),
+    ]);
+    // Un correct:false aqui pintaba balance $0 y "Todo al dia": exactamente lo
+    // mismo que un usuario nuevo sin datos. Ahora se cuenta lo que paso.
+    setSummary(exigir(summaryRes) || null);
+    setPending(exigir(pendingRes) || []);
+    setSplitSummary(exigir(splitRes) || null);
+  }, [user, budgetDay, periodStart]);
+
+  const { cargando, refrescando, error, cargar, refrescar } = useCarga(traerPanel);
 
   useFocusEffect(
     useCallback(() => {
-      setLoading(true);
-      fetchForPeriod(periodStart);
-    }, [fetchForPeriod, periodStart]),
+      cargar();
+    }, [cargar]),
   );
-
-  const onRefresh = () => {
-    setRefreshing(true);
-    fetchForPeriod(periodStart);
-  };
 
   const openConfirmModal = (item: Movement) => {
     setConfirmItem(item);
@@ -87,7 +76,7 @@ const DashboardScreen: React.FC = () => {
       await movementService.confirm(String(confirmItem.id), adjustedAmount);
       showToast('success', 'Confirmado', confirmItem.description || 'Movimiento confirmado');
       setConfirmItem(null);
-      fetchForPeriod(periodStart);
+      cargar();
     } catch {
       showToast('error', 'Error', 'No se pudo confirmar');
     }
@@ -102,7 +91,15 @@ const DashboardScreen: React.FC = () => {
   const currentPeriodStart = getStartOfPeriod(budgetDay, new Date());
   const canGoNext = periodStart < currentPeriodStart;
 
-  if (loading) return <Spinner fullScreen />;
+  if (cargando) return <Spinner fullScreen />;
+
+  if (error) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <EstadoError mensaje={error} onReintentar={cargar} />
+      </View>
+    );
+  }
 
   const balanceColor = (summary?.balance ?? 0) >= 0 ? colors.income : colors.expense;
 
@@ -111,12 +108,8 @@ const DashboardScreen: React.FC = () => {
       <ScrollView
         style={[styles.container, { backgroundColor: colors.background }]}
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+        refreshControl={<RefreshControl refreshing={refrescando} onRefresh={refrescar} tintColor={colors.primary} />}
       >
-        {error && (
-          <AppText variant="body" color={colors.danger} style={styles.errorText}>{error}</AppText>
-        )}
-
         <AppText variant="subtitle" style={styles.greeting}>
           Hola, {user?.name || 'Usuario'}! 🐿️
         </AppText>
@@ -218,7 +211,7 @@ const DashboardScreen: React.FC = () => {
                       try {
                         await movementService.confirm(String(item.id));
                         showToast('success', 'Confirmado', item.description || 'Movimiento confirmado');
-                        fetchForPeriod(periodStart);
+                        cargar();
                       } catch { showToast('error', 'Error', 'No se pudo confirmar'); }
                     }}
                   />
@@ -274,7 +267,6 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: spacing.md, paddingBottom: spacing.xxl },
   greeting: { marginBottom: spacing.sm },
-  errorText: { textAlign: 'center', padding: spacing.md },
   toggleRow: {
     flexDirection: 'row', gap: 8, marginBottom: spacing.sm,
   },

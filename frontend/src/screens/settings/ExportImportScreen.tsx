@@ -11,6 +11,33 @@ import { spacing } from '../../theme';
 import { getStartOfPeriod, getEndOfPeriod, navigatePeriod } from '../../utils/periodUtils';
 import api from '../../services/api';
 
+/**
+ * Devuelve el mensaje de error si la respuesta del Excel es en realidad un
+ * ResultDTO en JSON; null si es el fichero de verdad.
+ *
+ * Se pide con responseType 'blob', asi que un fallo llega como un Blob de
+ * JSON y no como un objeto: hay que leerlo para saber que es.
+ */
+const leerFalloEnJson = async (datos: any): Promise<string | null> => {
+  if (!datos) return null;
+
+  // Sin responseType blob (o en algunos entornos) axios ya entrega el objeto.
+  if (typeof datos === 'object' && !(datos instanceof Blob) && 'correct' in datos) {
+    return datos.correct ? null : datos.message || 'No se pudo exportar';
+  }
+
+  const tipo: string = datos?.type || '';
+  if (!tipo.includes('json')) return null;
+
+  try {
+    const texto = typeof datos.text === 'function' ? await datos.text() : String(datos);
+    const cuerpo = JSON.parse(texto);
+    return cuerpo?.correct ? null : cuerpo?.message || 'No se pudo exportar';
+  } catch {
+    return 'No se pudo exportar';
+  }
+};
+
 const ExportImportScreen: React.FC = () => {
   const { colors } = useTheme();
   const { showToast } = useToast();
@@ -31,6 +58,19 @@ const ExportImportScreen: React.FC = () => {
         { userId: user?.userId, budgetStartDay: budgetDay, referenceDate: exportPeriodStart },
         { responseType: 'blob' },
       );
+
+      /* Cuando falla la generacion, el backend responde HTTP 200 con un
+         ResultDTO en JSON, no con el Excel. Como es un 200, axios NO lanza y
+         el catch de abajo nunca se entera: sin esta comprobacion el JSON del
+         error se descargaba como "Presupuesto_....xlsx" —un fichero corrupto—
+         y encima se anunciaba "Excel descargado". Se mira el tipo real de la
+         respuesta antes de darla por buena. */
+      const mensajeDeFallo = await leerFalloEnJson(response.data);
+      if (mensajeDeFallo) {
+        showToast('error', 'Error', mensajeDeFallo);
+        return;
+      }
+
       if (Platform.OS === 'web') {
         const blob = new Blob([response.data], {
           type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

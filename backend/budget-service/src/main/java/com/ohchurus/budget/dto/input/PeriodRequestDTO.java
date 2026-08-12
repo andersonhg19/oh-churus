@@ -12,8 +12,8 @@ public class PeriodRequestDTO {
        campo entero romperia nada (Spring ignora lo desconocido) pero deja sin
        sitio a los DTOs de guardado, que si necesitan escribirlo al crear. */
     private Long userId;
-    @NotNull(message = "startDate is required")
+    @NotNull(message = "es obligatorio")
     private LocalDate startDate;
-    @NotNull(message = "endDate is required")
+    @NotNull(message = "es obligatorio")
     private LocalDate endDate;
 }

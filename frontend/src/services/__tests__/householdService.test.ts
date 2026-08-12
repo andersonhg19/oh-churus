@@ -23,6 +23,15 @@ describe('householdService', () => {
     expect(mockPost).toHaveBeenCalledWith(`${BASE}/add-member`, { householdId: 100, userId: 2 });
   });
 
+  it('inviteByEmail posts householdId and email, never an id', async () => {
+    // Se invita por correo: el id de fila de la base de datos no lo conoce nadie.
+    await householdService.inviteByEmail(100, 'pareja@correo.com');
+    expect(mockPost).toHaveBeenCalledWith(`${BASE}/invite`, {
+      householdId: 100,
+      email: 'pareja@correo.com',
+    });
+  });
+
   it('removeMember posts householdId and userId', async () => {
     await householdService.removeMember(100, 2);
     expect(mockPost).toHaveBeenCalledWith(`${BASE}/remove-member`, { householdId: 100, userId: 2 });

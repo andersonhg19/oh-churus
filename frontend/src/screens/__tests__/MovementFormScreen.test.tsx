@@ -5,11 +5,15 @@ import MovementFormScreen from '../movements/MovementFormScreen';
 import { ThemeProvider } from '../../contexts/ThemeContext';
 import * as AuthContext from '../../contexts/AuthContext';
 import { movementService } from '../../services/movementService';
+import { confirmarUltimaAlerta } from '../../test-utils';
 
 const showToastSpy = (globalThis as any).__mockShowToast as jest.Mock;
 
 jest.mock('../../services/movementService', () => ({
-  movementService: { save: jest.fn().mockResolvedValue({ correct: true }) },
+  movementService: {
+    save: jest.fn().mockResolvedValue({ correct: true }),
+    delete: jest.fn().mockResolvedValue({ correct: true }),
+  },
 }));
 
 jest.mock('../../services/categoryService', () => ({
@@ -136,6 +140,39 @@ describe('MovementFormScreen', () => {
     fireEvent.press(getByText('Guardar'));
     await waitFor(() => expect(movementService.save).toHaveBeenCalled());
     expect(mockNavigation.goBack).toHaveBeenCalled();
+  });
+
+  it('no borra el movimiento hasta que se confirma el dialogo', async () => {
+    const movement = { id: 'm1', userId: '1', categoryId: 'c2', categoryType: 'EXPENSE' as const, amount: 1500000, date: '2026-03-01', confirmed: true, description: 'Arriendo' };
+    const route = { params: { movement } } as any;
+    const { getByText } = render(
+      <MovementFormScreen navigation={mockNavigation} route={route} />,
+      { wrapper: Wrapper },
+    );
+    fireEvent.press(getByText('Eliminar'));
+    expect(movementService.delete).not.toHaveBeenCalled();
+    expect(Alert.alert).toHaveBeenCalled();
+
+    confirmarUltimaAlerta();
+    await waitFor(() => expect(movementService.delete).toHaveBeenCalledWith('m1'));
+  });
+
+  it('un doble toque en Guardar no crea dos movimientos', async () => {
+    const route = { params: {} } as any;
+    const { getByText, getByPlaceholderText } = render(
+      <MovementFormScreen navigation={mockNavigation} route={route} />,
+      { wrapper: Wrapper },
+    );
+    await waitFor(() => expect(getByText('Arriendo')).toBeTruthy());
+    fireEvent.press(getByText('Arriendo'));
+    fireEvent.changeText(getByPlaceholderText('0'), '150000');
+
+    const guardar = getByText('Guardar');
+    fireEvent.press(guardar);
+    fireEvent.press(guardar);
+
+    await waitFor(() => expect(movementService.save).toHaveBeenCalled());
+    expect(movementService.save).toHaveBeenCalledTimes(1);
   });
 
   it('shows an error toast when save fails', async () => {

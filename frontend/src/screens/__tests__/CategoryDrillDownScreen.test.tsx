@@ -41,4 +41,16 @@ describe('CategoryDrillDownScreen', () => {
     render(<CategoryDrillDownScreen route={route} navigation={{ navigate: jest.fn(), goBack: jest.fn() } as any} />, { wrapper: Wrapper });
     await waitFor(() => expect(movementService.getAll).toHaveBeenCalled());
   });
+
+  it('muestra el mensaje del backend cuando correct es false', async () => {
+    (movementService.getAll as jest.Mock).mockResolvedValue({
+      correct: false, message: 'Esa categoria no es tuya', object: null,
+    });
+    const { getByText, queryByText } = render(
+      <CategoryDrillDownScreen route={route} navigation={{ navigate: jest.fn(), goBack: jest.fn() } as any} />,
+      { wrapper: Wrapper },
+    );
+    await waitFor(() => expect(getByText('Esa categoria no es tuya')).toBeTruthy());
+    expect(queryByText('No hay movimientos en esta categoria')).toBeNull();
+  });
 });

@@ -22,6 +22,14 @@ export const householdService = {
     return response.data;
   },
 
+  /* Se invita por correo, no por id: la pantalla pedia el id de fila de la
+     base de datos ("Ej: 4") y nadie conoce el suyo, asi que el nucleo
+     familiar no se podia usar. El id lo resuelve el backend. */
+  inviteByEmail: async (householdId: number, email: string) => {
+    const response = await api.post<ResultDTO<any>>(`${BASE}/invite`, { householdId, email });
+    return response.data;
+  },
+
   removeMember: async (householdId: number, userId: number) => {
     const response = await api.post<ResultDTO<any>>(`${BASE}/remove-member`, { householdId, userId });
     return response.data;

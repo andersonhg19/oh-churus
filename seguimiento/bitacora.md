@@ -1,7 +1,15 @@
 # Oh Churus! - Bitácora de Desarrollo
 
-## Estado Actual: FASE 11 - Completada (Proyecto completo)
-## Última actualización: 2026-03-17
+## Estado Actual: estabilizado tras las dos olas de agosto
+## Última actualización: 2026-08-11
+
+> Las entradas de marzo (fases 0-11) describen la construcción inicial. A partir
+> de "Marzo-abril de 2026" el proyecto sale del plan maestro: crece con el núcleo
+> familiar y el ayuno, pasa por una etapa de calidad medida en junio y por dos
+> olas de estabilización en agosto.
+>
+> Fuentes de esta segunda parte: los mensajes de los commits del repositorio y
+> `../documentación/auditoria-y-plan-de-estabilizacion.md`.
 
 ---
 
@@ -220,3 +228,374 @@ backend/
 | 9 - Frontend Dashboard | **Completada** | 2026-03-17 | 2026-03-17 | Stats, pendientes, trend |
 | 10 - Frontend Pruebas | **Completada** | 2026-03-18 | 2026-03-18 | 50 tests Jest |
 | 11 - Integración | **Completada** | 2026-03-18 | 2026-03-18 | Docker + Postman |
+
+---
+
+# Segunda parte: de marzo a agosto de 2026
+
+---
+
+### 2026-03-21 a 2026-04-04 - El proyecto crece fuera del plan maestro
+
+**Actividad:** entre el cierre de la fase 11 y el primer commit del repositorio,
+el proyecto añadió dos módulos completos y tres conceptos nuevos de dominio.
+
+**Advertencia sobre esta entrada:** este crecimiento **no está trazado paso a
+paso**. El repositorio de git empieza el 2026-04-04 con un único commit
+("Initial commit: Oh Churus! personal finance platform", 316 ficheros) que ya
+contiene todo lo de abajo. Lo que sigue se reconstruye comparando el estado de
+marzo con el contenido de ese commit, no de un registro de la época.
+
+**Lo que había en ese primer commit y no estaba el 21 de marzo:**
+
+| Añadido | Detalle |
+|---|---|
+| `fasting-service` | Tercer servicio de negocio (puerto 8825, `fasting_db`). Entidades `FastingSession`, `FastingPlanConfig`, `WaterLog`, `Achievement` |
+| Núcleo familiar | `Household` y `HouseholdMember` en budget-service. Categorías compartidas (`householdId`) |
+| Presupuesto por periodo | `BudgetAllocation`: cuánto se piensa gastar por categoría y periodo |
+| Sub-movimientos | `parentMovementId`: desglosar un gasto en líneas de detalle |
+| Transferencias | `isTransfer` + `transferPairId`: mover plata entre bolsillos |
+| Exportación a Excel | `ExportController` + `ExcelExportService` (Apache POI) |
+| Pantallas nuevas | Consolidado, Resumen con dona y drill-down, Ayuno (panel, historial, config), Hogar |
+
+**Resultado:** de 4 entidades y 2 servicios de negocio (auth y budget, tras la
+fusión de core) a **11 entidades y 3 servicios de negocio** — cinco
+microservicios contando discovery y gateway. De 28 endpoints a 56.
+
+**Consecuencia documental:** a partir de aquí `enunciado-detallado.md`,
+`entidades-y-relaciones.md` y `plan-maestro.md` dejaron de corresponderse con el
+código. Se corrigió el 2026-08-11.
+
+---
+
+### 2026-06-10 - Cobertura y análisis estático con SonarQube Cloud
+
+**Actividad:** conectar el proyecto a SonarQube Cloud, restaurar la cobertura de
+pruebas y llevar el reporte de calidad a Quality Gate en verde.
+
+**Cronología del día** (13 commits, del más antiguo al más reciente):
+
+1. `cfa9e6b` — cobertura backend >90% y frontend ~70%, y montaje de SonarCloud.
+2. `749ae83` — corregir la importación de cobertura: `sonar.coverage.jacoco.xmlReportPaths`.
+3. `c85d453` — 5 bugs detectados por SonarCloud: "leaked value" en JSX y
+   `Duration.between` sin zona horaria.
+4. `c11044d` — commit deliberado con el estado "ANTES" para poder enseñar el
+   contraste en el taller.
+5. `47e6695` — `sonar.java.libraries` (copia de dependencias) para que el
+   análisis de Java sea preciso.
+6. `7f12f34` — restaurar cobertura y corregir vulnerabilidades y bugs.
+7. `19a2e99` — regex de email lineal: resuelve el hotspot de ReDoS.
+8. `6dbbaff` y `61bcae6` — documento del taller de calidad, con la cobertura
+   final (80.9%).
+9. `5cfadec`, `05c7939`, `6228560`, `ff4c7a9` — pruebas de frontend: componentes,
+   guardado en formularios, e interacción en pantallas (Household,
+   FastingDashboard, Budget, Consolidated, Summary). GitHub Actions a v5.
+10. `c02df81` — salida de las pruebas limpia para la demo: `logback-test.xml`,
+    banner de Spring apagado y filtro de los warnings inofensivos de `act()`.
+
+**Resultado medido** (de `documentación/taller-calidad-sonarqube.md`):
+
+| Métrica | Antes | Después |
+|---|---|---|
+| Quality Gate | ERROR | **PASSED** |
+| Bugs | 7 | **0** |
+| Vulnerabilidades | 4 | **0** |
+| Hotspots sin revisar | 4 | **0** |
+| Code smells abiertos | 243 | **0** (triados) |
+| Cobertura | 44.7% | **80.9%** |
+
+**Qué se corrigió de verdad:** contraseñas del seed externalizadas a
+configuración (`app.seed.*-password`, sobrescribibles por variables de entorno),
+el ReDoS del validador de correo, `Duration.between` con zona horaria, y el
+"leaked value" de JSX. Los CSRF deshabilitados se **revisaron y aceptaron**: es
+una API REST sin estado con JWT, sin cookies.
+
+**Infraestructura:** `.github/workflows/sonarcloud.yml` corre en cada push y PR a
+`main`: `mvn -B clean verify` con JaCoCo, `npx jest --coverage` con LCOV, y el
+escaneo de SonarCloud.
+
+**Lo que este capítulo NO detectó, y por qué importa:** el 99-100% de cobertura
+se calculaba **después de excluir la capa de seguridad** (`SecurityConfig`,
+`SecParams`, `JWTAuthorizationFilter`), los tests de controller corrían con
+`addFilters = false`, y los 36 escenarios de Karate nunca se ejecutaron en CI.
+Por eso los tres fallos de diseño que se encontraron en agosto sobrevivieron a
+esta revisión: se estaba midiendo donde no importaba.
+
+---
+
+### 2026-08-11 - Auditoría y Ola 1: la identidad sale del token
+
+**Actividad:** auditoría multiagente del proyecto (8 dimensiones con verificación
+adversarial) y primera ola de corrección.
+
+**Diagnóstico.** 144 hallazgos confirmados que se reducían a **tres decisiones
+de diseño** tomadas al principio:
+
+- **Raíz A — la identidad la ponía el cliente.** Como todos los endpoints son
+  POST y los parámetros viajan en el cuerpo, el `userId` acabó siendo un
+  parámetro más, indistinguible de `categoryId` o de `amount`. El filtro JWT
+  existía, el token **sí llevaba** el claim `userId`, `SecurityUtils` estaba
+  escrito... y nadie cerró el círculo.
+- **Raíz B — no había fuente única de verdad** ni para el periodo ni para "qué
+  movimiento suma".
+- **Raíz C — las convenciones no tenían mecanismo que las impusiera:** ni un
+  `@ControllerAdvice` en todo el backend, y `ddl-auto=update` sin una sola clave
+  foránea, UNIQUE ni CHECK.
+
+**Se midió antes de arreglar.** Se escribió una matriz de aislamiento entre dos
+usuarios **antes** de tocar el código de producción. Arrancó con 10 de 13 casos
+en rojo: Bruno leía los movimientos de Ana, le reescribía el importe a 9.999.999,
+se apropiaba de ellos y se metía en su núcleo familiar.
+
+**Qué se corrigió** (`3925be8`):
+
+1. **Toma de control de cuentas sin autenticarse.** `/v1/auth/register` es
+   público y recibía un DTO con campo `id`; el servicio leía "trae id" como
+   "actualiza". Enviando `{"id":3,...}` cualquiera cambiaba el correo y la
+   contraseña de otro. Ahora recibe `UserRegisterDTO`, sin `id`, y llama a un
+   método que solo puede crear. De paso, `register` devuelve token como `login`:
+   registrarse dejaba la sesión vacía.
+2. **La identidad sale del JWT.** El filtro recoge el claim, `SecurityUtils` lo
+   reparte, y los controllers ignoran el `userId` del cuerpo. Cubre paneles,
+   listados, árbol de categorías, por-periodo, Excel, transferencias y hogar.
+3. **Propiedad en cada lectura y escritura.** Nuevo `ControlAcceso` con una sola
+   regla: un dato es tuyo si lo creaste o si vive en una categoría compartida de
+   un hogar al que perteneces. Se responde "no existe" y no "no puedes":
+   contestar "no puedes" confirma que ese id existe.
+4. **El núcleo familiar exige ser OWNER.** `addMember`/`removeMember` no
+   comprobaban nada: cualquiera se metía en la casa de otra pareja probando
+   `householdId` consecutivos.
+5. **Los servicios internos solo escuchan en `127.0.0.1`** (antes, toda la red).
+
+**Pruebas:**
+
+- `AislamientoEntreUsuariosTest`: 18 casos, y es la **primera prueba de
+  integración del proyecto**. Las 502 anteriores eran unitarias con mocks, que
+  por construcción no pueden detectar que el filtro no está cableado. Levanta la
+  app entera con dos usuarios y tokens de verdad, y no comprueba códigos de
+  estado sino dos propiedades: la respuesta no lleva datos de Ana, y los datos de
+  Ana siguen intactos.
+- Se corrigió `MovementServiceImplEdgeCasesTest`, que **asertaba el robo de datos
+  como comportamiento correcto** (que un update reasignara el movimiento del
+  usuario 99 al 2). La suite defendía el bug; por eso sobrevivió.
+- `SecurityUtilsTest` fijaba como contrato que estallara con
+  `NullPointerException` sin sesión. Ahora devuelve `null`, y "sin dueño" nunca
+  significa "de todos".
+
+**Higiene del repositorio:** los volcados de base de datos dejaron de estar
+versionados. Seguían en el repo **público** pese al `.gitignore`, porque ignorar
+no destraquea lo ya trazado.
+
+**Estado:** BUILD SUCCESS, 524 tests (22 nuevos), 0 fallos. Frontend intacto: 58
+suites, 331 tests.
+
+**Documento:** `1a49219` publica
+`documentación/auditoria-y-plan-de-estabilizacion.md` con el diagnóstico, el plan
+en tres olas con criterio de "hecho" por elemento, y —tan importante como el
+plan— la lista de lo que **no** hay que hacer y por qué.
+
+---
+
+### 2026-08-11 - Ola 2, primera tanda: coherencia de cifras y fechas
+
+**Commit:** `5f210cc`. Todo verificado con pruebas que fallaban antes.
+
+1. **La misma plata, la misma cifra.** `DashboardServiceImpl` contaba la misma
+   plata de dos formas **en el mismo método**: `totalExpense` sumaba los
+   sub-movimientos y `budgetTotal` los excluía. Con un gasto padre de 500.000 y
+   dos hijos de 200.000 y 100.000, "Gastos" decía 800.000 y "Presupuesto"
+   500.000 en la misma pantalla, y la dona sumaba una tercera cosa. Ahora la
+   regla vive en un solo sitio (`Computables`) y se aplica en los cinco puntos de
+   agregación: el hijo es detalle del padre, y la transferencia no es ingreso ni
+   gasto.
+   Nuevo `LasCifrasCuadranTest`: escenario con números escogidos (sueldo
+   3.000.000, mercado 500.000 con dos hijos, transferencia de 400.000) y
+   exigencia de que panel, presupuesto, dona y detalle den lo mismo. Comprueba
+   también que los hijos **siguen viéndose** en la lista: no sumar no puede
+   significar esconder.
+
+2. **Las fechas.** `new Date().toISOString()` pasa a UTC: en Bogotá, todo lo
+   registrado después de las 19:00 se guardaba con la fecha de mañana. Y al
+   revés al pintar: `new Date("2026-08-11")` es medianoche UTC, o sea las 19:00
+   del día anterior. Nuevo `fechaLocalISO` y parseo local en `formatDate`, con
+   pruebas en `TZ=America/Bogota` y la hora fijada a las 22:30.
+
+3. **El signo del dinero.** `formatCurrency` hacía `Math.abs`: un déficit de
+   -500.000 se veía igual que un superávit, y tres pantallas lo parcheaban a
+   mano, cada una a su manera. Ahora el signo lo pone la función.
+
+4. **La sesión caducada deja de disfrazarse de "sin datos".** Un 401 se ignoraba
+   en silencio y cada pantalla pintaba su estado vacío: tras unos días sin abrir
+   la app entrabas sin contraseña y veías balance $0 y "Sin núcleo familiar",
+   indistinguible de haberlo perdido todo. Ahora el interceptor cierra la sesión
+   y lleva a la entrada.
+
+5. **Presupuesto vuelve a existir.** `BudgetNavigator` estaba escrito, con
+   pantalla, navegador y pruebas, y no se montó nunca en ninguna pestaña. En una
+   app de presupuestos.
+
+6. Los DTO de entrada dejan de **exigir** `userId`: ya no se usa (viene del
+   token), y exigirlo rechazaba peticiones legítimas.
+
+**Pruebas que defendían bugs, corregidas:** la que fijaba `totalExpense=150` con
+`budgetTotal=50` sobre los mismos datos, la que pedía que -500 se mostrara como
+"$500", y las 12 que exigían un 400 al faltar el `userId` (un contrato que
+desapareció: pedírselo al cliente **era** el fallo).
+
+**Estado:** backend BUILD SUCCESS, 529 tests. Frontend 58 suites, 336 tests, en
+`TZ=America/Bogota`.
+
+---
+
+### 2026-08-11 - Ola 2, cierre: la identidad se cierra en los tres servicios
+
+**Commit:** `cade2ef`. Trabajo de seis agentes en paralelo, un verificador
+adversarial encima, y verificación arrancando contra una copia de la base de
+datos real.
+
+**Seguridad — la invariante ya es cierta en toda la plataforma.** La ola anterior
+arregló budget-service y dejó dos servicios atrás, así que "la identidad sale del
+JWT" era verdad a medias, que en seguridad es mentira.
+
+- **fasting-service:** sus 13 endpoints tomaban el `userId` del cuerpo y
+  `session/edit` no comprobaba dueño. Cualquiera leía y modificaba el ayuno, el
+  agua y los logros de otro cambiando un número.
+- **auth-service:** `/users/delete/{id}` daba de baja la cuenta de **cualquiera**
+  con solo su id, `/users/save` le cambiaba correo y contraseña, y `/users/all`
+  era un directorio abierto con LIKE (buscar "a" los sacaba a todos). Ahora solo
+  tu propia cuenta, y el listado sin correo solo te devuelve a ti; con correo,
+  coincidencia exacta. La invitación al hogar sigue funcionando porque siempre
+  pregunta por un correo concreto.
+- **Dos redes de seguridad nuevas:** `AislamientoEnAyunoTest` (7 casos) y
+  `AislamientoDeCuentasTest` (7). Las dos se probaron **en rojo** revirtiendo el
+  arreglo a propósito, para comprobar que cazan lo que dicen cazar.
+
+**Contrato de errores.** Un `@RestControllerAdvice` por servicio: cuerpo mal
+formado, campo con tipo incorrecto o excepción no capturada devuelven siempre
+HTTP 200 con `correct:false` y un mensaje que nombra el campo. Antes salía el
+400/500 de Spring y el frontend, que solo sabe leer `ResultDTO`, lo convertía en
+"Request failed with status code 400" o en una pantalla vacía. Los `Map` de
+cuerpo pasan a DTO con validación en household, asignaciones, transferencias y
+los 13 de ayuno.
+
+**Integridad.**
+
+- **Transferencias atómicas al editar:** corregir una de 500.000 a 300.000
+  dejaba el consolidado descuadrado en 200.000 inexistentes.
+- **Recurrencias idempotentes** con clave `(programado, periodo)`, a nombre del
+  **dueño** del programado y no de quien pulsa, y con ocurrencias omitibles:
+  borrar un pendiente ya no lo resucita en el siguiente refresco.
+- **Núcleo familiar usable:** invitación por **correo** en vez de por id de fila
+  de la base de datos, expulsión cableada con confirmación, y sin subcategorías
+  colgando de un padre que ya no se ve.
+
+**Migraciones.** Flyway en los tres servicios y `ddl-auto=validate`. Las
+invariantes que solo vivían en el código —únicos parciales, claves foráneas y
+CHECK— pasan a la base, todo con `NOT VALID` para que los datos existentes no
+bloqueen el arranque, y desactivando duplicados en vez de borrarlos. Verificado
+arrancando los tres servicios contra una copia de la base real: Flyway hace
+baseline, aplica V2 y V3, Hibernate valida, y los 42 movimientos y 37 categorías
+siguen ahí.
+
+**Frontend.** Los fallos se ven (tres estados: cargando / vacío / error con
+reintentar), las listas se refrescan al volver, borrar pide confirmación y los
+botones de guardar se bloquean mientras guardan. Presupuesto recupera la
+navegación por periodo: estaba en `MovementsScreen`, una pantalla completa **con
+pruebas** que nunca se registró en ninguna ruta. Se trasladó lo útil a la
+pantalla viva y se retiraron las dos huérfanas (esa y `ProfileScreen`, sustituida
+por Ajustes).
+
+**Calidad de las pruebas.** Cuatro asserts que prometían más de lo que
+comprobaban, corregidos. El más grave: "Should include userId and name in JWT
+claims" solo contaba que el token tuviera tres trozos —lo cumple cualquier JWT—.
+Ahora decodifica y comprueba los claims, que es de donde los tres servicios sacan
+la identidad.
+
+**Dos regresiones cruzadas entre agentes** las cazó el verificador, no los
+autores: una columna declarada solo en la línea base que impedía arrancar contra
+una base ya existente (de ahí la migración `V3__periodo_de_la_ocurrencia.sql`), y
+el Excel roto por la interacción de dos tareas. Las dos arregladas.
+
+**Estado final:** backend BUILD SUCCESS, **671 tests** (auth 98 / budget 424 /
+fasting 100), cobertura 89-98% de líneas. Frontend **60 suites, 375 tests**,
+85.4% de líneas. Sin ficheros temporales, sin pruebas desactivadas, sin
+`console.log` ni `System.out`.
+
+---
+
+### 2026-08-11 - La puerta: pruebas de arquitectura y CI que decide
+
+**Actividad:** cerrar el hueco que quedaba tras las dos olas. Las pruebas de las
+olas comprueban **casos**; su punto ciego es el futuro: mañana alguien añade el
+endpoint 57, o copia y pega un controller viejo, y nada se pone rojo.
+
+**Pruebas de arquitectura** (paquete `arquitectura/` de cada servicio). No
+prueban comportamiento: recorren el código y exigen que nadie se salte la regla.
+Todas llevan listas de exenciones cerradas y con el motivo escrito al lado, de
+forma que una exención nueva —o la desaparición de una vieja— también las pone
+rojas.
+
+| Prueba | Qué impide |
+|---|---|
+| `LaIdentidadNoVuelveAlCuerpoTest` | Que un DTO vuelva a exigir `userId` con `@NotNull`, o que un controller lea `body.get("userId")` |
+| `NingunEndpointSinDuenoTest` | Que exista una ruta que no esté ni en la matriz de aislamiento, ni exenta con motivo, ni marcada como deuda con el ataque descrito |
+| `TodoControllerDevuelveElContratoTest` | Que un método de controller devuelva algo que no sea `ResponseEntity<ResultDTO>` |
+| `ElEsquemaNoSeGeneraSoloTest` | Que cualquier perfil de cualquier servicio vuelva a `ddl-auto=update` |
+
+**Suelo de cobertura** en los dos lados: `jacoco:check` en la fase `verify` del
+backend y `coverageThreshold` en el `package.json` del frontend. Los umbrales van
+unos puntos **por debajo** de la cobertura real a propósito: no están para
+obligar a escribir pruebas nuevas, están para que borrar las que hay rompa la
+construcción.
+
+**CI que decide.** Nuevo `.github/workflows/pruebas.yml`, la puerta: backend
+(`mvn -B clean verify`), frontend (`tsc --noEmit` + `jest --coverage`) y **Karate
+por el gateway** levantando el stack con Docker Compose. Espera a que el gateway
+enrute preguntando por `/AUTH-SERVICE/oh-churus/actuator/health` en vez de dormir
+un rato y cruzar los dedos, y guarda los informes como artefactos.
+`sonarcloud.yml` se queda aparte: mide, no decide.
+
+Con esto se cierra el punto **3.6** de la Ola 3 en su parte de Karate: dejan de
+ser 36 escenarios que nadie ejecuta. Siguen pendientes Testcontainers con
+`@DataJpaTest` para las consultas JPQL y la spec de OpenAPI versionada.
+
+---
+
+### 2026-08-11 - La documentación deja de mentir
+
+**Actividad:** los documentos se habían congelado en marzo mientras el código
+seguía. Quien leyera `plan-maestro.md` o `entidades-y-relaciones.md` creería que
+hay 4 entidades y 3 servicios.
+
+**Hecho:**
+
+| Documento | Qué se hizo |
+|---|---|
+| `README.md` (raíz) | **Creado.** Era entregable de la fase 11 y no existía. Qué es el proyecto, las tres patas, stack, cómo levantarlo (Docker y local), cómo correr las pruebas, mapa de servicios y puertos, y el aviso de que el repositorio es público |
+| `documentación/entidades-y-relaciones.md` | **Reescrito** contra las entidades reales: 11, con las relaciones cruzadas entre servicios y las invariantes que ahora viven en la base |
+| `documentación/invariantes.md` | **Creado.** Las reglas que el proyecto no puede romper y qué prueba vigila cada una |
+| `documentación/enunciado-detallado.md` | Marcado como histórico + sección "Qué pasó con este enunciado" |
+| `seguimiento/plan-maestro.md` | Marcado como histórico + sección "Qué pasó después de la fase 11" |
+| `seguimiento/bitacora.md` | Esta segunda parte |
+
+**Nota honesta sobre lo que sigue desfasado:** `comandos-pruebas.txt` conserva
+números de pruebas y cobertura de marzo. No se borró porque los comandos siguen
+siendo válidos, pero las cifras que da no lo son: las buenas están en el README.
+
+---
+
+## Estado a 2026-08-11
+
+| Comprobación | Resultado |
+|---|---|
+| `cd backend && mvn -B clean verify` | BUILD SUCCESS, 671 tests |
+| `cd frontend && npx tsc --noEmit` | sin errores |
+| `cd frontend && npx jest --coverage --ci` | 60 suites, 375 tests |
+| Quality Gate SonarQube Cloud | PASSED |
+
+**Lo siguiente** está en la Ola 3 de
+`../documentación/auditoria-y-plan-de-estabilizacion.md`: cuentas con saldo
+calculado, reparto de gastos entre personas, sobres con arrastre, importación
+CSV, recurrencias reales y el resto de la infraestructura de confianza
+(Testcontainers y `@DataJpaTest` para las consultas JPQL, OpenAPI con la spec
+versionada). De esa lista, **Karate por el gateway en CI ya está hecho**.

@@ -2,13 +2,14 @@ Feature: Category Management API Tests
 
   Background:
     * url baseUrl
-    * def loginResult = call read('classpath:karate-auth.feature')
-    * def authToken = loginResult.authToken
-    * configure headers = { Authorization: '#("Bearer " + authToken)' }
+    # El token y el userId de la ejecucion los pone karate-config.js, que da de
+    # alta un usuario nuevo contra auth-service. Antes cada feature volvia a
+    # entrar como demo@ohchurus.com y trabajaba sobre el usuario 2, que solo
+    # existe en la base de desarrollo.
 
-  Scenario: Get category tree for demo user
+  Scenario: Get category tree
     Given path '/v1/categories/tree'
-    And request { userId: 2 }
+    And request { userId: '#(userId)' }
     When method POST
     Then status 200
     And match response.correct == true
@@ -17,17 +18,18 @@ Feature: Category Management API Tests
   Scenario: Create a root category
     * def catName = 'Test_' + java.lang.System.currentTimeMillis()
     Given path '/v1/categories/save'
-    And request { userId: 2, name: '#(catName)', type: 'EXPENSE', icon: 'test', color: '#FF0000' }
+    And request { userId: '#(userId)', name: '#(catName)', type: 'EXPENSE', icon: 'test', color: '#FF0000' }
     When method POST
     Then status 200
     And match response.correct == true
     And match response.object.name == '#(catName)'
     And match response.object.type == 'EXPENSE'
+    And match response.object.userId == '#(userId)'
 
   Scenario: Create a child category
     * def parentName = 'Parent_' + java.lang.System.currentTimeMillis()
     Given path '/v1/categories/save'
-    And request { userId: 2, name: '#(parentName)', type: 'INCOME', icon: 'star', color: '#00FF00' }
+    And request { userId: '#(userId)', name: '#(parentName)', type: 'INCOME', icon: 'star', color: '#00FF00' }
     When method POST
     Then status 200
     And match response.correct == true
@@ -35,7 +37,7 @@ Feature: Category Management API Tests
 
     * def childName = 'Child_' + java.lang.System.currentTimeMillis()
     Given path '/v1/categories/save'
-    And request { userId: 2, name: '#(childName)', type: 'INCOME', parentId: '#(parentId)', icon: 'leaf', color: '#0000FF' }
+    And request { userId: '#(userId)', name: '#(childName)', type: 'INCOME', parentId: '#(parentId)', icon: 'leaf', color: '#0000FF' }
     When method POST
     Then status 200
     And match response.correct == true
@@ -52,7 +54,7 @@ Feature: Category Management API Tests
 
   Scenario: Get all categories paginated
     Given path '/v1/categories/all'
-    And request { userId: 2, page: 0, size: 50 }
+    And request { userId: '#(userId)', page: 0, size: 50 }
     When method POST
     Then status 200
     And match response.correct == true

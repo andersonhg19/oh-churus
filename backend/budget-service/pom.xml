@@ -164,6 +164,46 @@
                         <phase>test</phase>
                         <goals><goal>report</goal></goals>
                     </execution>
+                    <!--
+                        SUELO DE COBERTURA, no meta.
+
+                        Medir sin exigir nada convierte el informe en un adorno: la
+                        cobertura puede caer veinte puntos y nadie se entera hasta que
+                        alguien mira el HTML. Los umbrales van unos puntos POR DEBAJO
+                        de lo que hay hoy (instruccion 98%, rama 89%, linea 98%) a
+                        proposito: no estan para obligar a escribir pruebas nuevas,
+                        estan para que borrar las que existen falle la construccion.
+                        Se suben cuando la cobertura real suba, nunca al reves.
+                    -->
+                    <execution>
+                        <id>suelo-de-cobertura</id>
+                        <phase>verify</phase>
+                        <goals><goal>check</goal></goals>
+                        <configuration>
+                            <rules>
+                                <rule>
+                                    <element>BUNDLE</element>
+                                    <limits>
+                                        <limit>
+                                            <counter>INSTRUCTION</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>0.93</minimum>
+                                        </limit>
+                                        <limit>
+                                            <counter>BRANCH</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>0.84</minimum>
+                                        </limit>
+                                        <limit>
+                                            <counter>LINE</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>0.94</minimum>
+                                        </limit>
+                                    </limits>
+                                </rule>
+                            </rules>
+                        </configuration>
+                    </execution>
                 </executions>
             </plugin>
         </plugins>

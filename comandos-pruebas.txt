@@ -43,10 +43,10 @@ PREREQUISITOS:
   Todos los servicios:
   mvn test
 
-  Solo auth-service (80 tests):
+  Solo auth-service (112 tests):
   mvn test -pl auth-service
 
-  Solo budget-service (190 tests):
+  Solo budget-service (442 tests):
   mvn test -pl budget-service
 
 ============================================================
@@ -94,7 +94,7 @@ PREREQUISITOS:
   Con reporte de cobertura:
   npx jest --coverage
 
-  Cobertura esperada: 74.3%
+  Cobertura esperada: ~85% lineas (el umbral de Jest la bloquea si baja)
 
 ============================================================
 7. LEVANTAR FRONTEND CON EXPO (para movil)
@@ -112,6 +112,6 @@ PREREQUISITOS:
   Unitarias backend:     270 tests  (JUnit + Mockito)
   Integracion/Aceptacion: 31 tests  (Karate BDD)
   Frontend:              178 tests  (Jest)
-  TOTAL:                 479 tests
+  TOTAL:                 671 tests backend + 375 frontend
 
 ============================================================

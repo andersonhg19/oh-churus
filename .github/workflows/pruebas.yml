@@ -1,0 +1,179 @@
+name: Pruebas
+
+# Esta es LA PUERTA. Si algo de aqui se pone rojo, el cambio no entra.
+# El analisis de SonarCloud vive aparte (sonarcloud.yml) porque mide, no decide.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Un push encima de otro cancela el anterior: lo que importa es el ultimo commit.
+concurrency:
+  group: pruebas-${{ github.ref }}
+  cancel-in-progress: true
+
+# Las versiones se fijan aqui, en un solo sitio. Antes el CI cogia "la 20" y "la
+# 17" del dia, asi que la misma rama podia pasar el lunes y fallar el martes sin
+# que nadie tocara una linea.
+env:
+  JAVA_VERSION: '17'
+  JAVA_DISTRIBUTION: temurin
+  NODE_VERSION: '24.14.0'
+
+jobs:
+
+  # ==========================================================================
+  # BACKEND: pruebas unitarias y de integracion + suelo de cobertura (JaCoCo)
+  # ==========================================================================
+  backend:
+    name: Backend (mvn verify + JaCoCo)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar el codigo
+        uses: actions/checkout@v5
+
+      - name: Preparar JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v5
+        with:
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: maven
+
+      # verify, no test: el suelo de cobertura (jacoco:check) esta en verify.
+      - name: Pruebas y cobertura
+        working-directory: backend
+        run: mvn -B clean verify
+
+      - name: Guardar informes del backend
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: informes-backend
+          path: |
+            backend/*/target/surefire-reports/**
+            backend/*/target/site/jacoco/**
+          if-no-files-found: warn
+          retention-days: 14
+
+  # ==========================================================================
+  # FRONTEND: tipos + pruebas + suelo de cobertura (Jest coverageThreshold)
+  # ==========================================================================
+  frontend:
+    name: Frontend (tsc + jest)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar el codigo
+        uses: actions/checkout@v5
+
+      - name: Preparar Node ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Instalar dependencias
+        working-directory: frontend
+        run: npm ci
+
+      - name: Comprobar tipos
+        working-directory: frontend
+        run: npx tsc --noEmit
+
+      # El umbral de cobertura solo se comprueba con --coverage; sin esa bandera
+      # coverageThreshold no mira nada.
+      - name: Pruebas y cobertura
+        working-directory: frontend
+        run: npx jest --coverage --ci --maxWorkers=50%
+
+      - name: Guardar cobertura del frontend
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: informes-frontend
+          path: frontend/coverage/**
+          if-no-files-found: warn
+          retention-days: 14
+
+  # ==========================================================================
+  # KARATE: los 36 escenarios de API, contra el STACK REAL y por el GATEWAY
+  # ==========================================================================
+  #
+  # Se prueba por el puerto 8820 y con el prefijo /AUTH-SERVICE, /BUDGET-SERVICE.
+  # Llamar directo al 8821 o al 8823 se salta el enrutado por Eureka y el
+  # gateway entero: probaria un camino que la aplicacion real nunca recorre.
+  karate:
+    name: API por el gateway (Karate)
+    runs-on: ubuntu-latest
+    needs: backend
+    steps:
+      - name: Descargar el codigo
+        uses: actions/checkout@v5
+
+      - name: Preparar JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v5
+        with:
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: maven
+
+      # Las imagenes solo copian el jar (ver los Dockerfile), asi que hay que
+      # empaquetar antes. Las pruebas ya las corrio el job "backend".
+      - name: Empaquetar los jar
+        working-directory: backend
+        run: mvn -B -DskipTests package
+
+      - name: Levantar el stack
+        run: docker compose up -d --build postgres discovery-service gateway-service auth-service budget-service fasting-service
+
+      # Nada de "sleep 90 y crucemos los dedos": se pregunta por la salud de cada
+      # servicio A TRAVES del gateway, que es justo lo que Karate va a usar. Si
+      # eso responde, el enrutado por Eureka ya esta resuelto.
+      - name: Esperar a que el gateway enrute
+        run: |
+          for intento in $(seq 1 60); do
+            if curl -fsS --max-time 5 http://localhost:8820/AUTH-SERVICE/oh-churus/actuator/health > /dev/null \
+               && curl -fsS --max-time 5 http://localhost:8820/BUDGET-SERVICE/oh-churus/actuator/health > /dev/null; then
+              echo "El gateway ya enruta (intento $intento)."
+              exit 0
+            fi
+            echo "Intento $intento: el gateway todavia no enruta."
+            sleep 5
+          done
+          echo "::error::El gateway no llego a responder en 5 minutos."
+          docker compose ps
+          docker compose logs --tail 200
+          exit 1
+
+      # -Djacoco.skip: estas pruebas hablan por HTTP con otra JVM, no miden nada
+      # de cobertura, y sin esto pisarian el jacoco.exec del job de backend.
+      - name: Karate - auth-service
+        working-directory: backend
+        run: >
+          mvn -B -Pkarate test -pl auth-service -Djacoco.skip=true
+          -DbaseUrl=http://localhost:8820/AUTH-SERVICE/oh-churus
+
+      - name: Karate - budget-service
+        working-directory: backend
+        run: >
+          mvn -B -Pkarate test -pl budget-service -Djacoco.skip=true
+          -DbaseUrl=http://localhost:8820/BUDGET-SERVICE/oh-churus
+          -DauthUrl=http://localhost:8820/AUTH-SERVICE/oh-churus
+
+      - name: Guardar el informe de Karate
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: informe-karate
+          path: backend/*/target/karate-reports/**
+          if-no-files-found: warn
+          retention-days: 14
+
+      # Sin los logs, un fallo de Karate en el CI es un "status 500" sin causa.
+      - name: Logs del stack (solo si algo fallo)
+        if: failure()
+        run: docker compose logs --tail 400
+
+      - name: Apagar el stack
+        if: always()
+        run: docker compose down -v

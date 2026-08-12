@@ -1,5 +1,21 @@
 # Oh Churus! - Enunciado Detallado del Proyecto
 
+> ## DOCUMENTO HISTÓRICO — alcance ORIGINAL de marzo de 2026
+>
+> **Esto no describe el proyecto de hoy.** Es el enunciado tal como se escribió
+> el 17 de marzo de 2026, antes de programar nada, y se conserva porque es la
+> historia del proyecto: dice qué se pensaba construir y con qué criterio.
+>
+> Lo que hay ahora está en:
+> - **`../README.md`** — qué es, cómo levantarlo, cómo probarlo
+> - **`entidades-y-relaciones.md`** — el modelo real (11 entidades, no 4)
+> - **`invariantes.md`** — las reglas que no se pueden romper
+> - **`auditoria-y-plan-de-estabilizacion.md`** — el diagnóstico de agosto
+> - **`../seguimiento/bitacora.md`** — cómo se llegó de aquí a allí
+>
+> Al final de este documento hay una sección —**"10. Qué pasó con este
+> enunciado"**— que compara punto por punto lo previsto con lo entregado.
+
 ## 1. Visión General
 
 **Oh Churus!** es un sistema de control de finanzas personales con énfasis en presupuestos mensuales. La metáfora central del producto es una ardilla que ahorra para su casita: cada movimiento financiero, categoría y presupuesto se presenta de forma visual y lúdica, como si la ardilla estuviera recolectando y organizando sus recursos.
@@ -310,3 +326,81 @@ app.decimal-places=0
 5. Documentación técnica.
 6. Pruebas automatizadas con reporte de cobertura.
 7. Manual de usuario básico.
+
+---
+
+# 10. Qué pasó con este enunciado
+
+> Añadido el 2026-08-11. Comparación entre lo previsto en marzo y lo que existe
+> hoy, verificada leyendo el código.
+
+## 10.1 Lo que creció
+
+| Previsto en marzo | Hoy |
+|---|---|
+| 4 entidades (User, Category, Movement, ScheduledMovement) | **11 entidades** |
+| 3 microservicios de negocio (auth, core, budget) | **auth, budget y fasting** (core se fusionó en budget) |
+| 2 bases de datos de negocio | **3**: `auth_db`, `budget_db`, `fasting_db` |
+| Finanzas personales para una persona | Finanzas **+ núcleo familiar compartido + ayuno intermitente** |
+| 28 endpoints en la colección Postman | **56 endpoints** |
+
+Las siete entidades que no estaban en el enunciado:
+
+- **Household** y **HouseholdMember** — el núcleo familiar. Una categoría puede
+  ser personal o compartida del hogar, y eso es lo que hace que el gasto del
+  arriendo lo vean los dos. Es la funcionalidad que diferencia al producto.
+- **BudgetAllocation** — el presupuesto por categoría y periodo. En el enunciado
+  el presupuesto era un cálculo, no una entidad.
+- **FastingSession**, **FastingPlanConfig**, **WaterLog**, **Achievement** — el
+  módulo de ayuno entero, que no aparece por ningún lado en marzo.
+
+Y dentro de las entidades que sí estaban, tres conceptos nuevos que cambian el
+dominio: los **sub-movimientos** (`parentMovementId`), las **transferencias**
+(`isTransfer` / `transferPairId`) y el **periodo de la ocurrencia**
+(`periodStart`), que es la clave de idempotencia de las recurrencias.
+
+## 10.2 Lo que se decidió de otra forma
+
+- **`core-service` no existe.** `Category` se fusionó en `budget-service` el
+  mismo 17 de marzo y `core_db` desapareció. La tabla pasó de
+  `oc_core_category` a `oc_budget_category`.
+- **No hay Feign ni comunicación síncrona generalizada** entre servicios. Hay
+  **una** llamada, y es de agosto: `budget-service` le pregunta a `auth-service`
+  por el correo al invitar al núcleo familiar, con `RestClient` y reenviando el
+  token de quien invita. El resto de los servicios no se hablan.
+- **No hay SpringDoc/Swagger.** Está en la tabla de stack de este enunciado y
+  nunca se añadió. La documentación de la API son la colección Postman y el
+  README.
+- **No hay MapStruct.** Los mappers son ModelMapper y clases escritas a mano.
+- **La cobertura superó de largo lo pedido**: se exigía >= 80% en backend y
+  >= 70% en frontend; hoy son 89-98% de líneas en backend y ~85% en frontend.
+- **Karate tardó en llegar al CI.** Durante meses fueron 36 escenarios que nadie
+  ejecutaba: viven en un perfil de Maven (`-Pkarate`) que hay que pedir
+  explícitamente, y el CI solo corría JUnit y Jest. Hoy `pruebas.yml` levanta el
+  stack con Docker Compose y los pasa **por el gateway**, que es el camino que
+  recorre la aplicación real.
+- **No hay manual de usuario** (entregable 7 de la sección 9). El README de la
+  raíz cubre la parte técnica; el manual de usuario nunca se escribió.
+
+## 10.3 Lo que el enunciado no podía prever: la estabilización de agosto
+
+En agosto de 2026 una auditoría encontró que **la identidad del usuario la ponía
+el cliente**: como todos los endpoints son POST y los parámetros viajan en el
+cuerpo, el `userId` acabó siendo un parámetro más, y cualquiera podía leer o
+modificar los datos de otro cambiando un número. La sección 8.1 de este
+enunciado ("endpoints protegidos excepto login/register") era cierta y aun así
+insuficiente: el token se validaba, pero nadie leía de él quién era el usuario.
+
+Eso, más la falta de una regla única para "qué movimiento suma" y la ausencia de
+restricciones en la base de datos, se corrigió en dos olas. El detalle está en
+`auditoria-y-plan-de-estabilizacion.md` y el resultado, resumido en reglas que
+no se pueden romper, en `invariantes.md`.
+
+**Cuatro cosas que hoy son ciertas y en marzo no lo eran:**
+
+1. La identidad sale del JWT (`SecurityUtils.getAuthenticatedUserId`), nunca del
+   cuerpo de la petición.
+2. Quién puede tocar qué lo decide un solo componente (`ControlAcceso`).
+3. Qué movimiento suma lo decide un solo componente (`Computables`).
+4. El esquema lo pone Flyway con `ddl-auto=validate`, y las invariantes que solo
+   vivían en Java (unicidad, claves foráneas, CHECK) están en la base.

@@ -52,7 +52,12 @@ public class BudgetAllocationServiceImpl {
             LocalDate periodEnd = PeriodUtils.getEndOfPeriod(budgetStartDay, periodStart);
 
             Optional<Category> catOpt = categoryRepository.findByIdAndActiveTrue(categoryId);
-            if (catOpt.isEmpty()) return new ResultDTO(false, "Category not found", 404);
+            /* Presupuestar sobre una categoria ajena no es una operacion que
+               exista: metia una asignacion dentro de las cuentas de otro y le
+               descuadraba la varianza sin que pudiera verla ni borrarla. */
+            if (catOpt.isEmpty() || !acceso.puedeVerCategoria(catOpt.get())) {
+                return new ResultDTO(false, "Category not found", 404);
+            }
 
             Category cat = catOpt.get();
 
@@ -237,6 +242,13 @@ public class BudgetAllocationServiceImpl {
 
             if (fromCat.getHouseholdId() == null) {
                 return new ResultDTO(false, "Source category must be shared (household)", 400);
+            }
+            /* Y ese bote comun tiene que ser el TUYO. Bastaba con que la
+               categoria de origen fuera compartida por alguien —de cualquier
+               hogar— para sacarle dinero: probando householdId consecutivos se
+               vaciaba el bote de otra pareja hacia el bolsillo propio. */
+            if (!acceso.esDeMiHogar(fromCat.getHouseholdId())) {
+                return new ResultDTO(false, "Source category not found", 404);
             }
             if (toCat.getHouseholdId() != null) {
                 return new ResultDTO(false, "Destination category must be personal", 400);

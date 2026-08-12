@@ -82,8 +82,13 @@ public class ScheduledMovementServiceImpl implements ScheduledMovementService {
 
         LocalDate endDate = calculateEndDate(dto.getStartDate(), dto.getDurationMonths());
 
+        /* El dueno de lo que se crea es QUIEN LO CREA, no lo que diga el
+           cuerpo. Se demostro con trafico real: Ana enviaba
+           {"userId": <id de Bruno>} con su propio token y la categoria
+           aparecia dentro de la cuenta de Bruno. Las lecturas y los borrados
+           ya estaban cerrados; la creacion se habia quedado fuera. */
         ScheduledMovement scheduled = ScheduledMovement.builder()
-                .userId(dto.getUserId())
+                .userId(com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId())
                 .categoryId(dto.getCategoryId())
                 .name(dto.getName())
                 .amount(dto.getAmount())
@@ -111,11 +116,9 @@ public class ScheduledMovementServiceImpl implements ScheduledMovementService {
         }
 
         ScheduledMovement scheduled = existing.get();
-        // Don't change userId on shared category scheduled movements
-        com.ohchurus.budget.entity.Category cat = categoryRepository.findByIdAndActiveTrue(dto.getCategoryId()).orElse(null);
-        if (cat != null && cat.getHouseholdId() == null) {
-            scheduled.setUserId(dto.getUserId());
-        }
+        /* El dueno NUNCA cambia al actualizar. Antes se reasignaba al userId
+           del cuerpo cuando la categoria era personal, asi que mandar el id de
+           un programado ajeno bastaba para quedarse con el. */
         scheduled.setCategoryId(dto.getCategoryId());
         scheduled.setName(dto.getName());
         scheduled.setAmount(dto.getAmount());

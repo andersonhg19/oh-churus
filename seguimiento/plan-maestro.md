@@ -1,6 +1,30 @@
 # Oh Churus! - Plan Maestro de Desarrollo
 
-## Estado General: Completado
+> ## DOCUMENTO HISTÓRICO — plan ORIGINAL de marzo de 2026
+>
+> **Esto no es el plan de trabajo actual.** Es el plan de 12 fases con el que se
+> construyó el proyecto entre el 17 y el 21 de marzo de 2026. Las fases se
+> completaron y se cerraron; después el proyecto siguió creciendo por caminos
+> que este plan no contempla (el núcleo familiar, el módulo de ayuno, y toda la
+> estabilización de agosto).
+>
+> Se conserva porque es la historia del proyecto y porque sus criterios de
+> aceptación siguen siendo una referencia razonable.
+>
+> **Dónde está lo de hoy:**
+> - **`../README.md`** — qué es el proyecto, cómo levantarlo y cómo probarlo
+> - **`bitacora.md`** — la cronología completa, incluida la parte posterior a marzo
+> - **`../documentación/invariantes.md`** — las reglas que no se pueden romper
+> - **`../documentación/auditoria-y-plan-de-estabilizacion.md`** — el diagnóstico
+>   de agosto y **el plan de trabajo vigente** (su Ola 3 es lo que queda por hacer)
+>
+> Al final de este documento hay una sección —**"Qué pasó después de la fase
+> 11"**— que resume qué de este plan se cumplió, qué no, y qué se añadió.
+>
+> Nota sobre las métricas de más abajo: son las del 21 de marzo. Hoy el backend
+> tiene 671 pruebas y el frontend 375.
+
+## Estado General: Completado (fases 0-11, marzo de 2026)
 ## Fecha inicio: 2026-03-17
 ## Fecha verificacion: 2026-03-21
 ## Tecnologías: Java 17, Spring Boot 3.2, React Native (Expo), PostgreSQL, Docker
@@ -529,3 +553,71 @@ Las fases son secuenciales. No se avanza a la siguiente hasta que la actual teng
 - Backend: Seguir patrones de HexaQuantum como referencia
 - Frontend: Atomic Design + patrones React modernos
 - Nombres: Consistentes con las convenciones definidas en entidades-y-relaciones.md
+
+---
+
+# Qué pasó después de la fase 11
+
+> Añadido el 2026-08-11. El plan de arriba se cerró el 21 de marzo. Esto resume
+> lo que vino después y en qué quedó cada cosa, verificado contra el código.
+
+## De este plan: qué se cumplió y qué no
+
+| Entregable del plan | Estado real |
+|---|---|
+| Las 12 fases (0-11) | Completadas en marzo |
+| Cobertura backend >= 80% | Superada: **89-98% de líneas** por servicio |
+| Cobertura frontend >= 70% | Superada: **~85% de líneas** |
+| Karate para integración de API | Escrito en marzo, **sin ejecutar en CI durante meses**. Hoy corre en `pruebas.yml` contra el stack real y por el gateway; en local sigue pidiéndose con `-Pkarate` |
+| `README.md` del proyecto (entregable de la fase 11) | **No existía hasta el 11 de agosto de 2026.** Ahora está en la raíz |
+| Screenshots de la app para documentación | **No se hicieron.** En `screenshots/` solo hay una captura del IDE |
+| Video demo (opcional) | No se hizo |
+| Colección Postman | Hecha, en `collection/` |
+| Revisión de seguridad básica | Se hizo en marzo y **resultó insuficiente**: ver abajo |
+
+## Lo que se añadió después de marzo
+
+- **Módulo de ayuno intermitente** (`fasting-service`, puerto 8825,
+  `fasting_db`): plan, sesiones, agua y logros. Cuatro entidades nuevas.
+- **Núcleo familiar** (`Household`, `HouseholdMember`) y **presupuesto por
+  categoría y periodo** (`BudgetAllocation`) dentro de budget-service.
+- **Sub-movimientos** y **transferencias** en el modelo de movimientos.
+- **Exportación a Excel** y pantalla de consolidado mensual.
+
+El proyecto pasó de 4 entidades y 28 endpoints a **11 entidades y 56 endpoints**.
+El modelo real está en `../documentación/entidades-y-relaciones.md`.
+
+## Junio de 2026 — calidad medida
+
+Se conectó SonarQube Cloud al CI (`.github/workflows/sonarcloud.yml`), se
+restauró la cobertura y se corrigieron los hallazgos reales. Quality Gate en
+verde: 0 bugs, 0 vulnerabilidades, 0 hotspots sin revisar. Detalle en
+`../documentación/taller-calidad-sonarqube.md`.
+
+## Agosto de 2026 — estabilización en dos olas
+
+Una auditoría encontró que la calidad se estaba midiendo donde no importaba: el
+99-100% de cobertura excluía la capa de seguridad, los tests de controller
+desactivaban los filtros, y **existía una prueba que certificaba una fuga de
+datos como comportamiento correcto**. Debajo había tres decisiones de diseño de
+marzo que se habían propagado a todos los endpoints:
+
+1. La identidad la ponía el cliente (el `userId` viajaba en el cuerpo).
+2. No había una fuente única de verdad para el periodo ni para "qué suma".
+3. Las convenciones (ResultDTO, esquema) no tenían mecanismo que las impusiera.
+
+Las dos olas de corrección están narradas en `bitacora.md` y planificadas en
+`../documentación/auditoria-y-plan-de-estabilizacion.md`.
+
+## Qué queda por hacer
+
+**El plan de trabajo vigente no es este documento**, es la **Ola 3** de
+`../documentación/auditoria-y-plan-de-estabilizacion.md`: cuentas con saldo
+calculado, reparto de gastos entre personas, sobres con arrastre, importación
+CSV, recurrencias reales y el resto de la infraestructura de confianza
+(Testcontainers y `@DataJpaTest`, OpenAPI con la spec versionada). De esa lista,
+**Karate por el gateway en CI ya está hecho**.
+
+Y la sección 4 de ese documento —**lo que NO hay que hacer**— vale tanto como el
+plan: hay una lista razonada de mejoras "de libro" que en este proyecto no
+compensan.

@@ -68,13 +68,20 @@ public class CategoryServiceImpl implements CategoryService {
             }
         }
 
+        /* El dueno de lo que se crea es QUIEN LO CREA, no lo que diga el
+           cuerpo. Se demostro con trafico real: Ana enviaba
+           {"userId": <id de Bruno>} con su propio token y la categoria
+           aparecia dentro de la cuenta de Bruno. Las lecturas y los borrados
+           ya estaban cerrados; la creacion se habia quedado fuera. */
+        Long dueno = com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId();
+
         if (categoryRepository.existsByUserIdAndNameAndParentIdAndActiveTrue(
-                dto.getUserId(), dto.getName(), dto.getParentId())) {
+                dueno, dto.getName(), dto.getParentId())) {
             return new ResultDTO(false, "Category name already exists at this level", 203);
         }
 
         Category category = Category.builder()
-                .userId(dto.getUserId())
+                .userId(dueno)
                 .name(dto.getName())
                 .description(dto.getDescription())
                 .parentId(dto.getParentId())

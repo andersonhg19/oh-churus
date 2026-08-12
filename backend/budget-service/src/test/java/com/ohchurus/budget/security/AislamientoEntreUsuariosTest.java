@@ -273,6 +273,73 @@ class AislamientoEntreUsuariosTest {
 
     // ========================================================================
     @Nested
+    @DisplayName("Creacion: no se puede plantar nada dentro de la cuenta de otro")
+    class Creacion {
+
+        /* El ultimo hueco, y el mas silencioso: las lecturas y los borrados ya
+           estaban cerrados, pero CREAR seguia tomando el dueno del cuerpo. Se
+           demostro con trafico real contra el stack: Ana enviaba
+           {"userId": <id de Bruno>} con su propio token y la categoria
+           aparecia en el arbol de Bruno. No es solo un dato ajeno: es meterle
+           a otro algo que no puso, y que ademas cuenta en sus cifras. */
+
+        @Test
+        @DisplayName("no puede crear una categoria a nombre de Ana")
+        void categoria() throws Exception {
+            atacar("/v1/categories/save",
+                    "{\"userId\":" + ANA + ",\"name\":\"Plantada por Bruno\",\"type\":\"EXPENSE\"}");
+            assertThat(categorias.findAll())
+                    .as("aparecio una categoria a nombre de Ana que Ana no creo")
+                    .noneMatch(c -> ANA.equals(c.getUserId())
+                            && "Plantada por Bruno".equals(c.getName()));
+        }
+
+        @Test
+        @DisplayName("no puede crear un movimiento a nombre de Ana")
+        void movimiento() throws Exception {
+            atacar("/v1/movements/save",
+                    "{\"userId\":" + ANA + ",\"categoryId\":" + categoriaDeAna
+                            + ",\"date\":\"" + LocalDate.now() + "\",\"amount\":1000,"
+                            + "\"description\":\"Plantado por Bruno\"}");
+            assertThat(movimientos.findAll())
+                    .as("le aparecio a Ana un gasto que no hizo, y le descuadra el mes")
+                    .noneMatch(m -> ANA.equals(m.getUserId())
+                            && "Plantado por Bruno".equals(m.getDescription()));
+        }
+
+        @Test
+        @DisplayName("no puede crear un programado a nombre de Ana")
+        void programado() throws Exception {
+            atacar("/v1/scheduled/save",
+                    "{\"userId\":" + ANA + ",\"categoryId\":" + categoriaDeAna
+                            + ",\"name\":\"Plantado por Bruno\",\"amount\":1000,"
+                            + "\"frequency\":\"MONTHLY\",\"startDate\":\"" + LocalDate.now() + "\"}");
+            assertThat(programados.findAll())
+                    .noneMatch(p -> ANA.equals(p.getUserId())
+                            && "Plantado por Bruno".equals(p.getName()));
+        }
+
+        @Test
+        @DisplayName("no puede presupuestar sobre una categoria de Ana")
+        void asignacion() throws Exception {
+            /* Ana ya tiene 2.000.000 presupuestados en esta categoria. Como el
+               guardado es un upsert por (categoria, periodo), el ataque no
+               crearia una fila nueva: le REESCRIBIRIA la suya. Por eso se
+               comprueba el importe y no el numero de filas. */
+            atacar("/v1/budget-allocation/save",
+                    "{\"categoryId\":" + categoriaDeAna + ",\"amount\":500000,\"budgetStartDay\":1}");
+            assertThat(asignaciones.findById(asignacionDeAna))
+                    .as("le reescribieron a Ana su presupuesto del mes")
+                    .get().extracting(BudgetAllocation::getAllocatedAmount)
+                    .isEqualTo(new BigDecimal("2000000.00"));
+            assertThat(asignaciones.findAll())
+                    .as("ademas le aparecio una asignacion nueva que no puso")
+                    .hasSize(1);
+        }
+    }
+
+    // ========================================================================
+    @Nested
     @DisplayName("Nucleo familiar")
     class NucleoFamiliar {
 

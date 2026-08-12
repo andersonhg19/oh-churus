@@ -92,8 +92,13 @@ public class MovementServiceImpl implements MovementService {
             dto.setCategoryId(parent.getCategoryId());
         }
 
+        /* El dueno de lo que se crea es QUIEN LO CREA, no lo que diga el
+           cuerpo. Se demostro con trafico real: Ana enviaba
+           {"userId": <id de Bruno>} con su propio token y la categoria
+           aparecia dentro de la cuenta de Bruno. Las lecturas y los borrados
+           ya estaban cerrados; la creacion se habia quedado fuera. */
         Movement movement = Movement.builder()
-                .userId(dto.getUserId())
+                .userId(com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId())
                 .categoryId(dto.getCategoryId())
                 .date(dto.getDate())
                 .amount(dto.getAmount())

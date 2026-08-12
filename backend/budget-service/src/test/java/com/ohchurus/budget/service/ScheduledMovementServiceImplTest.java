@@ -76,7 +76,27 @@ class ScheduledMovementServiceImplTest {
                 org.mockito.ArgumentMatchers.any())).thenReturn(true);
         org.mockito.Mockito.lenient().when(acceso.esMio(
                 org.mockito.ArgumentMatchers.any())).thenReturn(true);
+        org.mockito.Mockito.lenient().when(acceso.esDeMiHogar(
+                org.mockito.ArgumentMatchers.any())).thenReturn(true);
     }
+    /* La creacion toma el dueno del TOKEN, no del cuerpo: era la ultima
+       puerta por la que se podia plantar una categoria o un movimiento dentro
+       de la cuenta de otro. Aqui se planta la identidad para poder seguir
+       probando la logica. */
+    @org.junit.jupiter.api.BeforeEach
+    void plantarIdentidadDelDueno() {
+        var auth = new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                "dueno@ohchurus.com", null, java.util.Collections.emptyList());
+        auth.setDetails(1L);
+        org.springframework.security.core.context.SecurityContextHolder.getContext()
+                .setAuthentication(auth);
+    }
+
+    @org.junit.jupiter.api.AfterEach
+    void limpiarIdentidadDelDueno() {
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+    }
+
 
 
     @InjectMocks

@@ -165,6 +165,10 @@ export interface MovementFilter {
 // ---- Scheduled Movement ----
 export type Frequency = 'DAILY' | 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | 'BIMONTHLY' | 'QUARTERLY' | 'SEMIANNUAL' | 'ANNUAL';
 
+// Que hacer si la ocurrencia cae sabado o domingo. KEEP no la mueve, y es el
+// valor por defecto: mover una fecha le cambia el mes al que pertenece el gasto.
+export type WeekendPolicy = 'KEEP' | 'PREVIOUS_BUSINESS_DAY' | 'NEXT_BUSINESS_DAY';
+
 export interface ScheduledMovement {
   id: string;
   userId: string;
@@ -178,7 +182,38 @@ export interface ScheduledMovement {
   endDate?: string;
   durationMonths?: number;
   dayOfMonth?: number;
+  // "El tercer viernes": weekOfMonth 3 + dayOfWeek 5 (1 lunes .. 7 domingo).
+  // El 5 en weekOfMonth significa "la ultima". Van los dos o ninguno.
+  weekOfMonth?: number;
+  dayOfWeek?: number;
+  weekendPolicy?: WeekendPolicy;
   active?: boolean;
+}
+
+// Una ocurrencia que tocaba y NO se creo: hay demasiadas atrasadas y el backend
+// no las materializa en silencio. Se aceptan con scheduledService.materialize.
+export interface ProposedOccurrence {
+  scheduledMovementId: string;
+  name: string;
+  categoryId: string;
+  categoryName?: string;
+  categoryType?: CategoryType;
+  amount: number;
+  date: string;
+  periodStart: string;
+  overdue: boolean;
+}
+
+export interface GeneratePendingResult {
+  created: Movement[];
+  proposals: ProposedOccurrence[];
+  proposalsTotal: number;
+  needsReview: boolean;
+}
+
+export interface OccurrenceRef {
+  scheduledMovementId: string;
+  periodStart: string;
 }
 
 export interface ScheduledFilter {

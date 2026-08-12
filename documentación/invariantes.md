@@ -24,6 +24,7 @@ Historia completa del diagnostico: `auditoria-y-plan-de-estabilizacion.md`.
 | 3 | La misma plata da la misma cifra | `LasCifrasCuadranTest` | 5 |
 | 4 | Una transferencia se mueve entera | `LaTransferenciaEsUnParTest` | 11 |
 | 5 | Refrescar no multiplica los pendientes | `LasRecurrenciasNoSeDuplicanTest` | 6 |
+| 5-bis | Una frecuencia genera lo que promete, y lo muy atrasado se revisa | `LasOcurrenciasSeCuentanDesdeElAnclaTest` | 11 |
 | 6 | Toda respuesta es 200 + ResultDTO | `ContratoDeErroresTest` (x3) | 16 · 7 · 7 |
 | 7 | El esquema lo pone Flyway y la base sostiene sus reglas | `ElEsquemaCuadraConElCodigoTest` (x3) | 7 · 3 · 6 |
 | 8 | El nucleo familiar se puede usar y no deja restos | `ElNucleoFamiliarSeUsaTest` | 8 |
@@ -202,6 +203,23 @@ cuadrando recien hecha la transferencia, tras corregirla y tras anularla.
 la fecha. El pendiente se crea **a nombre del dueno del programado**, no de quien
 pulsa. Borrar un pendiente lo **omite**: no resucita.
 
+**Que es exactamente `periodStart` (matizado al enumerar desde el ancla).** Sale
+del calendario del programado, nunca de la fecha del movimiento, y tiene dos
+formas segun la frecuencia:
+
+- **Mensual y mas espaciadas:** el primer dia del mes de la ocurrencia. El
+  usuario esta diciendo "esto pasa una vez este mes"; que dia es un detalle que
+  puede cambiar de opinion, y si la clave fuera el dia exacto, mover el cobro
+  del arriendo del 5 al 25 generaria un **segundo** arriendo ese mes.
+- **Diaria, semanal y quincenal:** la fecha canonica de la ocurrencia. Caben
+  varias en el mismo mes, asi que el mes no distingue nada.
+
+La politica de fin de semana mueve la **fecha** del movimiento y nunca la clave:
+cambiar de politica no puede duplicar lo ya generado ni resucitar lo borrado.
+
+**Lo calcula `util/CalendarioDeRecurrencias`**, que no toca base de datos ni
+reloj: recibe el programado y una fecha limite y devuelve fechas.
+
 **Por que.** El panel llama a `generate-pending` cada vez que se abre, y eso
 deberia ser inofensivo. No lo era: la clave era la fecha, que el usuario puede
 mover, asi que mover la fecha —o editar el programado— y refrescar creaba un
@@ -213,6 +231,37 @@ la app primero.
 **Quien la vigila.**
 `budget-service/.../coherencia/LasRecurrenciasNoSeDuplicanTest`, 6 casos, con un
 hogar de dos personas, dias de corte distintos y refrescos repetidos.
+
+---
+
+## 5-bis. Una frecuencia genera lo que su etiqueta promete
+
+**La regla.** Las ocurrencias se enumeran **desde el ancla** —la fecha de inicio
+del programado— como "ancla + n periodos", nunca como "la ultima + un periodo".
+
+**Por que.** El generador recorria periodos de presupuesto —o sea, meses— y por
+cada uno preguntaba "¿aplica esta frecuencia?", que solo admite si o no. Con eso
+`DAILY`, `WEEKLY` y `BIWEEKLY` generaban exactamente lo mismo que `MONTHLY`: un
+movimiento al mes. **Tres de las ocho frecuencias del catalogo eran mentira.**
+
+Es la misma leccion que el motor de tiempo del proyecto hermano: sumar
+incrementos acumula error, contar desde una marca fija no. Hay un segundo error
+que el ancla evita gratis: un programado el dia 31 enumerado "la anterior + un
+mes" se va al 28 en febrero **y ya no vuelve al 31**.
+
+**Y su corolario: la app no inventa datos.** Si un programado acumula **mas de 5**
+ocurrencias atrasadas sin materializar, no se crea **ninguna** de las suyas: se
+devuelven como propuestas y la persona decide. Un diario olvidado tres meses son
+noventa movimientos que nadie ha revisado. Se aceptan por
+`/v1/scheduled/materialize`, que revalida la pareja
+`(scheduledMovementId, periodStart)` contra el calendario del programado: el
+cliente senala **cual**, no dicta **que** se escribe.
+
+**Quien la vigila.**
+`budget-service/.../coherencia/LasOcurrenciasSeCuentanDesdeElAnclaTest`, 11
+casos: las tres frecuencias sub-mensuales, el dia 31 despues de febrero, el
+patron "el tercer viernes", la ultima semana del mes, la politica de fin de
+semana, y el tope de materializacion con su flujo de aceptacion.
 
 ---
 

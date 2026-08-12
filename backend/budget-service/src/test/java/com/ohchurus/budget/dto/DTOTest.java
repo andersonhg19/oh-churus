@@ -159,7 +159,8 @@ class DTOTest {
     void testScheduledSave() {
         LocalDate now = LocalDate.now();
         ScheduledMovementSaveDTO dto = new ScheduledMovementSaveDTO(1L, 2L, 3L, "Rent",
-                new BigDecimal("500"), Frequency.MONTHLY, 12, now, 15);
+                new BigDecimal("500"), Frequency.MONTHLY, 12, now, 15, 3, 5,
+                com.ohchurus.budget.enums.WeekendPolicy.PREVIOUS_BUSINESS_DAY);
         assertEquals(1L, dto.getId());
         assertEquals(2L, dto.getUserId());
         assertEquals(3L, dto.getCategoryId());
@@ -169,6 +170,9 @@ class DTOTest {
         assertEquals(12, dto.getDurationMonths());
         assertEquals(now, dto.getStartDate());
         assertEquals(15, dto.getDayOfMonth());
+        assertEquals(3, dto.getWeekOfMonth());
+        assertEquals(5, dto.getDayOfWeek());
+        assertEquals(com.ohchurus.budget.enums.WeekendPolicy.PREVIOUS_BUSINESS_DAY, dto.getWeekendPolicy());
 
         ScheduledMovementSaveDTO dto2 = new ScheduledMovementSaveDTO();
         dto2.setId(10L);
@@ -657,9 +661,37 @@ class DTOTest {
         assertNotNull(m2.getCreatedAt());
         assertNotNull(m2.getUpdatedAt());
 
-        // AllArgs
-        Movement m3 = new Movement(1L, 2L, 3L, date, new BigDecimal("50"), "d", 4L, date, 5L,
-                7L, false, true, 6L, true, true, now, now);
+        /*
+         * @AllArgsConstructor: que EXISTA y acepte todos los campos.
+         *
+         * Antes esto se comprobaba llamandolo con la lista de argumentos
+         * escrita a mano. Rompio dos veces en un mismo dia —al anadir la
+         * cuenta y al anadir el reparto— y las dos veces el arreglo consistio
+         * en recolocar literales en el orden correcto, que no demuestra nada
+         * de la entidad y si le hace perder el tiempo a quien anade un campo.
+         *
+         * Peor todavia: un constructor posicional con quince Long y seis
+         * Boolean seguidos acepta encantado dos argumentos intercambiados. La
+         * prueba pasaba en verde con los valores en el sitio equivocado.
+         *
+         * Ahora se comprueba por reflexion que el constructor existe con
+         * tantos parametros como campos de instancia, y el ida y vuelta de los
+         * valores se prueba con el builder, que nombra cada uno.
+         */
+        long camposDeInstancia = java.util.Arrays.stream(Movement.class.getDeclaredFields())
+                .filter(f -> !java.lang.reflect.Modifier.isStatic(f.getModifiers()))
+                .filter(f -> !f.isSynthetic())
+                .count();
+        assertTrue(java.util.Arrays.stream(Movement.class.getDeclaredConstructors())
+                        .anyMatch(c -> c.getParameterCount() == camposDeInstancia),
+                "@AllArgsConstructor dejo de generarse para Movement");
+
+        Movement m3 = Movement.builder()
+                .id(1L).userId(2L).categoryId(3L).date(date).amount(new BigDecimal("50"))
+                .description("d").scheduledMovementId(4L).periodStart(date).parentMovementId(5L)
+                .accountId(7L).isOpening(false).isTransfer(true).transferPairId(6L)
+                .confirmed(true).active(true).createdAt(now).updatedAt(now)
+                .build();
         assertEquals(new BigDecimal("50"), m3.getAmount());
         assertEquals(date, m3.getPeriodStart());
         assertEquals(5L, m3.getParentMovementId());
@@ -667,6 +699,7 @@ class DTOTest {
         assertEquals(6L, m3.getTransferPairId());
         assertEquals(7L, m3.getAccountId());
         assertFalse(m3.getIsOpening());
+        assertFalse(m3.getIsSettlement());
     }
 
     @Test
@@ -713,7 +746,8 @@ class DTOTest {
 
         // AllArgs
         ScheduledMovement sm3 = new ScheduledMovement(1L, 2L, 3L, "N", new BigDecimal("50"),
-                Frequency.ANNUAL, 12, date, endDate, 1, true, now, now);
+                Frequency.ANNUAL, 12, date, endDate, 1, 3, 5,
+                com.ohchurus.budget.enums.WeekendPolicy.KEEP, true, now, now);
         assertEquals("N", sm3.getName());
     }
 

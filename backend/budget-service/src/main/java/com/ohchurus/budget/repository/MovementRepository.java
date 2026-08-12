@@ -39,28 +39,22 @@ public interface MovementRepository extends JpaRepository<Movement, Long> {
 
     List<Movement> findByScheduledMovementIdAndConfirmedFalseAndActiveTrue(Long scheduledMovementId);
 
-    List<Movement> findByUserIdAndConfirmedFalseAndActiveTrue(Long userId);
-
     /**
-     * ¿Ya se genero la ocurrencia de este programado para este periodo?
+     * TODAS las ocurrencias ya generadas de un programado, vivas y muertas.
      *
-     * Dos detalles deliberados, cada uno nacido de un bug:
+     * Sin filtro de active, y es deliberado: borrar un pendiente significa
+     * "omite esta ocurrencia". Antes reaparecia en el siguiente refresco del
+     * panel y no habia forma de saltarse un mes; la fila desactivada es la
+     * lapida que impide que resucite.
      *
-     *  · NO se filtra por active. Borrar un pendiente tiene que significar
-     *    "omite esta ocurrencia": antes reaparecia en el siguiente refresco del
-     *    panel y no habia forma de quitarlo. La fila desactivada es la lapida
-     *    que impide que resucite.
-     *  · El segundo termino es solo para las ocurrencias creadas ANTES de que
-     *    existiera periodStart, que lo tienen nulo. Sin el, el primer refresco
-     *    tras el despliegue duplicaria todos los pendientes vivos.
+     * Se traen de una vez en lugar de preguntar ocurrencia por ocurrencia
+     * porque desde que las frecuencias sub-mensuales generan lo que prometen,
+     * un programado diario tiene cientos de ocurrencias y el panel llama a
+     * generate-pending cada vez que se abre.
      */
-    @Query("SELECT COUNT(m) > 0 FROM Movement m WHERE m.scheduledMovementId = :programadoId " +
-            "AND (m.periodStart = :periodo " +
-            "     OR (m.periodStart IS NULL AND m.date BETWEEN :desde AND :hasta))")
-    boolean existeOcurrenciaDelPeriodo(@Param("programadoId") Long programadoId,
-                                       @Param("periodo") LocalDate periodo,
-                                       @Param("desde") LocalDate desde,
-                                       @Param("hasta") LocalDate hasta);
+    List<Movement> findByScheduledMovementId(Long scheduledMovementId);
+
+    List<Movement> findByUserIdAndConfirmedFalseAndActiveTrue(Long userId);
 
     boolean existsByCategoryIdAndActiveTrue(Long categoryId);
 

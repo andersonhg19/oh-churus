@@ -1,6 +1,7 @@
 package com.ohchurus.budget.dto.output;
 
 import com.ohchurus.budget.enums.Frequency;
+import com.ohchurus.budget.enums.WeekendPolicy;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -23,6 +24,9 @@ public class ResultScheduledMovementDTO {
     private LocalDate startDate;
     private LocalDate endDate;
     private Integer dayOfMonth;
+    private Integer weekOfMonth;
+    private Integer dayOfWeek;
+    private WeekendPolicy weekendPolicy;
     private Boolean active;
 
     // Enrichment fields

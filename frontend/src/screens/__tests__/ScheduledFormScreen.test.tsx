@@ -125,6 +125,67 @@ describe('ScheduledFormScreen', () => {
     await waitFor(() => expect(scheduledService.delete).toHaveBeenCalledWith('s1'));
   });
 
+  it('ofrece el patron "el tercer viernes" y la politica de fin de semana', () => {
+    const route = { params: {} } as any;
+    const { getByText } = render(
+      <ScheduledFormScreen navigation={mockNavigation} route={route} />,
+      { wrapper: Wrapper },
+    );
+    expect(getByText('Semana del mes (opcional)')).toBeTruthy();
+    expect(getByText('Ultima')).toBeTruthy();
+    expect(getByText('Dia de la semana (opcional)')).toBeTruthy();
+    expect(getByText('Vie')).toBeTruthy();
+    expect(getByText('Si cae fin de semana')).toBeTruthy();
+    expect(getByText('Viernes antes')).toBeTruthy();
+  });
+
+  it('media pareja del patron no se guarda: "el tercero" no dice de que', async () => {
+    const route = { params: {} } as any;
+    const { getByText, getByPlaceholderText } = render(
+      <ScheduledFormScreen navigation={mockNavigation} route={route} />,
+      { wrapper: Wrapper },
+    );
+    await waitFor(() => expect(getByText(/Seleccionar categoría/)).toBeTruthy());
+    fireEvent.changeText(getByPlaceholderText('Nombre del movimiento'), 'Nomina');
+    fireEvent.press(getByText(/Seleccionar categoría/));
+    fireEvent.press(getByText(/Arriendo/));
+    fireEvent.changeText(getByPlaceholderText('0'), '3000000');
+
+    fireEvent.press(getByText('3a'));
+    fireEvent.press(getByText('Guardar'));
+
+    expect((globalThis as any).__mockShowToast).toHaveBeenCalledWith(
+      'warning', 'Validacion', expect.stringContaining('tercer viernes'),
+    );
+    expect(scheduledService.save).not.toHaveBeenCalled();
+  });
+
+  it('guarda el patron completo y la politica elegida', async () => {
+    const route = { params: {} } as any;
+    const { getByText, getByPlaceholderText } = render(
+      <ScheduledFormScreen navigation={mockNavigation} route={route} />,
+      { wrapper: Wrapper },
+    );
+    await waitFor(() => expect(getByText(/Seleccionar categoría/)).toBeTruthy());
+    fireEvent.changeText(getByPlaceholderText('Nombre del movimiento'), 'Nomina');
+    fireEvent.press(getByText(/Seleccionar categoría/));
+    fireEvent.press(getByText(/Arriendo/));
+    fireEvent.changeText(getByPlaceholderText('0'), '3000000');
+
+    fireEvent.press(getByText('3a'));
+    fireEvent.press(getByText('Vie'));
+    fireEvent.press(getByText('Viernes antes'));
+    fireEvent.press(getByText('Guardar'));
+
+    await waitFor(() => expect(scheduledService.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        weekOfMonth: 3,
+        dayOfWeek: 5,
+        weekendPolicy: 'PREVIOUS_BUSINESS_DAY',
+      }),
+    ));
+  });
+
   it('allows selecting frequency', () => {
     const route = { params: {} } as any;
     const { getByText } = render(

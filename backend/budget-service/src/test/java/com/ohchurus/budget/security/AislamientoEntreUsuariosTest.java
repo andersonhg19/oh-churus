@@ -251,6 +251,26 @@ class AislamientoEntreUsuariosTest {
         }
 
         @Test
+        @DisplayName("no puede materializar una ocurrencia de un programado de Ana")
+        void materializarOcurrenciaAjena() throws Exception {
+            /* "Materializar" crea un movimiento a nombre del DUENO del
+               programado. Sin control de acceso, Bruno podria escribir gastos
+               en la contabilidad de Ana con solo saber el id de su programado
+               y una fecha, y ella los veria aparecer sin haberlos pedido. */
+            long antes = movimientos.findAll().stream()
+                    .filter(m -> programadoDeAna.equals(m.getScheduledMovementId())).count();
+
+            atacar("/v1/scheduled/materialize",
+                    "{\"occurrences\":[{\"scheduledMovementId\":" + programadoDeAna
+                            + ",\"periodStart\":\"" + LocalDate.now().withDayOfMonth(1) + "\"}]}");
+
+            assertThat(movimientos.findAll().stream()
+                    .filter(m -> programadoDeAna.equals(m.getScheduledMovementId())).count())
+                    .as("Bruno le escribio un movimiento a Ana en su propia contabilidad")
+                    .isEqualTo(antes);
+        }
+
+        @Test
         @DisplayName("no puede borrar una asignacion de presupuesto de Ana")
         void borrarAsignacion() throws Exception {
             atacar("/v1/budget-allocation/delete/" + asignacionDeAna, null);

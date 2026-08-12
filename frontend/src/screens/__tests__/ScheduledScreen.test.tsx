@@ -17,6 +17,7 @@ jest.mock('../../services/scheduledService', () => ({
   scheduledService: {
     getAll: jest.fn(),
     generatePending: jest.fn(),
+    materialize: jest.fn(),
   },
 }));
 
@@ -74,7 +75,10 @@ describe('ScheduledScreen', () => {
   });
 
   it('handles generate pending action', async () => {
-    (scheduledService.generatePending as jest.Mock).mockResolvedValue({ correct: true, object: 3 });
+    (scheduledService.generatePending as jest.Mock).mockResolvedValue({
+      correct: true,
+      object: { created: [{ id: 'm1' }, { id: 'm2' }], proposals: [], proposalsTotal: 0, needsReview: false },
+    });
     const { getByText } = render(
       <ScheduledScreen navigation={mockNavigation} route={mockRoute} />,
       { wrapper: Wrapper },
@@ -83,6 +87,65 @@ describe('ScheduledScreen', () => {
     fireEvent.press(getByText('Generar'));
     await waitFor(() => {
       expect(scheduledService.generatePending).toHaveBeenCalledWith('1', 1);
+    });
+  });
+
+  it('las ocurrencias atrasadas se muestran para revisar, no se crean solas', async () => {
+    // La app no inventa datos: si hay mas de cinco atrasadas el backend las
+    // propone y la pantalla tiene que ensenarlas, no tragarselas.
+    (scheduledService.generatePending as jest.Mock).mockResolvedValue({
+      correct: true,
+      object: {
+        created: [],
+        proposals: [
+          { scheduledMovementId: '1', periodStart: '2026-07-01', name: 'Cafe', amount: 5000, date: '2026-07-01', overdue: true },
+          { scheduledMovementId: '1', periodStart: '2026-07-02', name: 'Cafe', amount: 5000, date: '2026-07-02', overdue: true },
+        ],
+        proposalsTotal: 40,
+        needsReview: true,
+      },
+    });
+    const { getByText } = render(
+      <ScheduledScreen navigation={mockNavigation} route={mockRoute} />,
+      { wrapper: Wrapper },
+    );
+    await waitFor(() => expect(getByText('Generar')).toBeTruthy());
+    fireEvent.press(getByText('Generar'));
+
+    await waitFor(() => {
+      expect(getByText('40 ocurrencias atrasadas sin registrar')).toBeTruthy();
+      expect(getByText(/No se crearon solas/)).toBeTruthy();
+      expect(getByText('Registrar 2')).toBeTruthy();
+    });
+  });
+
+  it('registrar las propuestas las materializa con su clave', async () => {
+    (scheduledService.generatePending as jest.Mock).mockResolvedValue({
+      correct: true,
+      object: {
+        created: [],
+        proposals: [
+          { scheduledMovementId: '1', periodStart: '2026-07-01', name: 'Cafe', amount: 5000, date: '2026-07-01', overdue: true },
+        ],
+        proposalsTotal: 6,
+        needsReview: true,
+      },
+    });
+    (scheduledService.materialize as jest.Mock).mockResolvedValue({ correct: true, object: [{ id: 'm1' }] });
+
+    const { getByText } = render(
+      <ScheduledScreen navigation={mockNavigation} route={mockRoute} />,
+      { wrapper: Wrapper },
+    );
+    await waitFor(() => expect(getByText('Generar')).toBeTruthy());
+    fireEvent.press(getByText('Generar'));
+    await waitFor(() => expect(getByText('Registrar 1')).toBeTruthy());
+    fireEvent.press(getByText('Registrar 1'));
+
+    await waitFor(() => {
+      expect(scheduledService.materialize).toHaveBeenCalledWith([
+        { scheduledMovementId: '1', periodStart: '2026-07-01' },
+      ]);
     });
   });
 

@@ -35,11 +35,36 @@ describe('scheduledService', () => {
     expect(mockPost).toHaveBeenCalledWith('/BUDGET-SERVICE/oh-churus/v1/scheduled/delete/1');
   });
 
-  it('generatePending posts with userId and budgetStartDay', async () => {
-    mockPost.mockResolvedValueOnce({ data: { correct: true, object: 3 } });
+  it('generatePending devuelve lo creado y lo propuesto por separado', async () => {
+    // El contrato dejo de ser una lista pelada cuando aparecio el tope de
+    // materializacion: lo atrasado de mas no se crea, se propone.
+    mockPost.mockResolvedValueOnce({
+      data: {
+        correct: true,
+        object: {
+          created: [{ id: 'm1' }],
+          proposals: [{ scheduledMovementId: '9', periodStart: '2026-07-01' }],
+          proposalsTotal: 12,
+          needsReview: true,
+        },
+      },
+    });
     const result = await scheduledService.generatePending('1', 15);
     expect(mockPost).toHaveBeenCalledWith('/BUDGET-SERVICE/oh-churus/v1/scheduled/generate-pending', { userId: '1', budgetStartDay: 15 });
-    expect(result.object).toBe(3);
+    expect(result.object?.created).toHaveLength(1);
+    expect(result.object?.proposalsTotal).toBe(12);
+    expect(result.object?.needsReview).toBe(true);
+  });
+
+  it('materialize manda solo cuales, nunca el importe ni la fecha', async () => {
+    // Si el cuerpo pudiera dictar importe y fecha, "aceptar una propuesta"
+    // seria una via para crear el movimiento que se quisiera.
+    mockPost.mockResolvedValueOnce({ data: { correct: true, object: [{ id: 'm1' }] } });
+    await scheduledService.materialize([{ scheduledMovementId: '9', periodStart: '2026-07-01' }]);
+    expect(mockPost).toHaveBeenCalledWith(
+      '/BUDGET-SERVICE/oh-churus/v1/scheduled/materialize',
+      { occurrences: [{ scheduledMovementId: '9', periodStart: '2026-07-01' }] },
+    );
   });
 
   it('frequencyList posts to frequency-list endpoint', async () => {

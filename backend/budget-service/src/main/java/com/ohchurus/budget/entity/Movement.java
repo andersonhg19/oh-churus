@@ -84,6 +84,36 @@ public class Movement {
     @Builder.Default
     private Boolean isOpening = false;
 
+    /**
+     * Como se reparte este gasto entre varias personas. Nulo = no se reparte,
+     * que es el caso de la inmensa mayoria.
+     *
+     * El importe del movimiento SIGUE SIENDO EL TOTAL aunque haya reparto: son
+     * los 120.000 que salieron del banco. Lo que cambia es cuanto de eso cuenta
+     * como gasto TUYO, y eso lo dicen las filas de MovementSplit.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private com.ohchurus.budget.enums.SplitMode splitMode;
+
+    /**
+     * "Te paso los 80.000 que te debo."
+     *
+     * No es ingreso ni gasto: la plata cambia de dueno, no aparece ni
+     * desaparece. Lo excluye Computables.suma() por lo mismo que a la
+     * transferencia.
+     *
+     * Y no se reutiliza isTransfer aunque se parezcan: la transferencia mueve
+     * plata entre bolsillos de la MISMA persona y la liquidacion entre DOS
+     * personas. Mezclarlas obligaria a distinguirlas despues por otro campo.
+     */
+    @Column(nullable = false)
+    @Builder.Default
+    private Boolean isSettlement = false;
+
+    /** Con quien se salda, cuando es una liquidacion. */
+    private Long settledWithUserId;
+
     @Column(nullable = false)
     @Builder.Default
     private Boolean isTransfer = false;

@@ -1,6 +1,7 @@
 package com.ohchurus.budget.dto.input;
 
 import com.ohchurus.budget.enums.Frequency;
+import com.ohchurus.budget.enums.WeekendPolicy;
 import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -46,4 +47,18 @@ public class ScheduledMovementSaveDTO {
     @Min(value = 1, message = "debe estar entre 1 y 31")
     @Max(value = 31, message = "debe estar entre 1 y 31")
     private Integer dayOfMonth;
+
+    /* "El tercer viernes": weekOfMonth = 3, dayOfWeek = 5. El 5 en la semana
+       del mes significa "el ultimo". Van los dos o ninguno. */
+    @Min(value = 1, message = "debe estar entre 1 y 5 (5 es la ultima)")
+    @Max(value = 5, message = "debe estar entre 1 y 5 (5 es la ultima)")
+    private Integer weekOfMonth;
+
+    @Min(value = 1, message = "debe estar entre 1 (lunes) y 7 (domingo)")
+    @Max(value = 7, message = "debe estar entre 1 (lunes) y 7 (domingo)")
+    private Integer dayOfWeek;
+
+    /* Nulo se guarda como KEEP: no mover una fecha es lo unico que no inventa
+       nada. El porque completo esta en el enum. */
+    private WeekendPolicy weekendPolicy;
 }

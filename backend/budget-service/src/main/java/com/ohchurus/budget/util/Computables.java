@@ -42,6 +42,11 @@ public final class Computables {
            el dia que registras la cuenta con 2.000.000 la app te felicitaria
            por un ingreso de dos millones que no ocurrio. */
         if (Boolean.TRUE.equals(m.getIsOpening())) return false;
+        /* Liquidar una deuda no es gastar ni ingresar: la plata cambia de
+           dueno. Si contara, pagarle a tu pareja los 80.000 que le debes
+           apareceria como un gasto tuyo de 80.000 ADEMAS del gasto original
+           que genero la deuda, y habrias "gastado" la misma plata dos veces. */
+        if (Boolean.TRUE.equals(m.getIsSettlement())) return false;
         return m.getParentMovementId() == null;
     }
 

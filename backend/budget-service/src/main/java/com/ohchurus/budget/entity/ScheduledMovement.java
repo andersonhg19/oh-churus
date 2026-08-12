@@ -1,6 +1,7 @@
 package com.ohchurus.budget.entity;
 
 import com.ohchurus.budget.enums.Frequency;
+import com.ohchurus.budget.enums.WeekendPolicy;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -49,6 +50,29 @@ public class ScheduledMovement {
     private LocalDate endDate;
 
     private Integer dayOfMonth;
+
+    /*
+     * El patron "el tercer viernes": weekOfMonth = 3, dayOfWeek = 5 (ISO, lunes
+     * es 1). Asi se paga la nomina en Colombia, y no hay forma de decirlo con
+     * un dia del mes porque cambia de fecha cada mes.
+     *
+     * Van los dos o ninguno, y cuando estan mandan sobre dayOfMonth. El
+     * ordinal 5 significa "el ultimo": el quinto viernes de un mes que solo
+     * tiene cuatro es el cuarto, nunca el primero del mes siguiente.
+     */
+    private Integer weekOfMonth;
+
+    private Integer dayOfWeek;
+
+    /*
+     * Que hacer si la ocurrencia cae sabado o domingo. Nulo se lee como KEEP:
+     * los programados que existian antes de que esto se pudiera elegir no
+     * pueden cambiar de fecha por un despliegue.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 30)
+    @Builder.Default
+    private WeekendPolicy weekendPolicy = WeekendPolicy.KEEP;
 
     @Column(nullable = false)
     @Builder.Default

@@ -67,7 +67,8 @@ diaria, y logros por racha y por horas acumuladas.
 | Migraciones | Flyway (`ddl-auto=validate`: el esquema lo pone Flyway, Hibernate solo comprueba) |
 | Seguridad | JWT (java-jwt), BCrypt |
 | Frontend | React Native 0.83 + Expo 55, TypeScript, React Navigation |
-| Pruebas backend | JUnit 5, Mockito, MockMvc, `@SpringBootTest` para las de aislamiento, Karate para la API por el gateway |
+| Pruebas backend | JUnit 5, Mockito, MockMvc, `@SpringBootTest` para las de aislamiento, Karate para la API por el gateway, Testcontainers para las consultas contra PostgreSQL |
+| Documentacion de la API | springdoc-openapi (Swagger UI), con la spec generada y commiteada en `documentación/api/` |
 | Pruebas frontend | Jest + React Testing Library (jest-expo) |
 | Cobertura y analisis | JaCoCo, SonarQube Cloud vía GitHub Actions |
 | Contenedores | Docker + Docker Compose |
@@ -112,6 +113,21 @@ excepcion no capturada.
 
 La unica excepcion es `/v1/export/excel`: su camino feliz devuelve los bytes del
 `.xlsx`, y el de error, un `ResultDTO` en JSON.
+
+**La lista completa no esta en este README, y es a proposito.** Vive en la
+especificacion OpenAPI, que se genera del codigo:
+
+| Que quieres | Donde |
+|---|---|
+| Leerla sin levantar nada | `documentación/api/{auth,budget,fasting}-service.json` |
+| Probarla con el navegador | `http://localhost:8821/oh-churus/swagger-ui.html` (8823 budget, 8825 fasting) |
+| El JSON del servicio en marcha | `http://localhost:8821/oh-churus/v3/api-docs` |
+
+Swagger UI y `/v3/api-docs` van **sin token**: son la documentacion de como
+pedir el token. Todo lo demas sigue exigiendolo, y el boton *Authorize* de
+Swagger UI es para pegar ahi el JWT que devuelve `/v1/auth/login`.
+
+Como regenerar la spec despues de tocar un endpoint esta en la seccion 5.
 
 **La identidad sale del claim del JWT**, no del cuerpo. Al consultar o al
 modificar algo existente, el `userId` que mandes en la peticion se ignora: no
@@ -252,14 +268,62 @@ cd backend
 mvn -B clean verify
 ```
 
-Esperado: **BUILD SUCCESS**, mas de 600 pruebas (en la ultima medida, 671: auth
-98 / budget 424 / fasting 100, mas los dos smoke de discovery y gateway). No hace
-falta Docker: las pruebas usan H2 en memoria. En auth y budget el esquema lo
+Esperado: **BUILD SUCCESS**, mas de 700 pruebas (en la ultima medida, 730: auth
+121 / budget 481 / fasting 126, mas los dos smoke de discovery y gateway). La
+mayoria usa H2 en memoria y no necesita Docker. En auth y budget el esquema lo
 montan **las mismas migraciones de Flyway que en produccion** (`ddl-auto=validate`
 tambien en pruebas), asi que una migracion rota se nota aqui y no al desplegar.
 En fasting el perfil de pruebas general usa `create-drop` porque casi todas son
 unitarias; quien ejecuta sus migraciones de verdad es
 `ElEsquemaCuadraConElCodigoTest`, que se trae su propio perfil.
+
+#### Las pruebas contra un PostgreSQL de verdad (Testcontainers)
+
+H2 no es PostgreSQL. Acepta cosas que PostgreSQL rechaza y al reves, y las 17
+consultas con `@Query` de los repositorios **nunca se habian ejecutado contra el
+motor que se despliega**: podian estar rotas en produccion y verdes en la suite.
+Las clases `*/consultas/*` cierran ese hueco levantando un `postgres:14` con
+Testcontainers, aplicandole las migraciones de Flyway y ejecutando cada consulta
+con datos de verdad. Van dentro de `mvn verify`, no hay que pedirlas:
+
+```bash
+mvn -B test -pl budget-service -Dtest='LasConsultasDe*'
+mvn -B test -pl fasting-service -Dtest=ElEsquemaDeAyunoCuadraEnPostgresTest
+```
+
+Tres cosas que hay que saber:
+
+- **Necesitan Docker arrancado.** Si no lo hay, se marcan como *skipped* y la
+  construccion sigue en verde (`@Testcontainers(disabledWithoutDocker = true)`).
+  Eso las hace comodas en local y **peligrosas**: un "verde" no significa que se
+  hayan ejecutado. Quien decide de verdad es el CI, que si tiene Docker.
+  Para comprobar que corrieron, mira que digan `Tests run: N ... Skipped: 0`.
+- **Se levanta UN contenedor por modulo**, no uno por clase: la primera clase
+  tarda unos 15 s y las demas, decimas.
+- **`docker.api.version` en el pom padre.** docker-java pide por defecto la API
+  1.32 del demonio y Docker Engine 29 exige la 1.44 como minimo: sin esa
+  propiedad, Testcontainers concluye "aqui no hay Docker" habiendolo y **se salta
+  todo sin decir nada**. Si algun dia el demonio es mas viejo que la 1.44:
+  `mvn verify -Ddocker.api.version=1.43`.
+
+#### La especificacion OpenAPI, y por que la construccion se pone roja
+
+`documentación/api/*.json` son los tres contratos de la API, **generados del
+codigo** por `LaSpecPublicadaEstaAlDiaTest` y commiteados. Esa misma prueba los
+compara con lo que springdoc genera hoy: cambiar un endpoint sin regenerar la
+spec rompe `mvn verify`, y el CI lo repite aparte con un `git diff` que dice
+exactamente que endpoint cambio.
+
+Despues de tocar un controller o un DTO de entrada:
+
+```bash
+cd backend
+mvn -B test -Dtest=LaSpecPublicadaEstaAlDiaTest -Dactualizar.spec=true
+git diff documentación/api        # revisa el cambio antes de commitearlo
+```
+
+No se editan a mano. El fichero se escribe desde el codigo justamente para que
+nadie pueda "arreglarlo" a mano y dejar la documentacion mintiendo otra vez.
 
 La cobertura JaCoCo se genera sola:
 `auth-service/target/site/jacoco/index.html` (y lo mismo en budget y fasting).
@@ -321,7 +385,7 @@ Dos workflows en `.github/workflows/`:
 
 | Workflow | Cuando | Que hace |
 |---|---|---|
-| `pruebas.yml` | push a `main` y cualquier PR | **La puerta.** Tres trabajos: backend (`mvn -B clean verify`, con el suelo de JaCoCo), frontend (`tsc --noEmit` + `jest --coverage`), y Karate levantando el stack con Docker Compose y atacando **por el gateway**. Guarda informes como artefactos |
+| `pruebas.yml` | push a `main` y cualquier PR | **La puerta.** Tres trabajos: backend (`mvn -B clean verify`, con el suelo de JaCoCo, las pruebas de Testcontainers ejecutandose de verdad y la comprobacion de que la spec OpenAPI commiteada sigue al dia), frontend (`tsc --noEmit` + `jest --coverage`), y Karate levantando el stack con Docker Compose y atacando **por el gateway**. Guarda informes como artefactos |
 | `sonarcloud.yml` | push a `main` y PR a `main` | Analisis en SonarQube Cloud (proyecto `andersonhg19_oh-churus`). **Mide, no decide** |
 
 El trabajo de Karate espera a que el gateway responda por
@@ -373,6 +437,7 @@ Oh Churus/
 │       └── utils/             format, fechas, periodo, validadores
 │
 ├── documentación/
+│   ├── api/                                  spec OpenAPI de los 3 servicios (generada)
 │   ├── invariantes.md                        LEE ESTO ANTES DE TOCAR NADA
 │   ├── entidades-y-relaciones.md             las 11 entidades reales
 │   ├── auditoria-y-plan-de-estabilizacion.md el diagnostico de agosto y el plan
@@ -417,8 +482,9 @@ Estan explicadas a fondo en `documentación/invariantes.md`. En corto:
 Medido el 2026-08-11. Las cifras exactas suben con cada tanda de pruebas; lo que
 no cambia es que las tres ordenes de abajo tienen que terminar en verde.
 
-- Backend: `mvn -B clean verify` → BUILD SUCCESS, 671 pruebas, cobertura 89-98%
-  de lineas segun servicio.
+- Backend: `mvn -B clean verify` → BUILD SUCCESS, 730 pruebas, cobertura 89-98%
+  de lineas segun servicio. Con Docker arrancado, 50 de esas pruebas corren
+  contra un PostgreSQL de verdad; sin Docker se saltan y quedan 680.
 - Frontend: 60 suites, 375 pruebas, ~85% de lineas.
 - Quality Gate de SonarQube Cloud: PASSED (0 bugs, 0 vulnerabilidades, 0 hotspots
   sin revisar).

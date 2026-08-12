@@ -285,6 +285,15 @@ casos en budget, 3 en auth, 6 en fasting). Que el contexto levante ya prueba que
 el mapeo cuadra; ademas escribe a mano en la base lo que el codigo daba por
 imposible y exige que la base lo rechace.
 
+**Y quien la vigila contra el motor de verdad.** Lo anterior corre sobre H2, que
+no es PostgreSQL: acepta cosas que PostgreSQL rechaza y al reves. Las clases
+`*/consultas/*` levantan un `postgres:14` con Testcontainers, le aplican las
+migraciones y ejecutan contra el las 17 consultas con `@Query` del proyecto —que
+hasta agosto de 2026 no se habian ejecutado nunca fuera de produccion— y los
+CHECK de fasting, cuyas migraciones solo se probaban sobre H2. Necesitan Docker;
+sin el se saltan, asi que el que decide es el CI. Ojo con eso: un verde en local
+sin Docker no significa que se hayan comprobado.
+
 Esto no sustituye a la validacion en Java. **La base es el ultimo muro**, el que
 aguanta cuando dos peticiones entran a la vez y las dos ven "aqui no hay nada".
 

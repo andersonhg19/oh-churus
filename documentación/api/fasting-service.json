@@ -1,0 +1,614 @@
+{
+  "components" : {
+    "schemas" : {
+      "AguaMetaDTO" : {
+        "properties" : {
+          "goalGlasses" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "userId" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [
+          "goalGlasses",
+          "userId"
+        ],
+        "type" : "object"
+      },
+      "AguaVasosDTO" : {
+        "properties" : {
+          "glasses" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "userId" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [
+          "userId"
+        ],
+        "type" : "object"
+      },
+      "AyunoEdicionDTO" : {
+        "properties" : {
+          "endTime" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "sessionId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "startTime" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        },
+        "required" : [
+          "sessionId"
+        ],
+        "type" : "object"
+      },
+      "AyunoFinDTO" : {
+        "properties" : {
+          "endTime" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "userId" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [
+          "userId"
+        ],
+        "type" : "object"
+      },
+      "AyunoInicioDTO" : {
+        "properties" : {
+          "startTime" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "userId" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [
+          "userId"
+        ],
+        "type" : "object"
+      },
+      "AyunoPeriodoDTO" : {
+        "properties" : {
+          "budgetStartDay" : {
+            "format" : "int32",
+            "maximum" : 31,
+            "minimum" : 1,
+            "type" : "integer"
+          },
+          "referenceDate" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "userId" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [
+          "userId"
+        ],
+        "type" : "object"
+      },
+      "AyunoPlanDTO" : {
+        "properties" : {
+          "eatingHours" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "fastingHours" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "planType" : {
+            "enum" : [
+              "PLAN_12_12",
+              "PLAN_14_10",
+              "PLAN_16_8",
+              "PLAN_18_6",
+              "PLAN_20_4",
+              "CUSTOM"
+            ],
+            "type" : "string"
+          },
+          "remindersEnabled" : {
+            "type" : "boolean"
+          },
+          "suggestedStartTime" : {
+            "maxLength" : 5,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "userId" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [
+          "planType",
+          "userId"
+        ],
+        "type" : "object"
+      },
+      "AyunoUsuarioDTO" : {
+        "properties" : {
+          "userId" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [
+          "userId"
+        ],
+        "type" : "object"
+      },
+      "ResultDTO" : {
+        "properties" : {
+          "correct" : {
+            "type" : "boolean"
+          },
+          "errorCode" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "message" : {
+            "type" : "string"
+          },
+          "object" : {
+            "type" : "object"
+          }
+        },
+        "type" : "object"
+      }
+    },
+    "securitySchemes" : {
+      "bearerAuth" : {
+        "bearerFormat" : "JWT",
+        "description" : "El token que devuelve /v1/auth/login de auth-service",
+        "scheme" : "bearer",
+        "type" : "http"
+      }
+    }
+  },
+  "info" : {
+    "description" : "Ayuno intermitente: plan (12:12, 14:10, 16:8, 18:6, 20:4 o\npersonalizado), sesiones, historial, resumen por periodo,\nregistro de vasos de agua y logros por racha y horas.\n\nTodos los endpoints son POST y devuelven HTTP 200 con un\nResultDTO: { correct, message, errorCode, object }. La identidad\nsale del claim del JWT, nunca del cuerpo.",
+    "title" : "Oh Churus! — fasting-service",
+    "version" : "1.0.0"
+  },
+  "openapi" : "3.0.1",
+  "paths" : {
+    "/v1/fasting/achievements" : {
+      "post" : {
+        "operationId" : "getAchievements",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AyunoUsuarioDTO"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [
+          "fasting-controller"
+        ]
+      }
+    },
+    "/v1/fasting/history/by-period" : {
+      "post" : {
+        "operationId" : "getHistory",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AyunoPeriodoDTO"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [
+          "fasting-controller"
+        ]
+      }
+    },
+    "/v1/fasting/history/summary" : {
+      "post" : {
+        "operationId" : "getSummary",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AyunoPeriodoDTO"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [
+          "fasting-controller"
+        ]
+      }
+    },
+    "/v1/fasting/plan/get" : {
+      "post" : {
+        "operationId" : "getPlan",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AyunoUsuarioDTO"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [
+          "fasting-controller"
+        ]
+      }
+    },
+    "/v1/fasting/plan/presets" : {
+      "post" : {
+        "operationId" : "getPresets",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [
+          "fasting-controller"
+        ]
+      }
+    },
+    "/v1/fasting/plan/save" : {
+      "post" : {
+        "operationId" : "savePlan",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AyunoPlanDTO"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [
+          "fasting-controller"
+        ]
+      }
+    },
+    "/v1/fasting/session/active" : {
+      "post" : {
+        "operationId" : "getActiveSession",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AyunoUsuarioDTO"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [
+          "fasting-controller"
+        ]
+      }
+    },
+    "/v1/fasting/session/cancel" : {
+      "post" : {
+        "operationId" : "cancelFasting",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AyunoUsuarioDTO"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [
+          "fasting-controller"
+        ]
+      }
+    },
+    "/v1/fasting/session/edit" : {
+      "post" : {
+        "operationId" : "editSession",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AyunoEdicionDTO"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [
+          "fasting-controller"
+        ]
+      }
+    },
+    "/v1/fasting/session/start" : {
+      "post" : {
+        "operationId" : "startFasting",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AyunoInicioDTO"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [
+          "fasting-controller"
+        ]
+      }
+    },
+    "/v1/fasting/session/stop" : {
+      "post" : {
+        "operationId" : "stopFasting",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AyunoFinDTO"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [
+          "fasting-controller"
+        ]
+      }
+    },
+    "/v1/fasting/water/add" : {
+      "post" : {
+        "operationId" : "addWater",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AguaVasosDTO"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [
+          "fasting-controller"
+        ]
+      }
+    },
+    "/v1/fasting/water/set-goal" : {
+      "post" : {
+        "operationId" : "setWaterGoal",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AguaMetaDTO"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [
+          "fasting-controller"
+        ]
+      }
+    },
+    "/v1/fasting/water/today" : {
+      "post" : {
+        "operationId" : "getWaterToday",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AyunoUsuarioDTO"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [
+          "fasting-controller"
+        ]
+      }
+    }
+  },
+  "security" : [
+    {
+      "bearerAuth" : [ ]
+    }
+  ]
+}

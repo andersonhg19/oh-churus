@@ -27,6 +27,50 @@ jobs:
     name: Analisis de calidad (SonarCloud)
     runs-on: ubuntu-latest
     steps:
+      # ---------- ¿SIRVE EL TOKEN? ----------
+      # Va PRIMERO a proposito. El 11 de agosto de 2026 este workflow se paso
+      # cuatro minutos compilando el backend, el frontend y toda la cobertura
+      # para morir al final con un 403 y doscientas lineas de traza de Java que
+      # no decian el motivo: el token habia caducado. Preguntarlo cuesta un
+      # segundo y ahorra el resto.
+      #
+      # OJO: /api/authentication/validate responde 200 aunque el token no
+      # valga; el veredicto viene en el cuerpo ({"valid":false}). Mirar solo el
+      # codigo HTTP daria por bueno cualquier token.
+      - name: Comprobar el SONAR_TOKEN antes de gastar cuatro minutos
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          rechazar() {
+            echo "::error title=SONAR_TOKEN::$1"
+            {
+              echo "### El analisis no se ejecuto"
+              echo ""
+              echo "$1"
+              echo ""
+              echo 'Se arregla en un minuto:'
+              echo ''
+              echo '1. SonarCloud -> tu avatar -> **My Account** -> **Security**'
+              echo '2. Genera un token nuevo (tipo *User Token*)'
+              echo '3. `gh secret set SONAR_TOKEN --repo '"$GITHUB_REPOSITORY"'`'
+              echo ''
+              echo 'Esto **no** bloquea nada: quien decide si un cambio entra'
+              echo 'es el workflow **Pruebas**. Aqui solo se mide.'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          }
+
+          [ -n "$SONAR_TOKEN" ] || rechazar "El secreto SONAR_TOKEN no existe en este repositorio."
+
+          respuesta=$(curl -sS --max-time 30 -u "$SONAR_TOKEN:" \
+            https://sonarcloud.io/api/authentication/validate) \
+            || rechazar "No se pudo contactar con SonarCloud para validar el token."
+
+          case "$respuesta" in
+            *'"valid":true'*) echo "Token valido." ;;
+            *) rechazar "SonarCloud rechaza el SONAR_TOKEN (caducado o revocado). Respuesta: $respuesta" ;;
+          esac
+
       - name: Checkout
         uses: actions/checkout@v5
         with:
@@ -67,8 +111,11 @@ jobs:
           npx jest --coverage --maxWorkers=50% --ci
 
       # ---------- ANALISIS SONARCLOUD ----------
-      - name: SonarCloud Scan
-        uses: SonarSource/sonarcloud-github-action@v3
+      # sonarcloud-github-action esta descatalogado: SonarSource unifico Server
+      # y Cloud en sonarqube-scan-action. Para Cloud no se pasa SONAR_HOST_URL;
+      # la organizacion y la clave del proyecto salen de sonar-project.properties.
+      - name: SonarQube Cloud Scan
+        uses: SonarSource/sonarqube-scan-action@v8.2.1
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

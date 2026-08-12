@@ -11,9 +11,9 @@ import EstadoError from '../../components/molecules/EstadoError';
 import Spinner from '../../components/atoms/Spinner';
 import { spacing } from '../../theme';
 import { scheduledService } from '../../services/scheduledService';
-import { ScheduledMovement } from '../../types';
+import { ScheduledMovement, ProposedOccurrence } from '../../types';
 import { useCarga, exigir } from '../../hooks/useCarga';
-import { formatCurrency } from '../../utils/format';
+import { formatCurrency, formatDateShort } from '../../utils/format';
 import { getFrequencyLabel } from '../../utils/labels';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -31,6 +31,9 @@ const ScheduledScreen: React.FC<Props> = ({ navigation }) => {
   const { user } = useAuth();
   const [items, setItems] = useState<ScheduledMovement[]>([]);
   const [generating, setGenerating] = useState(false);
+  const [propuestas, setPropuestas] = useState<ProposedOccurrence[]>([]);
+  const [propuestasTotal, setPropuestasTotal] = useState(0);
+  const [registrando, setRegistrando] = useState(false);
 
   const traerProgramados = useCallback(async () => {
     if (!user) return;
@@ -56,7 +59,11 @@ const ScheduledScreen: React.FC<Props> = ({ navigation }) => {
     try {
       const res = await scheduledService.generatePending(user.userId, user.budgetStartDay || 1);
       if (res.correct) {
-        showToast('success', 'Listo', `Se generaron ${Array.isArray(res.object) ? res.object.length : 0} movimientos pendientes`);
+        const creados = res.object?.created?.length || 0;
+        const porRevisar = res.object?.proposals || [];
+        setPropuestas(porRevisar);
+        setPropuestasTotal(res.object?.proposalsTotal || porRevisar.length);
+        showToast('success', 'Listo', `Se generaron ${creados} movimientos pendientes`);
         // Generar cambia la lista: refrescarla aqui evita tener que salir y volver.
         await cargar();
       } else {
@@ -66,6 +73,34 @@ const ScheduledScreen: React.FC<Props> = ({ navigation }) => {
       showToast('error', 'Error', err.message || 'No se pudo generar');
     } finally {
       setGenerating(false);
+    }
+  };
+
+  // Aceptar las propuestas es lo que las convierte en movimientos. Sin esto, un
+  // programado muy atrasado propondria lo mismo para siempre y no habria forma
+  // de ponerse al dia desde la app.
+  const handleRegistrarPropuestas = async () => {
+    if (propuestas.length === 0) return;
+    setRegistrando(true);
+    try {
+      const res = await scheduledService.materialize(
+        propuestas.map((p) => ({
+          scheduledMovementId: p.scheduledMovementId,
+          periodStart: p.periodStart,
+        })),
+      );
+      if (res.correct) {
+        showToast('success', 'Listo', `Se registraron ${res.object?.length || 0} movimientos`);
+        setPropuestas([]);
+        setPropuestasTotal(0);
+        await cargar();
+      } else {
+        showToast('error', 'Error', res.message);
+      }
+    } catch (err: any) {
+      showToast('error', 'Error', err.message || 'No se pudo registrar');
+    } finally {
+      setRegistrando(false);
     }
   };
 
@@ -98,6 +133,39 @@ const ScheduledScreen: React.FC<Props> = ({ navigation }) => {
           />
         </View>
       </View>
+
+      {propuestas.length > 0 && (
+        <Card style={[styles.revisionCard, { borderColor: colors.warning || colors.expense }]}>
+          <AppText variant="body" style={styles.revisionTitulo}>
+            {`${propuestasTotal} ocurrencias atrasadas sin registrar`}
+          </AppText>
+          {/* El estado no depende solo del color: lo dice el texto. */}
+          <AppText variant="caption">
+            No se crearon solas porque son mas de cinco. Revisalas y registralas
+            si de verdad ocurrieron.
+          </AppText>
+          {propuestas.slice(0, 5).map((p) => (
+            <View key={`${p.scheduledMovementId}-${p.periodStart}`} style={styles.revisionFila}>
+              <AppText variant="caption" numberOfLines={1} style={styles.revisionNombre}>
+                {`${formatDateShort(p.date)} - ${p.name}`}
+              </AppText>
+              <AppText variant="caption">{formatCurrency(p.amount)}</AppText>
+            </View>
+          ))}
+          {propuestasTotal > propuestas.length && (
+            <AppText variant="caption">
+              {`Mostrando ${propuestas.length}; las demas apareceran despues.`}
+            </AppText>
+          )}
+          <Button
+            title={`Registrar ${propuestas.length}`}
+            onPress={handleRegistrarPropuestas}
+            loading={registrando}
+            size="small"
+            style={styles.revisionBoton}
+          />
+        </Card>
+      )}
 
       <FlatList
         data={items}
@@ -159,6 +227,19 @@ const styles = StyleSheet.create({
   },
   itemInfo: { flex: 1, marginRight: spacing.sm },
   itemAmount: { fontWeight: '600' },
+  revisionCard: {
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+    borderWidth: 1.5,
+  },
+  revisionTitulo: { fontWeight: '600' },
+  revisionFila: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: spacing.xs,
+  },
+  revisionNombre: { flex: 1, marginRight: spacing.sm },
+  revisionBoton: { marginTop: spacing.sm },
   fab: {
     position: 'absolute',
     right: spacing.md,

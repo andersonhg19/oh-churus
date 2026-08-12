@@ -31,7 +31,8 @@ Tiene tres patas:
 
 ### Finanzas personales
 Categorias en arbol (padre e hijos), movimientos de ingreso y gasto, sub-gastos
-para desglosar una compra, movimientos programados que generan pendientes,
+para desglosar una compra, movimientos programados que generan pendientes
+—diarios, semanales, quincenales, mensuales o "el tercer viernes"—,
 presupuesto por categoria y periodo, panel con totales y tendencia, grafico de
 dona con detalle por categoria y exportacion a Excel.
 
@@ -425,5 +426,11 @@ no cambia es que las tres ordenes de abajo tienen que terminar en verde.
 
 Lo que sigue esta en la Ola 3 de `documentación/auditoria-y-plan-de-estabilizacion.md`
 (cuentas con saldo calculado, reparto de gastos entre personas, sobres,
-importacion CSV, recurrencias reales, Testcontainers). Y la seccion 4 de ese
-mismo documento —lo que **no** hay que hacer— vale tanto como el plan.
+importacion CSV, Testcontainers). Y la seccion 4 de ese mismo documento —lo que
+**no** hay que hacer— vale tanto como el plan.
+
+De esa ola ya esta hecho el punto 3.5, **recurrencias reales**: las ocurrencias
+se enumeran desde el ancla —asi que un programado diario o semanal genera lo que
+su etiqueta promete y no un movimiento al mes—, existe el patron "el tercer
+viernes" con politica de fin de semana, y lo que se atrasa mas de la cuenta no
+se materializa en silencio: se propone para revisar.

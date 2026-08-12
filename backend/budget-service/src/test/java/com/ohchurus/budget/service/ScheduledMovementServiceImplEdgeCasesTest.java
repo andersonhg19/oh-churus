@@ -1,5 +1,7 @@
 package com.ohchurus.budget.service;
 
+import com.ohchurus.budget.dto.input.MaterializeOccurrencesDTO;
+import com.ohchurus.budget.dto.input.OccurrenceRefDTO;
 import com.ohchurus.budget.dto.input.ScheduledMovementFilterDTO;
 import com.ohchurus.budget.dto.input.ScheduledMovementSaveDTO;
 import com.ohchurus.budget.dto.output.ResultDTO;
@@ -35,6 +37,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -107,13 +110,26 @@ class ScheduledMovementServiceImplEdgeCasesTest {
                 .amount(amount).dayOfMonth(dayOfMonth).active(true).build();
     }
 
+    /* lenient: segun la frecuencia y cuanto se haya atrasado, unas ocurrencias
+       se crean y otras se proponen, y las que se proponen no llegan a save(). */
     private void stubGeneration() {
-        when(movementRepository.existeOcurrenciaDelPeriodo(anyLong(), any(), any(), any()))
-                .thenReturn(false);
-        when(movementRepository.save(any(Movement.class))).thenAnswer(i -> {
+        lenient().when(movementRepository.findByScheduledMovementId(anyLong())).thenReturn(List.of());
+        lenient().when(movementRepository.save(any(Movement.class))).thenAnswer(i -> {
             Movement m = i.getArgument(0); m.setId(999L); return m;
         });
-        when(movementMapper.toResultDTO(any(Movement.class))).thenReturn(new ResultMovementDTO());
+        lenient().when(movementMapper.toResultDTO(any(Movement.class))).thenReturn(new ResultMovementDTO());
+    }
+
+    /* generate-pending devuelve lo CREADO y lo PROPUESTO por separado desde que
+       hay tope de materializacion. Lo que estas pruebas miden es que el
+       generador CONOZCA la ocurrencia; si la crea o la propone depende de
+       cuantas se hayan atrasado, y eso lo prueba aparte la de coherencia. */
+    @SuppressWarnings("unchecked")
+    private List<?> conocidas(ResultDTO resultado) {
+        Map<String, Object> respuesta = (Map<String, Object>) resultado.getObject();
+        List<Object> todas = new java.util.ArrayList<>((List<Object>) respuesta.get("created"));
+        todas.addAll((List<Object>) respuesta.get("proposals"));
+        return todas;
     }
 
     // ===================== generatePending =====================
@@ -131,9 +147,8 @@ class ScheduledMovementServiceImplEdgeCasesTest {
         ResultDTO r = service.generatePending(USER_ID, 1);
 
         assertTrue(r.isCorrect());
-        @SuppressWarnings("unchecked")
-        List<ResultMovementDTO> generated = (List<ResultMovementDTO>) r.getObject();
-        assertFalse(generated.isEmpty());
+        assertFalse(conocidas(r).isEmpty(),
+                "la frecuencia " + freq + " no produjo ni una ocurrencia en trece meses");
     }
 
     @Test
@@ -201,8 +216,52 @@ class ScheduledMovementServiceImplEdgeCasesTest {
         when(scheduledMovementRepository.findByUserIdAndActiveTrue(USER_ID))
                 .thenReturn(List.of(scheduled(1L, Frequency.MONTHLY,
                         LocalDate.now().withDayOfMonth(1), null, new BigDecimal("1000"), null)));
-        when(movementRepository.existeOcurrenciaDelPeriodo(anyLong(), any(), any(), any()))
-                .thenReturn(true);
+        when(movementRepository.findByScheduledMovementId(1L)).thenReturn(List.of(
+                Movement.builder().id(88L).userId(USER_ID).categoryId(10L)
+                        .date(LocalDate.now()).amount(new BigDecimal("1000"))
+                        .scheduledMovementId(1L)
+                        .periodStart(LocalDate.now().withDayOfMonth(1))
+                        .confirmed(false).active(true).build()));
+
+        ResultDTO r = service.generatePending(USER_ID, 1);
+        assertTrue(r.isCorrect());
+        verify(movementRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("una ocurrencia BORRADA no resucita: la fila apagada es su lapida")
+    void laOcurrenciaBorradaNoResucita() {
+        when(householdService.getHouseholdIds(USER_ID)).thenReturn(Collections.emptyList());
+        when(scheduledMovementRepository.findByUserIdAndActiveTrue(USER_ID))
+                .thenReturn(List.of(scheduled(1L, Frequency.MONTHLY,
+                        LocalDate.now().withDayOfMonth(1), null, new BigDecimal("1000"), null)));
+        when(movementRepository.findByScheduledMovementId(1L)).thenReturn(List.of(
+                Movement.builder().id(88L).userId(USER_ID).categoryId(10L)
+                        .date(LocalDate.now()).amount(new BigDecimal("1000"))
+                        .scheduledMovementId(1L)
+                        .periodStart(LocalDate.now().withDayOfMonth(1))
+                        .confirmed(false).active(false).build()));
+
+        ResultDTO r = service.generatePending(USER_ID, 1);
+        assertTrue(r.isCorrect());
+        verify(movementRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("una ocurrencia vieja SIN periodStart se reconoce por su fecha")
+    void laOcurrenciaViejaSinClaveSeReconocePorLaFecha() {
+        /* Las ocurrencias creadas antes de que existiera periodStart lo tienen
+           nulo. Sin esta compatibilidad, el primer refresco tras el despliegue
+           duplicaria todos los pendientes vivos. */
+        when(householdService.getHouseholdIds(USER_ID)).thenReturn(Collections.emptyList());
+        when(scheduledMovementRepository.findByUserIdAndActiveTrue(USER_ID))
+                .thenReturn(List.of(scheduled(1L, Frequency.MONTHLY,
+                        LocalDate.now().withDayOfMonth(1), null, new BigDecimal("1000"), null)));
+        when(movementRepository.findByScheduledMovementId(1L)).thenReturn(List.of(
+                Movement.builder().id(89L).userId(USER_ID).categoryId(10L)
+                        .date(LocalDate.now()).amount(new BigDecimal("1000"))
+                        .scheduledMovementId(1L).periodStart(null)
+                        .confirmed(false).active(true).build()));
 
         ResultDTO r = service.generatePending(USER_ID, 1);
         assertTrue(r.isCorrect());
@@ -228,6 +287,84 @@ class ScheduledMovementServiceImplEdgeCasesTest {
         ResultDTO r = service.generatePending(USER_ID, 1);
         assertFalse(r.isCorrect());
         assertEquals(500, r.getErrorCode());
+    }
+
+    // ===================== materialize =====================
+
+    @Nested
+    @DisplayName("materialize")
+    class MaterializeTests {
+
+        private MaterializeOccurrencesDTO peticion(Long programado, LocalDate... claves) {
+            List<OccurrenceRefDTO> refs = new java.util.ArrayList<>();
+            for (LocalDate clave : claves) {
+                refs.add(new OccurrenceRefDTO(programado, clave));
+            }
+            return new MaterializeOccurrencesDTO(refs);
+        }
+
+        @Test
+        @DisplayName("una referencia mala no deja creadas las buenas: se valida todo antes de escribir")
+        void seValidaTodoAntesDeEscribirNada() {
+            /* Si se validara y creara sobre la marcha, la persona veria "no se
+               pudo" con la mitad del trabajo hecho, que es la peor de las dos
+               respuestas posibles. */
+            LocalDate esteMes = LocalDate.now().withDayOfMonth(1);
+            ScheduledMovement mensual = scheduled(1L, Frequency.MONTHLY, esteMes, null,
+                    new BigDecimal("1000"), 1);
+            when(scheduledMovementRepository.findByIdAndActiveTrue(1L)).thenReturn(Optional.of(mensual));
+
+            /* La segunda clave cae un dia 17: un mensual solo tiene claves en
+               el dia 1 de cada mes, asi que no pertenece a este programado. */
+            ResultDTO r = service.materialize(peticion(1L, esteMes, esteMes.withDayOfMonth(17)));
+
+            assertFalse(r.isCorrect());
+            assertEquals(400, r.getErrorCode());
+            verify(movementRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("no materializa un programado que no existe o no es mio")
+        void noMaterializaLoAjeno() {
+            when(scheduledMovementRepository.findByIdAndActiveTrue(99L)).thenReturn(Optional.empty());
+
+            ResultDTO r = service.materialize(peticion(99L, LocalDate.now().withDayOfMonth(1)));
+
+            assertFalse(r.isCorrect());
+            assertEquals(404, r.getErrorCode());
+            verify(movementRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("la misma clave repetida en la peticion crea un solo movimiento")
+        void laClaveRepetidaNoDuplica() {
+            LocalDate esteMes = LocalDate.now().withDayOfMonth(1);
+            ScheduledMovement mensual = scheduled(1L, Frequency.MONTHLY, esteMes, null,
+                    new BigDecimal("1000"), 1);
+            when(scheduledMovementRepository.findByIdAndActiveTrue(1L)).thenReturn(Optional.of(mensual));
+            when(movementRepository.findByScheduledMovementId(1L)).thenReturn(List.of());
+            when(movementRepository.save(any(Movement.class))).thenAnswer(i -> {
+                Movement m = i.getArgument(0); m.setId(999L); return m;
+            });
+            when(movementMapper.toResultDTO(any(Movement.class))).thenReturn(new ResultMovementDTO());
+
+            ResultDTO r = service.materialize(peticion(1L, esteMes, esteMes));
+
+            assertTrue(r.isCorrect());
+            verify(movementRepository, times(1)).save(any());
+        }
+
+        @Test
+        @DisplayName("Should return 500 when materialization fails")
+        void devuelve500SiFalla() {
+            when(scheduledMovementRepository.findByIdAndActiveTrue(anyLong()))
+                    .thenThrow(new RuntimeException("DB"));
+
+            ResultDTO r = service.materialize(peticion(1L, LocalDate.now().withDayOfMonth(1)));
+
+            assertFalse(r.isCorrect());
+            assertEquals(500, r.getErrorCode());
+        }
     }
 
     // ===================== calculateEndDate (via create) =====================

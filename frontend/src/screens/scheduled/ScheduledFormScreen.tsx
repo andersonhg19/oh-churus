@@ -13,7 +13,7 @@ import { useAccionUnica } from '../../hooks/useAccionUnica';
 import { scheduledService } from '../../services/scheduledService';
 import { categoryService } from '../../services/categoryService';
 import { validateRequired, validateAmount, validateDate, validateCategory, validateDayOfMonth, validateDuration, validateAll } from '../../utils/validators';
-import { ScheduledMovement, Frequency, Category, CategoryType } from '../../types';
+import { ScheduledMovement, Frequency, Category, CategoryType, WeekendPolicy } from '../../types';
 import { getIconEmoji } from '../../utils/iconMap';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
@@ -40,6 +40,33 @@ const FREQUENCY_LABELS: Record<Frequency, string> = {
   ANNUAL: 'Anual',
 };
 
+// El 5 es "la ultima", no "la quinta o nada": un mes con cuatro viernes usa el
+// cuarto en vez de irse al mes siguiente.
+const SEMANAS = [
+  { valor: 1, etiqueta: '1a' },
+  { valor: 2, etiqueta: '2a' },
+  { valor: 3, etiqueta: '3a' },
+  { valor: 4, etiqueta: '4a' },
+  { valor: 5, etiqueta: 'Ultima' },
+];
+
+// ISO: 1 es lunes y 7 es domingo, igual que en el backend.
+const DIAS_DE_LA_SEMANA = [
+  { valor: 1, etiqueta: 'Lun' },
+  { valor: 2, etiqueta: 'Mar' },
+  { valor: 3, etiqueta: 'Mie' },
+  { valor: 4, etiqueta: 'Jue' },
+  { valor: 5, etiqueta: 'Vie' },
+  { valor: 6, etiqueta: 'Sab' },
+  { valor: 7, etiqueta: 'Dom' },
+];
+
+const POLITICAS_FIN_DE_SEMANA: Array<{ valor: WeekendPolicy; etiqueta: string }> = [
+  { valor: 'KEEP', etiqueta: 'Dejarla' },
+  { valor: 'PREVIOUS_BUSINESS_DAY', etiqueta: 'Viernes antes' },
+  { valor: 'NEXT_BUSINESS_DAY', etiqueta: 'Lunes despues' },
+];
+
 const ScheduledFormScreen: React.FC<Props> = ({ navigation, route }) => {
   const { colors } = useTheme();
   const { showToast } = useToast();
@@ -59,6 +86,9 @@ const ScheduledFormScreen: React.FC<Props> = ({ navigation, route }) => {
   const [startDate, setStartDate] = useState(existing?.startDate || fechaLocalISO());
   const [durationMonths, setDurationMonths] = useState(existing?.durationMonths ? String(existing.durationMonths) : '');
   const [dayOfMonth, setDayOfMonth] = useState(existing?.dayOfMonth ? String(existing.dayOfMonth) : '');
+  const [weekOfMonth, setWeekOfMonth] = useState<number | null>(existing?.weekOfMonth ?? null);
+  const [dayOfWeek, setDayOfWeek] = useState<number | null>(existing?.dayOfWeek ?? null);
+  const [weekendPolicy, setWeekendPolicy] = useState<WeekendPolicy>(existing?.weekendPolicy || 'KEEP');
 
   useEffect(() => {
     const loadCategories = async () => {
@@ -117,6 +147,14 @@ const ScheduledFormScreen: React.FC<Props> = ({ navigation, route }) => {
       showToast('warning', 'Validacion', error);
       return;
     }
+    /* "El tercer viernes" son dos datos y ninguno vale solo: "el tercero" no
+       dice de que y "un viernes" no dice cual. Se avisa aqui para no gastar un
+       viaje al servidor, que tambien lo rechaza. */
+    if ((weekOfMonth === null) !== (dayOfWeek === null)) {
+      showToast('warning', 'Validacion',
+        'El patron "el tercer viernes" necesita la semana y el dia de la semana juntos');
+      return;
+    }
     try {
       const data: Partial<ScheduledMovement> = {
         ...(isEdit && { id: existing.id }),
@@ -128,6 +166,9 @@ const ScheduledFormScreen: React.FC<Props> = ({ navigation, route }) => {
         startDate,
         durationMonths: durationMonths ? parseInt(durationMonths, 10) : undefined,
         dayOfMonth: dayOfMonth ? parseInt(dayOfMonth, 10) : undefined,
+        weekOfMonth: weekOfMonth ?? undefined,
+        dayOfWeek: dayOfWeek ?? undefined,
+        weekendPolicy,
       };
       const res = await scheduledService.save(data);
       if (res.correct) {
@@ -138,7 +179,8 @@ const ScheduledFormScreen: React.FC<Props> = ({ navigation, route }) => {
     } catch (err: any) {
       showToast('error', 'Error', err.message || 'No se pudo guardar');
     }
-  }, [name, selectedCategory, amount, frequency, startDate, durationMonths, dayOfMonth, isEdit, existing, user, navigation, showToast]);
+  }, [name, selectedCategory, amount, frequency, startDate, durationMonths, dayOfMonth,
+      weekOfMonth, dayOfWeek, weekendPolicy, isEdit, existing, user, navigation, showToast]);
 
   const { ejecutando: guardando, ejecutar: handleSave } = useAccionUnica(guardarProgramado);
 
@@ -233,6 +275,71 @@ const ScheduledFormScreen: React.FC<Props> = ({ navigation, route }) => {
       <Input label="Fecha inicio" value={startDate} onChangeText={setStartDate} placeholder="YYYY-MM-DD" />
       <Input label="Duracion (meses)" value={durationMonths} onChangeText={setDurationMonths} placeholder="Opcional" keyboardType="numeric" />
       <Input label="Dia del mes" value={dayOfMonth} onChangeText={setDayOfMonth} placeholder="1-31 (opcional)" keyboardType="numeric" />
+
+      {/* "El tercer viernes" es como se paga la nomina, y no hay dia del mes
+          que lo diga: en agosto es el 21 y en septiembre el 18. */}
+      <AppText variant="label" style={styles.pickerLabel}>Semana del mes (opcional)</AppText>
+      <View style={styles.freqGrid}>
+        {SEMANAS.map((s) => (
+          <TouchableOpacity
+            key={s.valor}
+            style={[
+              styles.freqBtn,
+              {
+                backgroundColor: weekOfMonth === s.valor ? colors.secondary : colors.surface,
+                borderColor: colors.border,
+              },
+            ]}
+            onPress={() => setWeekOfMonth(weekOfMonth === s.valor ? null : s.valor)}
+          >
+            <AppText variant="caption" color={weekOfMonth === s.valor ? '#FFFFFF' : colors.text}>
+              {s.etiqueta}
+            </AppText>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <AppText variant="label" style={styles.pickerLabel}>Dia de la semana (opcional)</AppText>
+      <View style={styles.freqGrid}>
+        {DIAS_DE_LA_SEMANA.map((d) => (
+          <TouchableOpacity
+            key={d.valor}
+            style={[
+              styles.freqBtn,
+              {
+                backgroundColor: dayOfWeek === d.valor ? colors.secondary : colors.surface,
+                borderColor: colors.border,
+              },
+            ]}
+            onPress={() => setDayOfWeek(dayOfWeek === d.valor ? null : d.valor)}
+          >
+            <AppText variant="caption" color={dayOfWeek === d.valor ? '#FFFFFF' : colors.text}>
+              {d.etiqueta}
+            </AppText>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <AppText variant="label" style={styles.pickerLabel}>Si cae fin de semana</AppText>
+      <View style={styles.freqGrid}>
+        {POLITICAS_FIN_DE_SEMANA.map((p) => (
+          <TouchableOpacity
+            key={p.valor}
+            style={[
+              styles.freqBtn,
+              {
+                backgroundColor: weekendPolicy === p.valor ? colors.secondary : colors.surface,
+                borderColor: colors.border,
+              },
+            ]}
+            onPress={() => setWeekendPolicy(p.valor)}
+          >
+            <AppText variant="caption" color={weekendPolicy === p.valor ? '#FFFFFF' : colors.text}>
+              {p.etiqueta}
+            </AppText>
+          </TouchableOpacity>
+        ))}
+      </View>
 
       <Button title={isEdit ? 'Actualizar' : 'Guardar'} onPress={handleSave} loading={guardando} disabled={borrando} size="large" style={styles.saveBtn} />
       {isEdit && (

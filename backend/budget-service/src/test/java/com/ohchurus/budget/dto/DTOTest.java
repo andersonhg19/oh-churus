@@ -155,7 +155,8 @@ class DTOTest {
     void testScheduledSave() {
         LocalDate now = LocalDate.now();
         ScheduledMovementSaveDTO dto = new ScheduledMovementSaveDTO(1L, 2L, 3L, "Rent",
-                new BigDecimal("500"), Frequency.MONTHLY, 12, now, 15);
+                new BigDecimal("500"), Frequency.MONTHLY, 12, now, 15, 3, 5,
+                com.ohchurus.budget.enums.WeekendPolicy.PREVIOUS_BUSINESS_DAY);
         assertEquals(1L, dto.getId());
         assertEquals(2L, dto.getUserId());
         assertEquals(3L, dto.getCategoryId());
@@ -165,6 +166,9 @@ class DTOTest {
         assertEquals(12, dto.getDurationMonths());
         assertEquals(now, dto.getStartDate());
         assertEquals(15, dto.getDayOfMonth());
+        assertEquals(3, dto.getWeekOfMonth());
+        assertEquals(5, dto.getDayOfWeek());
+        assertEquals(com.ohchurus.budget.enums.WeekendPolicy.PREVIOUS_BUSINESS_DAY, dto.getWeekendPolicy());
 
         ScheduledMovementSaveDTO dto2 = new ScheduledMovementSaveDTO();
         dto2.setId(10L);
@@ -706,7 +710,8 @@ class DTOTest {
 
         // AllArgs
         ScheduledMovement sm3 = new ScheduledMovement(1L, 2L, 3L, "N", new BigDecimal("50"),
-                Frequency.ANNUAL, 12, date, endDate, 1, true, now, now);
+                Frequency.ANNUAL, 12, date, endDate, 1, 3, 5,
+                com.ohchurus.budget.enums.WeekendPolicy.KEEP, true, now, now);
         assertEquals("N", sm3.getName());
     }
 

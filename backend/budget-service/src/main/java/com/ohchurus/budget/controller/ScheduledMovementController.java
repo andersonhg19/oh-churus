@@ -1,6 +1,7 @@
 package com.ohchurus.budget.controller;
 
 import com.ohchurus.budget.dto.input.GeneratePendingRequestDTO;
+import com.ohchurus.budget.dto.input.MaterializeOccurrencesDTO;
 import com.ohchurus.budget.dto.input.ScheduledMovementFilterDTO;
 import com.ohchurus.budget.dto.input.ScheduledMovementSaveDTO;
 import com.ohchurus.budget.dto.output.ResultDTO;
@@ -52,6 +53,17 @@ public class ScheduledMovementController {
     @PostMapping(value = "/generate-pending", produces = "application/json")
     public ResponseEntity<ResultDTO> generatePending(@Valid @RequestBody GeneratePendingRequestDTO dto) {
         return ResponseEntity.ok(scheduledMovementService.generatePending(com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId(), dto.getBudgetStartDay()));
+    }
+
+    /*
+     * La otra mitad del tope de materializacion: generate-pending propone las
+     * ocurrencias atrasadas y esto crea las que la persona acepte. El cuerpo
+     * solo senala CUALES —(scheduledMovementId, periodStart)—; el importe y la
+     * fecha los recalcula el servidor desde el programado.
+     */
+    @PostMapping(value = "/materialize", produces = "application/json")
+    public ResponseEntity<ResultDTO> materialize(@Valid @RequestBody MaterializeOccurrencesDTO dto) {
+        return ResponseEntity.ok(scheduledMovementService.materialize(dto));
     }
 
     @PostMapping(value = "/frequency-list", produces = "application/json")

@@ -383,14 +383,27 @@ class ScheduledMovementServiceImplTest {
     @DisplayName("GeneratePending")
     class GeneratePendingTests {
 
+        /* generate-pending ya no devuelve una lista pelada: devuelve lo CREADO y
+           lo PROPUESTO por separado, porque cuando hay muchas ocurrencias
+           atrasadas no se materializan solas. Estos dos ayudantes leen esa
+           respuesta para no repetir el casting en cada caso. */
+        @SuppressWarnings("unchecked")
+        private List<ResultMovementDTO> creados(ResultDTO resultado) {
+            return (List<ResultMovementDTO>) ((Map<String, Object>) resultado.getObject()).get("created");
+        }
+
+        @SuppressWarnings("unchecked")
+        private List<?> propuestas(ResultDTO resultado) {
+            return (List<?>) ((Map<String, Object>) resultado.getObject()).get("proposals");
+        }
+
         @Test
         @DisplayName("Should generate pending movement for monthly scheduled")
         void shouldGeneratePendingMonthly() {
             when(householdService.getHouseholdIds(1L)).thenReturn(Collections.emptyList());
             when(scheduledMovementRepository.findByUserIdAndActiveTrue(1L))
                     .thenReturn(List.of(testScheduled));
-            when(movementRepository.existeOcurrenciaDelPeriodo(
-                    eq(1L), any(LocalDate.class), any(LocalDate.class), any(LocalDate.class))).thenReturn(false);
+            when(movementRepository.findByScheduledMovementId(anyLong())).thenReturn(List.of());
 
             Movement savedMovement = Movement.builder()
                     .id(100L).userId(1L).categoryId(10L)
@@ -408,9 +421,7 @@ class ScheduledMovementServiceImplTest {
             ResultDTO result = scheduledMovementService.generatePending(1L, 1);
 
             assertTrue(result.isCorrect());
-            @SuppressWarnings("unchecked")
-            List<ResultMovementDTO> generated = (List<ResultMovementDTO>) result.getObject();
-            assertEquals(1, generated.size());
+            assertEquals(1, creados(result).size());
             verify(movementRepository).save(argThat(m -> !m.getConfirmed() && m.getScheduledMovementId().equals(1L)));
         }
 
@@ -420,15 +431,19 @@ class ScheduledMovementServiceImplTest {
             when(householdService.getHouseholdIds(1L)).thenReturn(Collections.emptyList());
             when(scheduledMovementRepository.findByUserIdAndActiveTrue(1L))
                     .thenReturn(List.of(testScheduled));
-            when(movementRepository.existeOcurrenciaDelPeriodo(
-                    eq(1L), any(LocalDate.class), any(LocalDate.class), any(LocalDate.class))).thenReturn(true);
+            /* La ocurrencia de este mes ya esta grabada, con su clave. */
+            when(movementRepository.findByScheduledMovementId(1L)).thenReturn(List.of(
+                    Movement.builder().id(77L).userId(1L).categoryId(10L)
+                            .date(LocalDate.now()).amount(new BigDecimal("1500000"))
+                            .scheduledMovementId(1L)
+                            .periodStart(LocalDate.now().withDayOfMonth(1))
+                            .confirmed(false).active(true).build()));
 
             ResultDTO result = scheduledMovementService.generatePending(1L, 1);
 
             assertTrue(result.isCorrect());
-            @SuppressWarnings("unchecked")
-            List<?> generated = (List<?>) result.getObject();
-            assertTrue(generated.isEmpty());
+            assertTrue(creados(result).isEmpty());
+            assertTrue(propuestas(result).isEmpty());
             verify(movementRepository, never()).save(any());
         }
 
@@ -449,9 +464,8 @@ class ScheduledMovementServiceImplTest {
             ResultDTO result = scheduledMovementService.generatePending(1L, 1);
 
             assertTrue(result.isCorrect());
-            @SuppressWarnings("unchecked")
-            List<?> generated = (List<?>) result.getObject();
-            assertTrue(generated.isEmpty());
+            assertTrue(creados(result).isEmpty());
+            assertTrue(propuestas(result).isEmpty());
             verify(movementRepository, never()).save(any());
         }
 
@@ -471,9 +485,8 @@ class ScheduledMovementServiceImplTest {
             ResultDTO result = scheduledMovementService.generatePending(1L, 1);
 
             assertTrue(result.isCorrect());
-            @SuppressWarnings("unchecked")
-            List<?> generated = (List<?>) result.getObject();
-            assertTrue(generated.isEmpty());
+            assertTrue(creados(result).isEmpty());
+            assertTrue(propuestas(result).isEmpty());
             verify(movementRepository, never()).save(any());
         }
 
@@ -487,9 +500,8 @@ class ScheduledMovementServiceImplTest {
             ResultDTO result = scheduledMovementService.generatePending(1L, 1);
 
             assertTrue(result.isCorrect());
-            @SuppressWarnings("unchecked")
-            List<?> generated = (List<?>) result.getObject();
-            assertTrue(generated.isEmpty());
+            assertTrue(creados(result).isEmpty());
+            assertTrue(propuestas(result).isEmpty());
         }
 
         @Test
@@ -506,8 +518,7 @@ class ScheduledMovementServiceImplTest {
             when(householdService.getHouseholdIds(1L)).thenReturn(Collections.emptyList());
             when(scheduledMovementRepository.findByUserIdAndActiveTrue(1L))
                     .thenReturn(List.of(quarterly));
-            when(movementRepository.existeOcurrenciaDelPeriodo(
-                    eq(4L), any(LocalDate.class), any(LocalDate.class), any(LocalDate.class))).thenReturn(false);
+            when(movementRepository.findByScheduledMovementId(anyLong())).thenReturn(List.of());
 
             Movement savedMovement = Movement.builder()
                     .id(101L).userId(1L).categoryId(10L)
@@ -526,57 +537,81 @@ class ScheduledMovementServiceImplTest {
         }
 
         @Test
-        @DisplayName("Should generate for weekly scheduled")
-        void shouldGenerateForWeekly() {
-            LocalDate currentPeriodStart = PeriodUtils.getStartOfPeriod(1, LocalDate.now());
-            ScheduledMovement weekly = ScheduledMovement.builder()
+        @DisplayName("un semanal genera una ocurrencia cada 7 dias, no una al mes")
+        void semanalGeneraUnaPorSemana() {
+            /* Esta prueba y la siguiente CERTIFICABAN EL BUG: se llamaban
+               "should generate for weekly/daily" y solo comprobaban que la
+               respuesta fuera correcta, asi que pasaban en verde mientras un
+               semanal y un diario generaban lo mismo que un mensual —un
+               movimiento— porque el generador recorria periodos de presupuesto
+               y no el calendario de la recurrencia. Ahora se cuenta. */
+            LocalDate inicioDelPeriodo = PeriodUtils.getStartOfPeriod(1, LocalDate.now());
+            LocalDate finDelPeriodo = PeriodUtils.getEndOfPeriod(1, inicioDelPeriodo);
+            ScheduledMovement semanal = ScheduledMovement.builder()
                     .id(5L).userId(1L).categoryId(10L).name("Weekly Groceries")
                     .amount(new BigDecimal("150000.00")).frequency(Frequency.WEEKLY)
-                    .startDate(currentPeriodStart).dayOfMonth(1).active(true).build();
+                    .startDate(inicioDelPeriodo).active(true).build();
 
             when(householdService.getHouseholdIds(1L)).thenReturn(Collections.emptyList());
-            when(scheduledMovementRepository.findByUserIdAndActiveTrue(1L)).thenReturn(List.of(weekly));
-            when(movementRepository.existeOcurrenciaDelPeriodo(
-                    eq(5L), any(LocalDate.class), any(LocalDate.class), any(LocalDate.class))).thenReturn(false);
-
-            Movement saved = Movement.builder().id(102L).userId(1L).categoryId(10L)
-                    .date(LocalDate.now()).amount(new BigDecimal("150000.00"))
-                    .scheduledMovementId(5L).confirmed(false).active(true).build();
-            ResultMovementDTO dto = new ResultMovementDTO();
-            dto.setId(102L);
-
-            when(movementRepository.save(any(Movement.class))).thenReturn(saved);
-            when(movementMapper.toResultDTO(any())).thenReturn(dto);
+            when(scheduledMovementRepository.findByUserIdAndActiveTrue(1L)).thenReturn(List.of(semanal));
+            when(movementRepository.findByScheduledMovementId(anyLong())).thenReturn(List.of());
+            when(movementRepository.save(any(Movement.class))).thenAnswer(i -> i.getArgument(0));
+            when(movementMapper.toResultDTO(any())).thenReturn(new ResultMovementDTO());
 
             ResultDTO result = scheduledMovementService.generatePending(1L, 1);
+
+            long semanasDelPeriodo = java.time.temporal.ChronoUnit.WEEKS
+                    .between(inicioDelPeriodo, finDelPeriodo) + 1;
             assertTrue(result.isCorrect());
+            assertEquals((int) semanasDelPeriodo, creados(result).size(),
+                    "un semanal tiene que dar una ocurrencia cada 7 dias desde su ancla");
         }
 
         @Test
-        @DisplayName("Should generate for DAILY scheduled")
-        void shouldGenerateForDaily() {
-            LocalDate currentPeriodStart = PeriodUtils.getStartOfPeriod(1, LocalDate.now());
-            ScheduledMovement daily = ScheduledMovement.builder()
+        @DisplayName("un diario genera una ocurrencia por dia mientras no se atrase")
+        void diarioGeneraUnaPorDia() {
+            /* El ancla es HOY para que no haya ni una atrasada: asi se mide la
+               enumeracion sin que el tope de materializacion se meta por medio,
+               que es lo que prueba noSeMaterializanEnSilencioMasDeCinco. */
+            LocalDate hoy = LocalDate.now();
+            LocalDate finDelPeriodo = PeriodUtils.getEndOfPeriod(1, PeriodUtils.getStartOfPeriod(1, hoy));
+            ScheduledMovement diario = ScheduledMovement.builder()
                     .id(10L).userId(1L).categoryId(10L).name("Daily Coffee")
                     .amount(new BigDecimal("5000.00")).frequency(Frequency.DAILY)
-                    .startDate(currentPeriodStart).dayOfMonth(1).active(true).build();
+                    .startDate(hoy).active(true).build();
 
             when(householdService.getHouseholdIds(1L)).thenReturn(Collections.emptyList());
-            when(scheduledMovementRepository.findByUserIdAndActiveTrue(1L)).thenReturn(List.of(daily));
-            when(movementRepository.existeOcurrenciaDelPeriodo(
-                    eq(10L), any(LocalDate.class), any(LocalDate.class), any(LocalDate.class))).thenReturn(false);
-
-            Movement saved = Movement.builder().id(110L).userId(1L).categoryId(10L)
-                    .date(LocalDate.now()).amount(new BigDecimal("5000.00"))
-                    .scheduledMovementId(10L).confirmed(false).active(true).build();
-            ResultMovementDTO dto = new ResultMovementDTO();
-            dto.setId(110L);
-
-            when(movementRepository.save(any(Movement.class))).thenReturn(saved);
-            when(movementMapper.toResultDTO(any())).thenReturn(dto);
+            when(scheduledMovementRepository.findByUserIdAndActiveTrue(1L)).thenReturn(List.of(diario));
+            when(movementRepository.findByScheduledMovementId(anyLong())).thenReturn(List.of());
+            when(movementRepository.save(any(Movement.class))).thenAnswer(i -> i.getArgument(0));
+            when(movementMapper.toResultDTO(any())).thenReturn(new ResultMovementDTO());
 
             ResultDTO result = scheduledMovementService.generatePending(1L, 1);
+
+            long diasQueQuedan = java.time.temporal.ChronoUnit.DAYS.between(hoy, finDelPeriodo) + 1;
             assertTrue(result.isCorrect());
+            assertEquals((int) diasQueQuedan, creados(result).size(),
+                    "un diario tiene que dar una ocurrencia por dia, no una al mes");
+        }
+
+        @Test
+        @DisplayName("mas de cinco atrasadas no se crean solas: se proponen")
+        void noSeMaterializanEnSilencioMasDeCinco() {
+            ScheduledMovement olvidado = ScheduledMovement.builder()
+                    .id(11L).userId(1L).categoryId(10L).name("Cafe olvidado")
+                    .amount(new BigDecimal("5000.00")).frequency(Frequency.DAILY)
+                    .startDate(LocalDate.now().minusDays(30)).active(true).build();
+
+            when(householdService.getHouseholdIds(1L)).thenReturn(Collections.emptyList());
+            when(scheduledMovementRepository.findByUserIdAndActiveTrue(1L)).thenReturn(List.of(olvidado));
+            when(movementRepository.findByScheduledMovementId(anyLong())).thenReturn(List.of());
+
+            ResultDTO result = scheduledMovementService.generatePending(1L, 1);
+
+            assertTrue(result.isCorrect());
+            assertTrue(creados(result).isEmpty(), "se materializaron sin que nadie las revisara");
+            assertFalse(propuestas(result).isEmpty(), "no se crean y tampoco se avisa: desaparecen");
+            verify(movementRepository, never()).save(any());
         }
 
         @Test
@@ -591,8 +626,7 @@ class ScheduledMovementServiceImplTest {
 
             when(householdService.getHouseholdIds(1L)).thenReturn(Collections.emptyList());
             when(scheduledMovementRepository.findByUserIdAndActiveTrue(1L)).thenReturn(List.of(noDayScheduled));
-            when(movementRepository.existeOcurrenciaDelPeriodo(
-                    eq(6L), any(LocalDate.class), any(LocalDate.class), any(LocalDate.class))).thenReturn(false);
+            when(movementRepository.findByScheduledMovementId(anyLong())).thenReturn(List.of());
 
             Movement saved = Movement.builder().id(103L).userId(1L).categoryId(10L)
                     .date(LocalDate.now()).amount(new BigDecimal("50000.00"))
@@ -618,8 +652,7 @@ class ScheduledMovementServiceImplTest {
 
             when(householdService.getHouseholdIds(1L)).thenReturn(Collections.emptyList());
             when(scheduledMovementRepository.findByUserIdAndActiveTrue(1L)).thenReturn(List.of(nullAmount));
-            when(movementRepository.existeOcurrenciaDelPeriodo(
-                    eq(7L), any(LocalDate.class), any(LocalDate.class), any(LocalDate.class))).thenReturn(false);
+            when(movementRepository.findByScheduledMovementId(anyLong())).thenReturn(List.of());
 
             Movement saved = Movement.builder().id(104L).userId(1L).categoryId(10L)
                     .date(LocalDate.now()).amount(BigDecimal.ZERO)

@@ -2,6 +2,7 @@ package com.ohchurus.budget.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ohchurus.budget.dto.input.GeneratePendingRequestDTO;
+import com.ohchurus.budget.dto.input.MaterializeOccurrencesDTO;
 import com.ohchurus.budget.dto.input.ScheduledMovementFilterDTO;
 import com.ohchurus.budget.dto.input.ScheduledMovementSaveDTO;
 import com.ohchurus.budget.dto.output.ResultDTO;
@@ -281,6 +282,38 @@ class ScheduledMovementControllerTest {
                             .contentType(MediaType.APPLICATION_JSON))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.correct").value(false));
+        }
+    }
+
+    @Nested
+    @DisplayName("POST /v1/scheduled/materialize")
+    class MaterializeTests {
+
+        @Test
+        @DisplayName("crea las ocurrencias que se le senalan y devuelve el contrato")
+        void materializaLoQueSeLeSenala() throws Exception {
+            when(scheduledMovementService.materialize(any(MaterializeOccurrencesDTO.class)))
+                    .thenReturn(successResult);
+
+            mockMvc.perform(post("/v1/scheduled/materialize")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"occurrences\":[{\"scheduledMovementId\":1,"
+                                    + "\"periodStart\":\"2026-08-01\"}]}"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.correct").value(true));
+
+            verify(scheduledMovementService).materialize(any(MaterializeOccurrencesDTO.class));
+        }
+
+        @Test
+        @DisplayName("sin ocurrencias: 200 con correct:false y el campo que falla")
+        void sinOcurrenciasRespondeDentroDelContrato() throws Exception {
+            mockMvc.perform(post("/v1/scheduled/materialize")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"occurrences\":[]}"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.correct").value(false))
+                    .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("occurrences")));
         }
     }
 

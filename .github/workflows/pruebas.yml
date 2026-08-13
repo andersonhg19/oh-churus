@@ -63,10 +63,17 @@ jobs:
       # REGENERA y deja que git diga exactamente que cambio, endpoint por
       # endpoint. Es el aviso util: "cambiaste la API y no actualizaste
       # documentación/api".
+      # OJO CON EL FLAG: es -Dsurefire.failIfNoSpecifiedTests=false, NO
+      # -DfailIfNoTests. Ese ultimo no existe en surefire 3.x y el paso moria
+      # siempre en discovery-service, que no tiene esta prueba, con un
+      # "No tests matching pattern" que parecia un fallo de la spec. Este paso
+      # jamas llego a ejecutarse ni una vez hasta que se corrigio, asi que el
+      # guardarrail de la spec estaba puesto pero desconectado.
       - name: La spec de OpenAPI sigue describiendo la API
         working-directory: backend
         run: >
-          mvn -B test -Dtest=LaSpecPublicadaEstaAlDiaTest -DfailIfNoTests=false
+          mvn -B test -Dtest=LaSpecPublicadaEstaAlDiaTest
+          -Dsurefire.failIfNoSpecifiedTests=false
           -Djacoco.skip=true -Dactualizar.spec=true
 
       - name: Fallar si la spec commiteada quedo atras

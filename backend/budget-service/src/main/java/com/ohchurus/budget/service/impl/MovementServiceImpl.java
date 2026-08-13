@@ -36,6 +36,8 @@ public class MovementServiceImpl implements MovementService {
     private final ControlAcceso acceso;
     private final AccountServiceImpl cuentas;
     private final com.ohchurus.budget.repository.AccountRepository cuentaRepo;
+    private final RepartoServiceImpl repartos;
+    private final RepartoDeGastos reparto;
 
     public MovementServiceImpl(MovementRepository movementRepository,
                                CategoryRepository categoryRepository,
@@ -43,7 +45,9 @@ public class MovementServiceImpl implements MovementService {
                                HouseholdServiceImpl householdService,
                                ControlAcceso acceso,
                                AccountServiceImpl cuentas,
-                               com.ohchurus.budget.repository.AccountRepository cuentaRepo) {
+                               com.ohchurus.budget.repository.AccountRepository cuentaRepo,
+                               RepartoServiceImpl repartos,
+                               RepartoDeGastos reparto) {
         this.movementRepository = movementRepository;
         this.categoryRepository = categoryRepository;
         this.movementMapper = movementMapper;
@@ -51,6 +55,8 @@ public class MovementServiceImpl implements MovementService {
         this.acceso = acceso;
         this.cuentas = cuentas;
         this.cuentaRepo = cuentaRepo;
+        this.repartos = repartos;
+        this.reparto = reparto;
     }
 
     /**
@@ -127,6 +133,14 @@ public class MovementServiceImpl implements MovementService {
            {"userId": <id de Bruno>} con su propio token y la categoria
            aparecia dentro de la cuenta de Bruno. Las lecturas y los borrados
            ya estaban cerrados; la creacion se habia quedado fuera. */
+        /* El reparto se valida ANTES de escribir el movimiento. Si se validara
+           despues habria que deshacer lo escrito, y capturar la excepcion
+           dentro del mismo metodo transaccional no revierte: quedaria un gasto
+           con el importe total y sin partes, que es justo la mentira que el
+           reparto viene a arreglar. Lo cazo su propia prueba. */
+        ResultDTO repartoInvalido = repartos.validar(dto.getAmount(), dto.getSplitMode(), dto.getSplits());
+        if (repartoInvalido != null) return repartoInvalido;
+
         Long dueno = com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId();
         Movement movement = Movement.builder()
                 .userId(dueno)
@@ -142,6 +156,19 @@ public class MovementServiceImpl implements MovementService {
                 .build();
 
         Movement saved = movementRepository.save(movement);
+
+        /* Las FILAS del reparto si se escriben despues, porque necesitan el id
+           del movimiento. Pero ya esta validado arriba, asi que aqui no puede
+           fallar. */
+        /* Solo se vuelve a guardar SI hay reparto: aplicar() le pone el modo a
+           la entidad y hay que persistirlo. Sin reparto no hay nada que
+           reescribir, y un segundo save por cada gasto anotado es un viaje a
+           la base que no hace nada. */
+        if (dto.getSplitMode() != null) {
+            repartos.aplicar(saved, dto.getSplitMode(), dto.getSplits());
+            saved = movementRepository.save(saved);
+        }
+
         log.info("Movement created: id={} for user {}", saved.getId(), saved.getUserId());
         return new ResultDTO(enrichWithCategory(movementMapper.toResultDTO(saved)));
     }
@@ -186,6 +213,9 @@ public class MovementServiceImpl implements MovementService {
         } else if (movement.getAccountId() == null) {
             movement.setAccountId(cuentas.porDefecto(movement.getUserId()).getId());
         }
+
+        ResultDTO repartoInvalido = repartos.aplicar(movement, dto.getSplitMode(), dto.getSplits());
+        if (repartoInvalido != null) return repartoInvalido;
 
         Movement saved = movementRepository.save(movement);
         propagarALaOtraPata(saved);
@@ -394,6 +424,12 @@ public class MovementServiceImpl implements MovementService {
                 dto.setCategoryColor(cat.getColor());
             }
         }
+        /* Mi parte viaja con el movimiento para que la lista pueda ensenar
+           "120.000 (te tocan 40.000)". Sin reparto es igual al importe. */
+        dto.setMyShare(dto.getId() == null ? dto.getAmount()
+                : reparto.miParte(movementRepository.findById(dto.getId()).orElse(null),
+                                  acceso.usuarioActual()));
+
         /* El nombre de la cuenta viaja con el movimiento por lo mismo que el de
            la categoria: para que la lista se pueda pintar sin una segunda
            llamada por fila. Mismo cache por peticion. */

@@ -176,51 +176,68 @@ class LasConsultasDeMovimientosCorrenEnPostgresTest extends PostgresDeVerdad {
     }
 
     // ========================================================================
-    // 2. existeOcurrenciaDelPeriodo — la idempotencia de las recurrencias
+    // 2. findByScheduledMovementId — la idempotencia de las recurrencias
+
+    /*
+     * OJO CON LA HISTORIA DE ESTE BLOQUE, que explica por que no comprueba lo
+     * que su titulo antiguo decia.
+     *
+     * Hasta la ola 3 la idempotencia la resolvia una consulta,
+     * existeOcurrenciaDelPeriodo, que preguntaba "¿ya existe la del periodo
+     * X?". Con las recurrencias reales eso dejo de servir: un programado
+     * semanal tiene VARIAS ocurrencias dentro del mismo mes, asi que el
+     * periodo ya no distingue una de otra. Ahora se traen todas las
+     * ocurrencias del programado y las claves se comparan en memoria.
+     *
+     * Lo que se prueba aqui sigue siendo lo mismo, porque es lo que importa:
+     * que de Postgres vuelvan TODAS las filas que hacen falta para no
+     * duplicar. Dos de ellas son faciles de perder al reescribir.
+     */
 
     @Test
-    @DisplayName("existeOcurrenciaDelPeriodo: reconoce la ocurrencia por su periodo")
-    void laOcurrenciaSeReconocePorSuPeriodo() {
+    @DisplayName("findByScheduledMovementId: devuelve las ocurrencias con su periodo")
+    void lasOcurrenciasVuelvenConSuPeriodo() {
         Movement generado = movimiento(ANA, deAna, "2026-03-03", "1500", false, true, 77L);
         generado.setPeriodStart(DESDE);
         movimientos.saveAndFlush(generado);
 
-        assertThat(movimientos.existeOcurrenciaDelPeriodo(77L, DESDE, DESDE, HASTA)).isTrue();
-        assertThat(movimientos.existeOcurrenciaDelPeriodo(77L, DESDE.plusMonths(1),
-                DESDE.plusMonths(1), HASTA.plusMonths(1))).isFalse();
+        assertThat(movimientos.findByScheduledMovementId(77L))
+                .hasSize(1)
+                .allMatch(m -> DESDE.equals(m.getPeriodStart()));
+        assertThat(movimientos.findByScheduledMovementId(78L)).isEmpty();
     }
 
     @Test
-    @DisplayName("existeOcurrenciaDelPeriodo: el pendiente BORRADO sigue contando como generado")
-    void laLapidaDelPendienteBorradoSigueContando() {
-        /* Es el detalle que da sentido a la consulta y el que mas facil se
-           pierde al reescribirla: si se le anade un "AND active = true",
-           borrar un pendiente deja de significar "omite esta ocurrencia" y el
-           arriendo reaparece en el siguiente refresco del panel, para siempre. */
+    @DisplayName("findByScheduledMovementId: el pendiente BORRADO tambien vuelve")
+    void laLapidaDelPendienteBorradoTambienVuelve() {
+        /* El detalle que mas facil se pierde al reescribir esta consulta: si
+           se le anade un "AND active = true", borrar un pendiente deja de
+           significar "omite esta ocurrencia" y el arriendo reaparece en el
+           siguiente refresco del panel, para siempre. La fila desactivada es
+           la lapida que impide que resucite. */
         Movement enterrado = movimiento(ANA, deAna, "2026-03-03", "1500", false, false, 88L);
         enterrado.setPeriodStart(DESDE);
         movimientos.saveAndFlush(enterrado);
 
-        assertThat(movimientos.existeOcurrenciaDelPeriodo(88L, DESDE, DESDE, HASTA))
-                .as("la fila desactivada es la lapida que impide que el pendiente resucite")
-                .isTrue();
+        assertThat(movimientos.findByScheduledMovementId(88L))
+                .as("sin la lapida, el pendiente borrado vuelve en cada refresco")
+                .hasSize(1);
     }
 
     @Test
-    @DisplayName("existeOcurrenciaDelPeriodo: la ocurrencia vieja sin periodo se reconoce por su fecha")
-    void laOcurrenciaHeredadaSeReconocePorLaFecha() {
-        /* Las ocurrencias creadas antes de que existiera periodStart lo tienen
-           nulo. Sin este segundo termino, el primer refresco tras el despliegue
+    @DisplayName("findByScheduledMovementId: la ocurrencia heredada sin periodo tambien vuelve")
+    void laOcurrenciaHeredadaTambienVuelve() {
+        /* Las creadas antes de que existiera periodStart lo tienen nulo. Si
+           la consulta las dejara fuera, el primer refresco tras el despliegue
            duplicaria todos los pendientes vivos. */
         movimiento(ANA, deAna, "2026-03-12", "1500", false, true, 99L);
         movimientos.flush();
 
-        assertThat(movimientos.existeOcurrenciaDelPeriodo(99L, DESDE, DESDE, HASTA)).isTrue();
-        assertThat(movimientos.existeOcurrenciaDelPeriodo(99L, DESDE,
-                LocalDate.of(2026, 4, 1), LocalDate.of(2026, 4, 30))).isFalse();
+        assertThat(movimientos.findByScheduledMovementId(99L))
+                .hasSize(1)
+                .allMatch(m -> m.getPeriodStart() == null);
     }
 
-    // ========================================================================
     // 3, 4 y 5. Las tres consultas de hogar sin paginar
 
     @Test

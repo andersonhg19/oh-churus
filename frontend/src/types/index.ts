@@ -87,6 +87,52 @@ export interface CategoryFilter {
 }
 
 // ---- Movement ----
+/**
+ * Como se reparte un gasto entre varias personas.
+ *
+ *   EQUAL   "a medias". El 80 % de los casos.
+ *   SHARES  "yo pago por dos porque vinieron los ninos".
+ *   PERCENT "yo el 70 %, tu el 30 %", como el arriendo cuando uno gana mas.
+ *   AMOUNT  "de estos 120.000, 45.000 son tuyos".
+ */
+export type SplitMode = 'EQUAL' | 'SHARES' | 'PERCENT' | 'AMOUNT';
+
+/**
+ * Una linea del reparto. Se llama participantId y NO userId a proposito: no
+ * dice quien hace la peticion —eso lo dice el token— sino a quien se le
+ * reparte. El backend tiene una prueba que rompe el build si ese nombre vuelve
+ * a ser userId.
+ */
+export interface SplitInput {
+  participantId: number;
+  /** Participaciones, porcentaje o importe, segun el modo. En EQUAL se ignora. */
+  value?: number;
+}
+
+/** El balance NETO con una persona. Positivo = te debe; negativo = le debes. */
+export interface Balance {
+  userId: number;
+  net: number;
+  /** "Te debe" o "Le debes", escrito. Un estado nunca depende solo del signo. */
+  label: string;
+  amount: number;
+}
+
+export interface BalanceList {
+  list: Balance[];
+  totalOwedToMe: number;
+  totalIOwe: number;
+  net: number;
+}
+
+export interface Settlement {
+  settlementId: string;
+  amount: number;
+  /** Lo decide el SIGNO DEL BALANCE, no quien pulsa el boton. */
+  iPaid: boolean;
+  message: string;
+}
+
 export type AccountKind = 'OWN' | 'LIABILITY';
 
 /**

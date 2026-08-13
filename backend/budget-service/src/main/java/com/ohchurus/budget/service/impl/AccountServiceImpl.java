@@ -340,6 +340,11 @@ public class AccountServiceImpl implements AccountService {
      * migracion V4 y por tanto no tiene su "Sin asignar": sin esto, su primer
      * movimiento se quedaria sin cuenta y fuera de todos los saldos.
      */
+    /** Acceso puntual por id, para los servicios que necesitan validar una cuenta. */
+    public java.util.Optional<Account> porId(Long id) {
+        return cuentas.findByIdAndActiveTrue(id);
+    }
+
     public Account porDefecto(Long userId) {
         return cuentas.findByUserIdAndIsDefaultTrueAndActiveTrue(userId)
                 .orElseGet(() -> cuentas.save(Account.builder()

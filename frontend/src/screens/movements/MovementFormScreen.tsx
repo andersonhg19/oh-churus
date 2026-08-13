@@ -10,8 +10,9 @@ import CapsuleToggle from '../../components/molecules/CapsuleToggle';
 import { spacing } from '../../theme';
 import { movementService } from '../../services/movementService';
 import { accountService } from '../../services/accountService';
+import { householdService } from '../../services/householdService';
 import { categoryService } from '../../services/categoryService';
-import { Movement, Category, CategoryType, Account } from '../../types';
+import { Movement, Category, CategoryType, Account, SplitMode, SplitInput } from '../../types';
 import { formatCurrency, fechaLocalISO } from '../../utils/format';
 import { confirmarBorrado } from '../../utils/confirmar';
 import { useAccionUnica } from '../../hooks/useAccionUnica';
@@ -48,6 +49,20 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
   const [cuentas, setCuentas] = useState<Account[]>([]);
   const [cuentaId, setCuentaId] = useState<string | null>(existing?.accountId || null);
 
+  /*
+   * El reparto entre personas.
+   *
+   * Empieza APAGADO y solo aparece si hay con quien repartir. La inmensa
+   * mayoria de los gastos son de una sola persona, y meterle el selector
+   * delante a todo el mundo convertiria el gesto de anotar un cafe en un
+   * formulario. Quien no tenga nucleo familiar no ve nada de esto.
+   */
+  const [reparte, setReparte] = useState(false);
+  const [modoReparto, setModoReparto] = useState<SplitMode>('EQUAL');
+  const [conQuien, setConQuien] = useState<number[]>([]);
+  const [valores, setValores] = useState<Record<number, string>>({});
+  const [companeros, setCompaneros] = useState<number[]>([]);
+
   // Transfer: disponibilizar a cuenta personal
   const [isTransfer, setIsTransfer] = useState(false);
   const [personalCategoryId, setPersonalCategoryId] = useState<number | null>(null);
@@ -67,6 +82,29 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
     };
     cargarCuentas();
   }, []);
+
+  /* Los companeros de hogar. Si esto falla, el reparto simplemente no aparece
+     y el gasto se guarda como propio: degradarse en silencio es mejor que no
+     poder anotar nada por culpa de una lista secundaria. */
+  useEffect(() => {
+    const cargarCompaneros = async () => {
+      if (!user) return;
+      try {
+        const res = await householdService.getByUser(user.userId);
+        if (!res.correct || !res.object) return;
+        const otros = new Set<number>();
+        res.object.forEach((h) =>
+          h.members?.forEach((m) => {
+            if (String(m.userId) !== String(user.userId)) otros.add(m.userId);
+          }),
+        );
+        setCompaneros(Array.from(otros));
+      } catch {
+        setCompaneros([]);
+      }
+    };
+    cargarCompaneros();
+  }, [user]);
 
   useEffect(() => {
     const loadCategories = async () => {
@@ -125,6 +163,21 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
 
   const { ejecutando: borrando, ejecutar: borrar } = useAccionUnica(borrarMovimiento);
 
+  /* En EQUAL no hay valor que mandar: todos ponen lo mismo. En los demas es
+     lo que la persona escribio, y un vacio vale cero. */
+  const valorDe = (quien: number): number | undefined => {
+    if (modoReparto === 'EQUAL') return undefined;
+    const escrito = valores[quien];
+    const numero = Number((escrito || '').replace(/[^0-9.]/g, ''));
+    return Number.isNaN(numero) ? 0 : numero;
+  };
+
+  const alternarPersona = (quien: number) => {
+    setConQuien((antes) =>
+      antes.includes(quien) ? antes.filter((x) => x !== quien) : [...antes, quien],
+    );
+  };
+
   const guardarMovimiento = useCallback(async () => {
     const error = validateAll(
       validateCategory(selectedCategory?.id ? String(selectedCategory.id) : null),
@@ -162,6 +215,16 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
           date,
           confirmed,
           ...(cuentaId && { accountId: cuentaId }),
+          /* Yo SIEMPRE voy en el reparto: el gasto es mio y una parte me
+             toca. Sin esto, repartir con una persona significaria que el
+             gasto entero es de la otra. */
+          ...(reparte && conQuien.length > 0 && {
+            splitMode: modoReparto,
+            splits: [
+              { participantId: Number(user?.userId), value: valorDe(Number(user?.userId)) },
+              ...conQuien.map((quien) => ({ participantId: quien, value: valorDe(quien) })),
+            ] as SplitInput[],
+          }),
           ...(parentMovement && { parentMovementId: parentMovement.id }),
         };
         const res = await movementService.save(data);
@@ -175,7 +238,7 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
     } catch (err: any) {
       showToast('error', 'Error', err.message || 'No se pudo guardar');
     }
-  }, [selectedCategory, amount, date, description, confirmed, isTransfer, personalCategoryId, cuentaId, isEdit, existing, parentMovement, user, navigation, showToast]);
+  }, [selectedCategory, amount, date, description, confirmed, isTransfer, personalCategoryId, cuentaId, reparte, modoReparto, conQuien, valores, isEdit, existing, parentMovement, user, navigation, showToast]);
 
   const { ejecutando: guardando, ejecutar: handleSave } = useAccionUnica(guardarMovimiento);
 
@@ -375,6 +438,100 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
         </>
       )}
 
+      {companeros.length > 0 && movementType === 'EXPENSE' && !parentMovement && (
+        <View style={styles.bloqueReparto}>
+          <TouchableOpacity
+            testID="alternar-reparto"
+            style={[styles.cabeceraReparto, { borderColor: colors.border }]}
+            onPress={() => setReparte((antes) => !antes)}
+          >
+            <AppText variant="label">
+              {reparte ? '👥 Repartir este gasto' : '👥 ¿Lo compartes con alguien?'}
+            </AppText>
+            <AppText variant="body" color={colors.textMuted}>{reparte ? '−' : '+'}</AppText>
+          </TouchableOpacity>
+
+          {reparte && (
+            <>
+              <AppText variant="caption" color={colors.textSecondary} style={styles.ayudaReparto}>
+                El gasto sale entero de tu cuenta, pero en tu presupuesto solo entra tu parte.
+                Lo demas queda como plata que te deben.
+              </AppText>
+
+              <View style={styles.filaModos}>
+                {([
+                  ['EQUAL', 'A medias'],
+                  ['SHARES', 'Partes'],
+                  ['PERCENT', '%'],
+                  ['AMOUNT', 'Importe'],
+                ] as [SplitMode, string][]).map(([modo, etiqueta]) => (
+                  <TouchableOpacity
+                    key={modo}
+                    testID={`modo-${modo}`}
+                    onPress={() => setModoReparto(modo)}
+                    style={[
+                      styles.chipModo,
+                      {
+                        backgroundColor: modoReparto === modo ? colors.primary : colors.surface,
+                        borderColor: modoReparto === modo ? colors.primary : colors.border,
+                      },
+                    ]}
+                  >
+                    <AppText variant="caption" color={modoReparto === modo ? '#FFFFFF' : colors.text}>
+                      {etiqueta}
+                    </AppText>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <AppText variant="caption" color={colors.textSecondary} style={styles.ayudaReparto}>
+                ¿Con quien?
+              </AppText>
+              {companeros.map((quien) => {
+                const elegido = conQuien.includes(quien);
+                return (
+                  <View key={quien} style={styles.filaPersona}>
+                    <TouchableOpacity
+                      testID={`persona-${quien}`}
+                      onPress={() => alternarPersona(quien)}
+                      style={[
+                        styles.chipPersona,
+                        {
+                          backgroundColor: elegido ? colors.secondary : colors.surface,
+                          borderColor: elegido ? colors.secondary : colors.border,
+                        },
+                      ]}
+                    >
+                      <AppText variant="caption" color={elegido ? '#FFFFFF' : colors.text}>
+                        {elegido ? '✓ ' : ''}Persona {quien}
+                      </AppText>
+                    </TouchableOpacity>
+
+                    {elegido && modoReparto !== 'EQUAL' && (
+                      <View style={styles.campoValor}>
+                        <Input
+                          label=""
+                          value={valores[quien] || ''}
+                          onChangeText={(t) => setValores((v) => ({ ...v, [quien]: t }))}
+                          placeholder={modoReparto === 'PERCENT' ? '%' : '0'}
+                          keyboardType="numeric"
+                        />
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
+
+              {reparte && conQuien.length === 0 && (
+                <AppText variant="caption" color={colors.warning} style={styles.ayudaReparto}>
+                  Elige al menos una persona, o apaga el reparto.
+                </AppText>
+              )}
+            </>
+          )}
+        </View>
+      )}
+
       <Input label="Fecha" value={date} onChangeText={setDate} placeholder="YYYY-MM-DD" />
       <Input label="Nota" value={description} onChangeText={setDescription} placeholder="Descripcion (opcional)" multiline />
 
@@ -389,6 +546,31 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
 
 const styles = StyleSheet.create({
   etiquetaCuenta: { marginBottom: spacing.xs },
+  bloqueReparto: { marginBottom: spacing.md },
+  cabeceraReparto: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+  },
+  ayudaReparto: { marginTop: spacing.sm, marginBottom: spacing.sm },
+  filaModos: { flexDirection: 'row', gap: spacing.xs, marginBottom: spacing.sm },
+  chipModo: {
+    flex: 1,
+    paddingVertical: spacing.sm,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  filaPersona: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.xs },
+  chipPersona: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  campoValor: { flex: 1 },
   filaCuentas: { marginBottom: spacing.md },
   chipCuenta: {
     paddingHorizontal: spacing.md,

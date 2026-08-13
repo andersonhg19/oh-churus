@@ -120,11 +120,31 @@ class DTOTest {
     @DisplayName("MovementSaveDTO all fields via setters and AllArgsConstructor, including parentMovementId")
     void testMovementSave() {
         LocalDate now = LocalDate.now();
-        /* El accountId (7L) entra detras del parentMovementId. Este
-           constructor posicional se rompe cada vez que la entidad crece, que
-           es justo lo que acaba de pasar; se mantiene porque comprueba que
-           @AllArgsConstructor sigue generandose y en que orden. */
-        MovementSaveDTO dto = new MovementSaveDTO(1L, 2L, 3L, now, new BigDecimal("1000"), "desc", 4L, 5L, 7L, true);
+        /*
+         * Mismo tratamiento que en Movement: por reflexion que EXISTA, y el
+         * ida y vuelta con setters, que nombran cada campo. El constructor
+         * posicional rompio dos veces en un dia y ninguna de las dos indicaba
+         * un problema real del DTO.
+         */
+        long camposDeInstancia = java.util.Arrays.stream(MovementSaveDTO.class.getDeclaredFields())
+                .filter(f -> !java.lang.reflect.Modifier.isStatic(f.getModifiers()))
+                .filter(f -> !f.isSynthetic())
+                .count();
+        assertTrue(java.util.Arrays.stream(MovementSaveDTO.class.getDeclaredConstructors())
+                        .anyMatch(c -> c.getParameterCount() == camposDeInstancia),
+                "@AllArgsConstructor dejo de generarse para MovementSaveDTO");
+
+        MovementSaveDTO dto = new MovementSaveDTO();
+        dto.setId(1L);
+        dto.setUserId(2L);
+        dto.setCategoryId(3L);
+        dto.setDate(now);
+        dto.setAmount(new BigDecimal("1000"));
+        dto.setDescription("desc");
+        dto.setScheduledMovementId(4L);
+        dto.setParentMovementId(5L);
+        dto.setAccountId(7L);
+        dto.setConfirmed(true);
         assertEquals(1L, dto.getId());
         assertEquals(2L, dto.getUserId());
         assertEquals(3L, dto.getCategoryId());

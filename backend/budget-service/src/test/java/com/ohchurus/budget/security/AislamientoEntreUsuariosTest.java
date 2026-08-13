@@ -556,6 +556,58 @@ class AislamientoEntreUsuariosTest {
     }
 
     // ========================================================================
+    @Nested
+    @DisplayName("Reparto")
+    class Reparto {
+
+        /*
+         * El reparto abre una puerta que las demas funcionalidades no tenian:
+         * hasta ahora todo se resumia en "no toques lo de otro". Aqui hay algo
+         * peor de lo que se puede hacer con un id ajeno, y es METERLE una
+         * deuda a alguien que no ha hecho nada. Por eso repartir exige
+         * compartir hogar.
+         */
+
+        @Test
+        @DisplayName("no puede meterle una deuda a un desconocido usando su id")
+        void noSeInventanDeudasAjenas() throws Exception {
+            /* Bruno no comparte hogar con Ana. Si esto pasara, a Ana le
+               apareceria en su pantalla que le debe 999.999 a un extrano. */
+            Long suya = categorias.save(Category.builder()
+                    .userId(BRUNO).name("De Bruno").type(CategoryType.EXPENSE).active(true).build())
+                    .getId();
+
+            String r = atacar("/v1/movements/save",
+                    "{\"categoryId\":" + suya + ",\"date\":\"" + LocalDate.now()
+                            + "\",\"amount\":999999,\"splitMode\":\"EQUAL\",\"splits\":["
+                            + "{\"participantId\":" + BRUNO + "},{\"participantId\":" + ANA + "}]}");
+
+            assertThat(r)
+                    .as("le planto una deuda a Ana sin que ella hiciera nada")
+                    .contains("\"correct\":false");
+        }
+
+        @Test
+        @DisplayName("los balances que ve son los suyos, no los de Ana")
+        void balancesPropios() throws Exception {
+            noFiltraDatosDeAna(atacar("/v1/splits/balances", "{\"userId\":" + ANA + "}"),
+                    "Arriendo de Ana");
+        }
+
+        @Test
+        @DisplayName("no puede liquidar con alguien de fuera de su hogar")
+        void noLiquidaConExtranos() throws Exception {
+            long antes = movimientos.count();
+            atacar("/v1/splits/settle", "{\"withUserId\":" + ANA + ",\"amount\":500000}");
+
+            assertThat(movimientos.count())
+                    .as("liquidar con un extrano le escribe un movimiento a nombre de la "
+                            + "relacion que no existe, y le mueve el balance a la otra persona")
+                    .isEqualTo(antes);
+        }
+    }
+
+    // ========================================================================
     @Test
     @DisplayName("sin token no se llega a nada")
     void sinToken() throws Exception {

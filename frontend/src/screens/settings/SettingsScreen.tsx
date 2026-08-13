@@ -14,6 +14,7 @@ type SettingsStackParamList = {
   SettingsMain: undefined;
   CategoriesList: undefined;
   AccountsList: undefined;
+  Balances: undefined;
   CategoryForm: { category?: CategoryTree };
   ExportImport: undefined;
   PeriodConfig: undefined;
@@ -72,6 +73,13 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
       <Card style={styles.menuItem} onPress={() => navigation.navigate('AccountsList')}>
         <View style={styles.menuRow}>
           <AppText variant="body">🏦 Cuentas y saldos</AppText>
+          <AppText variant="body" color={colors.textMuted}>›</AppText>
+        </View>
+      </Card>
+
+      <Card style={styles.menuItem} onPress={() => navigation.navigate('Balances')}>
+        <View style={styles.menuRow}>
+          <AppText variant="body">🤝 Cuentas entre nosotros</AppText>
           <AppText variant="body" color={colors.textMuted}>›</AppText>
         </View>
       </Card>

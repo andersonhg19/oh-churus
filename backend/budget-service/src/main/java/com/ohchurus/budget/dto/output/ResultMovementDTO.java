@@ -33,4 +33,20 @@ public class ResultMovementDTO {
     private Long accountId;
     private String accountName;
     private Boolean isOpening;
+
+    private String splitMode;
+    private Boolean isSettlement;
+
+    /**
+     * Lo que este movimiento cuenta como gasto MIO.
+     *
+     * Sin reparto es igual que `amount`. Con reparto es solo mi parte, y esa
+     * es la diferencia entre un presupuesto que dice la verdad y uno que se
+     * come el mes de "Restaurantes" con plata que me van a devolver.
+     *
+     * Van los dos campos a proposito: la lista tiene que poder ensenar
+     * "120.000 (te tocan 40.000)". Con uno solo, la pantalla tendria que
+     * elegir cual, y acabaria eligiendo distinto en cada sitio.
+     */
+    private java.math.BigDecimal myShare;
 }

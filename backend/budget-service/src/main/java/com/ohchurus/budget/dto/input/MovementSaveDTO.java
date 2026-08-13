@@ -50,5 +50,17 @@ public class MovementSaveDTO {
      */
     private Long accountId;
 
+    /**
+     * Como se reparte este gasto, si es que se reparte. Nulo = no se reparte.
+     *
+     * El `amount` de arriba SIGUE SIENDO EL TOTAL: los 120.000 que salieron
+     * del banco. El reparto no cambia lo que salio, cambia cuanto de eso
+     * cuenta como gasto tuyo.
+     */
+    private com.ohchurus.budget.enums.SplitMode splitMode;
+
+    /** Quien participa y con que valor. Ver SplitInputDTO. */
+    private java.util.List<SplitInputDTO> splits;
+
     private Boolean confirmed = true;
 }

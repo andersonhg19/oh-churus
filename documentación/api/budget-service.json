@@ -1,6 +1,52 @@
 {
   "components" : {
     "schemas" : {
+      "AccountSaveDTO" : {
+        "properties" : {
+          "color" : {
+            "maxLength" : 7,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "householdId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "icon" : {
+            "maxLength" : 50,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "kind" : {
+            "enum" : [
+              "OWN",
+              "LIABILITY"
+            ],
+            "type" : "string"
+          },
+          "name" : {
+            "maxLength" : 100,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "openingBalance" : {
+            "type" : "number"
+          },
+          "openingDate" : {
+            "format" : "date",
+            "type" : "string"
+          }
+        },
+        "required" : [
+          "kind",
+          "name"
+        ],
+        "type" : "object"
+      },
       "AsignacionGuardarDTO" : {
         "properties" : {
           "amount" : {
@@ -218,6 +264,22 @@
         ],
         "type" : "object"
       },
+      "MaterializeOccurrencesDTO" : {
+        "properties" : {
+          "occurrences" : {
+            "items" : {
+              "$ref" : "#/components/schemas/OccurrenceRefDTO"
+            },
+            "maxItems" : 200,
+            "minItems" : 0,
+            "type" : "array"
+          }
+        },
+        "required" : [
+          "occurrences"
+        ],
+        "type" : "object"
+      },
       "MiembroHogarDTO" : {
         "properties" : {
           "householdId" : {
@@ -272,6 +334,10 @@
       },
       "MovementSaveDTO" : {
         "properties" : {
+          "accountId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
           "amount" : {
             "exclusiveMinimum" : false,
             "minimum" : 0.01,
@@ -305,6 +371,21 @@
             "format" : "int64",
             "type" : "integer"
           },
+          "splitMode" : {
+            "enum" : [
+              "EQUAL",
+              "SHARES",
+              "PERCENT",
+              "AMOUNT"
+            ],
+            "type" : "string"
+          },
+          "splits" : {
+            "items" : {
+              "$ref" : "#/components/schemas/SplitInputDTO"
+            },
+            "type" : "array"
+          },
           "userId" : {
             "format" : "int64",
             "type" : "integer"
@@ -314,6 +395,23 @@
           "amount",
           "categoryId",
           "date"
+        ],
+        "type" : "object"
+      },
+      "OccurrenceRefDTO" : {
+        "properties" : {
+          "periodStart" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "scheduledMovementId" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [
+          "periodStart",
+          "scheduledMovementId"
         ],
         "type" : "object"
       },
@@ -335,6 +433,29 @@
         "required" : [
           "endDate",
           "startDate"
+        ],
+        "type" : "object"
+      },
+      "ReconcileDTO" : {
+        "properties" : {
+          "accountId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "apply" : {
+            "type" : "boolean"
+          },
+          "date" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "realBalance" : {
+            "type" : "number"
+          }
+        },
+        "required" : [
+          "accountId",
+          "realBalance"
         ],
         "type" : "object"
       },
@@ -410,6 +531,12 @@
             "minimum" : 1,
             "type" : "integer"
           },
+          "dayOfWeek" : {
+            "format" : "int32",
+            "maximum" : 7,
+            "minimum" : 1,
+            "type" : "integer"
+          },
           "durationMonths" : {
             "format" : "int32",
             "type" : "integer"
@@ -443,6 +570,20 @@
           "userId" : {
             "format" : "int64",
             "type" : "integer"
+          },
+          "weekOfMonth" : {
+            "format" : "int32",
+            "maximum" : 5,
+            "minimum" : 1,
+            "type" : "integer"
+          },
+          "weekendPolicy" : {
+            "enum" : [
+              "KEEP",
+              "PREVIOUS_BUSINESS_DAY",
+              "NEXT_BUSINESS_DAY"
+            ],
+            "type" : "string"
           }
         },
         "required" : [
@@ -450,6 +591,44 @@
           "frequency",
           "name",
           "startDate"
+        ],
+        "type" : "object"
+      },
+      "SettleDTO" : {
+        "properties" : {
+          "accountId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "amount" : {
+            "type" : "number"
+          },
+          "date" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "withUserId" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [
+          "withUserId"
+        ],
+        "type" : "object"
+      },
+      "SplitInputDTO" : {
+        "properties" : {
+          "participantId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "value" : {
+            "type" : "number"
+          }
+        },
+        "required" : [
+          "participantId"
         ],
         "type" : "object"
       },
@@ -500,6 +679,168 @@
   },
   "openapi" : "3.0.1",
   "paths" : {
+    "/v1/accounts/all" : {
+      "post" : {
+        "operationId" : "getAll_3",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [
+          "account-controller"
+        ]
+      }
+    },
+    "/v1/accounts/delete/{id}" : {
+      "post" : {
+        "operationId" : "delete_4",
+        "parameters" : [
+          {
+            "in" : "path",
+            "name" : "id",
+            "required" : true,
+            "schema" : {
+              "format" : "int64",
+              "type" : "integer"
+            }
+          }
+        ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [
+          "account-controller"
+        ]
+      }
+    },
+    "/v1/accounts/get/{id}" : {
+      "post" : {
+        "operationId" : "getById_3",
+        "parameters" : [
+          {
+            "in" : "path",
+            "name" : "id",
+            "required" : true,
+            "schema" : {
+              "format" : "int64",
+              "type" : "integer"
+            }
+          }
+        ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [
+          "account-controller"
+        ]
+      }
+    },
+    "/v1/accounts/kind-list" : {
+      "post" : {
+        "operationId" : "kindList",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [
+          "account-controller"
+        ]
+      }
+    },
+    "/v1/accounts/reconcile" : {
+      "post" : {
+        "operationId" : "reconcile",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ReconcileDTO"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [
+          "account-controller"
+        ]
+      }
+    },
+    "/v1/accounts/save" : {
+      "post" : {
+        "operationId" : "save_4",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AccountSaveDTO"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [
+          "account-controller"
+        ]
+      }
+    },
     "/v1/budget-allocation/delete/{id}" : {
       "post" : {
         "operationId" : "delete_3",
@@ -1543,6 +1884,36 @@
         ]
       }
     },
+    "/v1/scheduled/materialize" : {
+      "post" : {
+        "operationId" : "materialize",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/MaterializeOccurrencesDTO"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [
+          "scheduled-movement-controller"
+        ]
+      }
+    },
     "/v1/scheduled/save" : {
       "post" : {
         "operationId" : "save",
@@ -1570,6 +1941,56 @@
         },
         "tags" : [
           "scheduled-movement-controller"
+        ]
+      }
+    },
+    "/v1/splits/balances" : {
+      "post" : {
+        "operationId" : "balances",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [
+          "reparto-controller"
+        ]
+      }
+    },
+    "/v1/splits/settle" : {
+      "post" : {
+        "operationId" : "settle",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SettleDTO"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [
+          "reparto-controller"
         ]
       }
     }

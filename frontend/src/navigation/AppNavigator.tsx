@@ -30,6 +30,7 @@ import CategoryFormScreen from '../screens/categories/CategoryFormScreen';
 import AccountsScreen from '../screens/accounts/AccountsScreen';
 import AccountFormScreen from '../screens/accounts/AccountFormScreen';
 import ReconcileScreen from '../screens/accounts/ReconcileScreen';
+import BalancesScreen from '../screens/splits/BalancesScreen';
 
 // Budget & Consolidated screens
 import BudgetScreen from '../screens/budget/BudgetScreen';
@@ -84,6 +85,7 @@ type SettingsStackParamList = {
   AccountsList: undefined;
   AccountForm: { account?: Account };
   Reconcile: { account: Account };
+  Balances: undefined;
 };
 
 // --- Stacks ---
@@ -178,6 +180,7 @@ const SettingsNavigator = () => {
       <SettingsStack.Screen name="AccountsList" component={AccountsScreen} options={{ title: 'Cuentas' }} />
       <SettingsStack.Screen name="AccountForm" component={AccountFormScreen} options={{ title: 'Cuenta' }} />
       <SettingsStack.Screen name="Reconcile" component={ReconcileScreen} options={{ title: 'Conciliar' }} />
+      <SettingsStack.Screen name="Balances" component={BalancesScreen} options={{ title: 'Cuentas entre nosotros' }} />
       <SettingsStack.Screen name="Consolidated" component={ConsolidatedScreen} options={{ title: 'Consolidado Mensual' }} />
     </SettingsStack.Navigator>
   );

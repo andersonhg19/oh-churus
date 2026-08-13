@@ -110,6 +110,46 @@ class MovementServiceImplTest {
                 org.mockito.ArgumentMatchers.any())).thenReturn(java.util.Optional.of(cuenta));
     }
 
+    /* El reparto entre personas entro con la ola 3. Aqui se le dice "este
+       gasto no se reparte", que es el caso de la inmensa mayoria, para poder
+       seguir probando la LOGICA. Que la regla de oro se cumpla —120.000 en la
+       cuenta, 40.000 en la categoria— lo demuestra LaReglaDeOroDelRepartoTest,
+       que levanta la app entera con tres personas de verdad. */
+    @Mock
+    private com.ohchurus.budget.service.impl.RepartoDeGastos reparto;
+
+    @BeforeEach
+    void sinRepartoPorDefecto() {
+        org.mockito.Mockito.lenient().when(reparto.misPartes(
+                org.mockito.ArgumentMatchers.anyCollection(),
+                org.mockito.ArgumentMatchers.any())).thenAnswer(inv -> {
+            java.util.Collection<com.ohchurus.budget.entity.Movement> ms = inv.getArgument(0);
+            java.util.Map<Long, java.math.BigDecimal> partes = new java.util.HashMap<>();
+            ms.forEach(m -> partes.put(m.getId(),
+                    com.ohchurus.budget.util.Computables.importe(m)));
+            return partes;
+        });
+        org.mockito.Mockito.lenient().when(reparto.miParte(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any())).thenAnswer(inv ->
+                com.ohchurus.budget.util.Computables.importe(inv.getArgument(0)));
+    }
+
+    @Mock
+    private com.ohchurus.budget.service.impl.RepartoServiceImpl repartos;
+
+    @BeforeEach
+    void elRepartoSiempreValida() {
+        org.mockito.Mockito.lenient().when(repartos.validar(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any())).thenReturn(null);
+        org.mockito.Mockito.lenient().when(repartos.aplicar(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any())).thenReturn(null);
+    }
+
     @InjectMocks
     private MovementServiceImpl movementService;
 

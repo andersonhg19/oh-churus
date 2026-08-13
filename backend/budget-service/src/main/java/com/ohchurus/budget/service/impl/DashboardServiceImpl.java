@@ -39,19 +39,39 @@ public class DashboardServiceImpl implements DashboardService {
     private final MovementMapper movementMapper;
     private final ScheduledMovementService scheduledMovementService;
     private final HouseholdServiceImpl householdService;
+    private final RepartoDeGastos reparto;
 
     public DashboardServiceImpl(MovementRepository movementRepository,
                                  ScheduledMovementRepository scheduledMovementRepository,
                                  CategoryRepository categoryRepository,
                                  MovementMapper movementMapper,
                                  @org.springframework.context.annotation.Lazy ScheduledMovementService scheduledMovementService,
-                                 HouseholdServiceImpl householdService) {
+                                 HouseholdServiceImpl householdService,
+                                 RepartoDeGastos reparto) {
         this.movementRepository = movementRepository;
         this.scheduledMovementRepository = scheduledMovementRepository;
         this.categoryRepository = categoryRepository;
         this.movementMapper = movementMapper;
         this.scheduledMovementService = scheduledMovementService;
         this.householdService = householdService;
+        this.reparto = reparto;
+    }
+
+    /**
+     * Cuanto de cada movimiento cuenta como MIO.
+     *
+     * Es la mitad presupuestaria de la regla de oro del reparto: un gasto de
+     * 120.000 que pague yo y se reparta entre tres son 120.000 en mi cuenta
+     * —eso salio del banco— pero 40.000 en mi categoria. Sin esto, poner la
+     * cuenta del restaurante se come el mes entero de "Restaurantes" con plata
+     * que me van a devolver, y el presupuesto miente.
+     *
+     * Se resuelve en lote (una consulta para todos los movimientos de la
+     * pantalla) porque preguntar uno por uno seria una consulta por fila en
+     * cada refresco del panel.
+     */
+    private java.util.Map<Long, BigDecimal> partesDe(java.util.Collection<Movement> movimientos, Long userId) {
+        return reparto.misPartes(movimientos, userId);
     }
 
     /**
@@ -100,6 +120,8 @@ public class DashboardServiceImpl implements DashboardService {
                 confirmed = movementRepository.findByUserIdAndDateBetweenAndConfirmedTrueAndActiveTrue(userId, periodStart, periodEnd);
             }
 
+            java.util.Map<Long, BigDecimal> misPartes = partesDe(confirmed, userId);
+
             BigDecimal totalIncome = BigDecimal.ZERO;
             BigDecimal totalExpense = BigDecimal.ZERO;
             for (Movement m : confirmed) {
@@ -109,7 +131,7 @@ public class DashboardServiceImpl implements DashboardService {
                    lineas mas abajo, en este mismo metodo— si los excluia. La
                    misma plata daba dos cifras distintas en la misma pantalla. */
                 if (!Computables.suma(m)) continue;
-                BigDecimal amount = Computables.importe(m);
+                BigDecimal amount = misPartes.getOrDefault(m.getId(), Computables.importe(m));
                 if (getCategoryType(m.getCategoryId(), categoryCache) == CategoryType.INCOME) {
                     totalIncome = totalIncome.add(amount);
                 } else {
@@ -126,10 +148,15 @@ public class DashboardServiceImpl implements DashboardService {
             }
             List<Movement> allPeriodMovements = new ArrayList<>(confirmed);
             allPeriodMovements.addAll(pendingInPeriod);
+            java.util.Map<Long, BigDecimal> partesDelPeriodo = partesDe(allPeriodMovements, userId);
             BigDecimal budgetTotal = allPeriodMovements.stream()
                     .filter(m -> getCategoryType(m.getCategoryId(), categoryCache) == CategoryType.EXPENSE)
                     .filter(Computables::suma)
-                    .map(Computables::importe)
+                    /* Misma regla que arriba: si el presupuesto contara el
+                       total de un gasto repartido y los totales contaran solo
+                       mi parte, las dos cifras del panel volverian a no
+                       cuadrar — el bug exacto que la ola 2 arreglo. */
+                    .map(m -> partesDelPeriodo.getOrDefault(m.getId(), Computables.importe(m)))
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
 
             // 3. Pendientes (personales + household)

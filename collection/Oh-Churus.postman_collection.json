@@ -753,6 +753,269 @@
       "description": "Presupuesto: categorias, movimientos, programados, asignaciones, hogar, panel y Excel.",
       "item": [
         {
+          "name": "Cuentas",
+          "description": "Donde esta la plata. OJO: el saldo NUNCA se guarda, se calcula sumando los movimientos en cada peticion, y el saldo inicial es un MOVIMIENTO de apertura con su fecha, no un campo. Por eso no hay ningun endpoint para 'poner el saldo'.",
+          "item": [
+            {
+              "name": "Crear cuenta",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/BUDGET-SERVICE/oh-churus/v1/accounts/save",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "BUDGET-SERVICE",
+                    "oh-churus",
+                    "v1",
+                    "accounts",
+                    "save"
+                  ]
+                },
+                "description": "Sin userId: el dueno es quien crea, y eso lo dice el token. openingBalance y openingDate solo se miran AL CREAR; al editar se ignoran para no reescribir el pasado.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"name\": \"Ahorros\",\n    \"kind\": \"OWN\",\n    \"openingBalance\": 1000000,\n    \"openingDate\": \"2026-08-01\"\n}"
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const r = pm.response.json();",
+                      "pm.test('Responde 200', () => pm.response.to.have.status(200));",
+                      "pm.test('correct = true', () => pm.expect(r.correct, r.message).to.be.true);",
+                      "if (r.correct && r.object) {",
+                      "    pm.collectionVariables.set('cuentaId', r.object.id);",
+                      "}"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Listar cuentas y patrimonio",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/BUDGET-SERVICE/oh-churus/v1/accounts/all",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "BUDGET-SERVICE",
+                    "oh-churus",
+                    "v1",
+                    "accounts",
+                    "all"
+                  ]
+                },
+                "description": "Devuelve list + netWorth. Cada cuenta trae balance (lo confirmado, con lo que se concilia) y projectedBalance (incluyendo lo pendiente). Ninguno de los dos se guarda.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{}"
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const r = pm.response.json();",
+                      "pm.test('Responde 200', () => pm.response.to.have.status(200));",
+                      "pm.test('correct = true', () => pm.expect(r.correct, r.message).to.be.true);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Ver una cuenta",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/BUDGET-SERVICE/oh-churus/v1/accounts/get/{{cuentaId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "BUDGET-SERVICE",
+                    "oh-churus",
+                    "v1",
+                    "accounts",
+                    "get",
+                    "{{cuentaId}}"
+                  ]
+                },
+                "description": "La de otra persona responde 'Account not found', no 'no puedes': decir 'no puedes' confirmaria que ese id existe."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const r = pm.response.json();",
+                      "pm.test('Responde 200', () => pm.response.to.have.status(200));",
+                      "pm.test('correct = true', () => pm.expect(r.correct, r.message).to.be.true);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Conciliar con el banco",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/BUDGET-SERVICE/oh-churus/v1/accounts/reconcile",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "BUDGET-SERVICE",
+                    "oh-churus",
+                    "v1",
+                    "accounts",
+                    "reconcile"
+                  ]
+                },
+                "description": "Con apply en false SOLO informa la diferencia. Preguntar no escribe: casi siempre la respuesta correcta a un descuadre no es ajustar, es acordarse del gasto que falta.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"accountId\": \"{{cuentaId}}\",\n    \"realBalance\": 3455000,\n    \"apply\": false\n}"
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const r = pm.response.json();",
+                      "pm.test('Responde 200', () => pm.response.to.have.status(200));",
+                      "pm.test('correct = true', () => pm.expect(r.correct, r.message).to.be.true);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Catalogo de clases de cuenta",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/BUDGET-SERVICE/oh-churus/v1/accounts/kind-list",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "BUDGET-SERVICE",
+                    "oh-churus",
+                    "v1",
+                    "accounts",
+                    "kind-list"
+                  ]
+                },
+                "description": "OWN (propia) y LIABILITY (pasivo). La clase no cambia la aritmetica, solo como se presenta: 'debes 400.000' en vez de 'tienes -400.000'."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const r = pm.response.json();",
+                      "pm.test('Responde 200', () => pm.response.to.have.status(200));",
+                      "pm.test('correct = true', () => pm.expect(r.correct, r.message).to.be.true);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Borrar cuenta",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/BUDGET-SERVICE/oh-churus/v1/accounts/delete/{{cuentaId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "BUDGET-SERVICE",
+                    "oh-churus",
+                    "v1",
+                    "accounts",
+                    "delete",
+                    "{{cuentaId}}"
+                  ]
+                },
+                "description": "Se niega si la cuenta tiene movimientos o si es la de por defecto: sus movimientos quedarian fuera de todo saldo pero dentro del presupuesto."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const r = pm.response.json();",
+                      "pm.test('Responde 200', () => pm.response.to.have.status(200));",
+                      "pm.test('correct = true', () => pm.expect(r.correct, r.message).to.be.true);"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
           "name": "Categorias",
           "description": "Arbol de categorias de ingreso y gasto, hasta tres niveles.",
           "item": [
@@ -2182,6 +2445,144 @@
           ]
         },
         {
+          "name": "Reparto entre personas",
+          "description": "LA REGLA DE ORO: un gasto de 120.000 pagado por ti y repartido entre tres son 120.000 EN TU CUENTA (eso salio del banco) pero 40.000 EN TU CATEGORIA (eso gastaste tu). Los otros 80.000 son un derecho de cobro. El reparto en si viaja dentro del movimiento al guardarlo; aqui esta lo que no cuelga de un movimiento concreto.",
+          "item": [
+            {
+              "name": "Gasto repartido a medias",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/BUDGET-SERVICE/oh-churus/v1/movements/save",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "BUDGET-SERVICE",
+                    "oh-churus",
+                    "v1",
+                    "movements",
+                    "save"
+                  ]
+                },
+                "description": "Se llama participantId y NO userId a proposito: no dice quien hace la peticion (eso lo dice el token) sino a quien se le reparte. Repartir exige compartir nucleo familiar con esa persona. El amount sigue siendo el TOTAL.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"categoryId\": \"{{categoriaId}}\",\n    \"accountId\": \"{{cuentaId}}\",\n    \"date\": \"2026-08-13\",\n    \"amount\": 120000,\n    \"description\": \"Cena\",\n    \"splitMode\": \"EQUAL\",\n    \"splits\": [\n        {\n            \"participantId\": \"{{usuarioId}}\"\n        },\n        {\n            \"participantId\": 2\n        }\n    ]\n}"
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const r = pm.response.json();",
+                      "pm.test('Responde 200', () => pm.response.to.have.status(200));",
+                      "pm.test('correct = true', () => pm.expect(r.correct, r.message).to.be.true);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Balances con cada persona",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/BUDGET-SERVICE/oh-churus/v1/splits/balances",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "BUDGET-SERVICE",
+                    "oh-churus",
+                    "v1",
+                    "splits",
+                    "balances"
+                  ]
+                },
+                "description": "Una cifra NETA por persona, estilo Cospend. Positivo = te debe; negativo = le debes. Cada fila trae la palabra escrita ('Te debe' / 'Le debes'): un estado no puede depender solo del signo. Sin periodo: una deuda no caduca a fin de mes.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{}"
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const r = pm.response.json();",
+                      "pm.test('Responde 200', () => pm.response.to.have.status(200));",
+                      "pm.test('correct = true', () => pm.expect(r.correct, r.message).to.be.true);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Liquidar una deuda",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/BUDGET-SERVICE/oh-churus/v1/splits/settle",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "BUDGET-SERVICE",
+                    "oh-churus",
+                    "v1",
+                    "splits",
+                    "settle"
+                  ]
+                },
+                "description": "Sin amount se salda el neto entero. Quien paga lo decide el SIGNO DEL BALANCE, no quien llama: si lo decidiera el cliente, cualquiera podria 'cobrarse' una deuda que en realidad tiene. La liquidacion no es ingreso ni gasto, pero si mueve el saldo.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"withUserId\": 2\n}"
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const r = pm.response.json();",
+                      "pm.test('Responde 200', () => pm.response.to.have.status(200));",
+                      "pm.test('correct = true', () => pm.expect(r.correct, r.message).to.be.true);"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
           "name": "Movimientos programados",
           "description": "Gastos recurrentes y la generacion de sus pendientes.",
           "item": [
@@ -2692,6 +3093,50 @@
                         "frequency-list"
                       ]
                     }
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Registrar ocurrencias propuestas",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/BUDGET-SERVICE/oh-churus/v1/scheduled/materialize",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "BUDGET-SERVICE",
+                    "oh-churus",
+                    "v1",
+                    "scheduled",
+                    "materialize"
+                  ]
+                },
+                "description": "Cuando un programado tiene mas de 5 ocurrencias atrasadas, generate-pending NO las crea: las propone. Esto las registra tras revisarlas. La app no inventa datos.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"scheduledId\": \"{{programadoId}}\"\n}"
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const r = pm.response.json();",
+                      "pm.test('Responde 200', () => pm.response.to.have.status(200));",
+                      "pm.test('correct = true', () => pm.expect(r.correct, r.message).to.be.true);"
+                    ]
                   }
                 }
               ]
@@ -5996,6 +6441,11 @@
       "value": "0",
       "type": "string",
       "description": "Id para Eliminar asignacion. 0 = no borra nada."
+    },
+    {
+      "key": "cuentaId",
+      "value": "",
+      "type": "string"
     }
   ]
 }

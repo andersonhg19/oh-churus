@@ -100,7 +100,7 @@ POST http://localhost:8820/BUDGET-SERVICE/oh-churus/v1/dashboard/summary
 POST http://localhost:8820/FASTING-SERVICE/oh-churus/v1/fasting/session/active
 ```
 
-Son 56 endpoints y **todos son POST** con el cuerpo en JSON. La respuesta es
+Son 65 endpoints y **todos son POST** con el cuerpo en JSON. La respuesta es
 siempre HTTP 200 con un `ResultDTO`:
 
 ```json
@@ -134,12 +134,11 @@ Como regenerar la spec despues de tocar un endpoint esta en la seccion 5.
 modificar algo existente, el `userId` que mandes en la peticion se ignora: no
 sirve para ver ni para tocar lo de otro.
 
-Con una excepcion que conviene saber antes de tocar nada: **al crear**,
-`/v1/categories/save`, `/v1/movements/save` y `/v1/scheduled/save` todavia
-guardan el `userId` que venga en el cuerpo, asi que ahi si decide el cliente de
-quien es lo que se crea. Es deuda conocida y esta anotada en
-`documentación/invariantes.md` y en la lista `PENDIENTES` de
-`NingunEndpointSinDuenoTest`.
+Sin excepciones, tambien **al crear**. Durante un tiempo si las hubo
+—`/v1/categories/save`, `/v1/movements/save` y `/v1/scheduled/save` guardaban el
+`userId` del cuerpo— y se cerraron en la ronda de control. La lista `PENDIENTES`
+de `NingunEndpointSinDuenoTest` esta vacia, y hay una prueba que impide que se
+vuelva a llenar de deuda ya pagada.
 
 ---
 

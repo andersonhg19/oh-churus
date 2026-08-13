@@ -59,20 +59,27 @@ del cuerpo no se mira.
 - Los controllers de lectura pisan el `userId` del filtro con el del token antes
   de consultar.
 
-**Donde NO se cumple todavia (deuda abierta, no la pases por alto).** Al
-**crear**, tres sitios siguen tomando el `userId` del cuerpo en vez del token:
+**Ya se cumple tambien al crear.** Durante un tiempo no: `createCategory`,
+`createMovement` y `createScheduled` tomaban el `userId` del cuerpo, asi que con
+un token valido se podia crear una categoria, un movimiento o un programado **a
+nombre de otra persona**. Se cerro en la ronda de control, y no se descubrio
+leyendo codigo sino con trafico real contra el stack: Ana enviaba
+`{"userId": <id de Bruno>}` con su propio token y la categoria aparecia dentro
+de la cuenta de Bruno.
 
-| Sitio | Endpoint |
-|---|---|
-| `CategoryServiceImpl.createCategory` | `/v1/categories/save` |
-| `MovementServiceImpl.createMovement` | `/v1/movements/save` |
-| `ScheduledMovementServiceImpl.createScheduled` | `/v1/scheduled/save` |
+Crear era, ademas, peor que leer: a la victima le entra en sus cifras algo que
+no puso.
 
-Con un token valido se puede, por tanto, crear una categoria, un movimiento o un
-programado **a nombre de otra persona**. Se escribe aqui porque una regla que se
-enuncia como absoluta y no lo es hace mas dano que la propia deuda: quien lea
-"nunca viaja en el cuerpo" no ira a mirar estas tres lineas. Estan tambien en la
-lista `PENDIENTES` de `NingunEndpointSinDuenoTest`, con el ataque descrito.
+Lo defiende ahora la seccion `Creacion` de `AislamientoEntreUsuariosTest`, y la
+lista `PENDIENTES` de `NingunEndpointSinDuenoTest` quedo **vacia**. Se anadio de
+paso la prueba `laDeudaNoSePudre`, que se pone roja si una ruta figura a la vez
+como deuda pendiente y en la matriz: una lista de deuda que nombra deuda ya
+pagada es peor que no tenerla, porque dejas de creerte la lista entera — y
+mientras una ruta figure ahi, la comprobacion principal la da por clasificada y
+deja de exigirle un caso.
+
+En la ola 3 se sumaron a la misma regla las cuentas (`/v1/accounts/*`) y el
+reparto (`/v1/splits/*`), con sus casos en la matriz.
 
 **Por que.** Se decidio al principio que todos los endpoints fueran POST y que
 los parametros viajaran en el cuerpo. Al hacerlo el `userId` se convirtio en un

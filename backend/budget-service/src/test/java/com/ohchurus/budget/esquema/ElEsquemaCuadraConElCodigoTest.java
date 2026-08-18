@@ -69,6 +69,7 @@ class ElEsquemaCuadraConElCodigoTest {
     @Autowired private CategoryRepository categorias;
     @Autowired private HouseholdRepository hogares;
     @Autowired private HouseholdMemberRepository miembros;
+    @Autowired private com.ohchurus.budget.repository.ScheduledMovementRepository programados;
 
     private Long hogar;
     private Long categoria;
@@ -76,8 +77,24 @@ class ElEsquemaCuadraConElCodigoTest {
 
     @BeforeEach
     void prepararEscenario() {
+        /*
+         * Los programados se limpian AQUI aunque esta prueba no cree ninguno, y
+         * esa es justamente la razon.
+         *
+         * Sin esta linea el escenario dependia del ORDEN DE EJECUCION: si otra
+         * clase que si crea programados corria antes, sus filas quedaban vivas
+         * y categorias.deleteAll() reventaba con
+         * FK_PROGRAMADO_CATEGORIA. Paso de verdad, y de la peor manera: en
+         * verde toda la vida en Windows y roja en el CI, porque el orden por
+         * defecto de surefire es el del sistema de ficheros y no coincide entre
+         * sistemas. Anadir una clase de prueba nueva bastaba para cambiarlo.
+         *
+         * Un escenario tiene que dejar la base como la quiere, no como la
+         * encontro.
+         */
         movimientos.deleteAll();
         asignaciones.deleteAll();
+        programados.deleteAll();
         categorias.deleteAll();
         miembros.deleteAll();
         hogares.deleteAll();

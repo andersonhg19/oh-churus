@@ -81,6 +81,22 @@
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-surefire-plugin</artifactId>
 				<configuration>
+					<!--
+						ORDEN DETERMINISTA, y no es una mania.
+
+						Por defecto surefire usa el orden del SISTEMA DE FICHEROS, que
+						no coincide entre Windows y Linux. Con eso, una prueba cuyo
+						escenario dependa de lo que dejo la anterior puede estar en
+						verde durante semanas en tu maquina y roja en el CI — y basta
+						anadir una clase nueva para que cambie el orden y aparezca.
+
+						Paso exactamente eso: ElEsquemaCuadraConElCodigoTest reventaba
+						en el CI con FK_PROGRAMADO_CATEGORIA porque otra clase le
+						dejaba programados vivos. Los escenarios se arreglaron para no
+						depender del orden, pero ademas se fija el orden para que si
+						alguna vuelve a depender de el, falle IGUAL en las dos partes.
+					-->
+					<runOrder>alphabetical</runOrder>
 					<!-- Ver el comentario de docker.api.version arriba. Los modulos
 					     que anaden sus propias <excludes> heredan esto igualmente. -->
 					<systemPropertyVariables>

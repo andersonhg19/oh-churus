@@ -44,6 +44,7 @@ class LasConsultasDePresupuestoCorrenEnPostgresTest extends PostgresDeVerdad {
 
     @Autowired private BudgetAllocationRepository asignaciones;
     @Autowired private CategoryRepository categorias;
+    @Autowired private com.ohchurus.budget.repository.ScheduledMovementRepository programados;
     @Autowired private HouseholdRepository hogares;
     @Autowired private MovementRepository movimientos;
 
@@ -54,8 +55,27 @@ class LasConsultasDePresupuestoCorrenEnPostgresTest extends PostgresDeVerdad {
 
     @BeforeEach
     void sembrarElPresupuesto() {
+        /*
+         * Los programados se limpian aunque esta clase no cree ninguno.
+         *
+         * Las cuatro clases de consultas COMPARTEN el mismo contenedor de
+         * PostgreSQL (ver PostgresDeVerdad), asi que las filas de una
+         * sobreviven a la siguiente. Si la de programados corre antes, sus
+         * filas siguen vivas y categorias.deleteAll() revienta con
+         * FK_PROGRAMADO_CATEGORIA.
+         *
+         * No es teorico: exactamente eso tumbo el CI en
+         * ElEsquemaCuadraConElCodigoTest, que estuvo en verde durante semanas
+         * en Windows y se puso rojo en Linux — el orden por defecto de
+         * surefire es el del sistema de ficheros y no coincide entre sistemas,
+         * asi que basta anadir una clase nueva para cambiarlo.
+         *
+         * Un escenario tiene que dejar la base como la quiere, no como la
+         * encontro.
+         */
         movimientos.deleteAll();
         asignaciones.deleteAll();
+        programados.deleteAll();
         categorias.deleteAll();
         hogares.deleteAll();
 

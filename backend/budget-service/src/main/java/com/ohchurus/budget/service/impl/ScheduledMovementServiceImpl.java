@@ -333,7 +333,43 @@ public class ScheduledMovementServiceImpl implements ScheduledMovementService {
                     continue;
                 }
 
-                List<Ocurrencia> faltantes = ocurrenciasQueFaltan(programado, finDeLaVentana);
+                /*
+                 * HASTA DONDE SE GENERA, Y POR QUE DEPENDE DE QUIEN ES EL
+                 * PROGRAMADO.
+                 *
+                 * El fallo que esto arregla: la ventana se calculaba SIEMPRE
+                 * con el dia de corte de QUIEN REFRESCA. Con el arriendo de
+                 * Ana (corte el 1) y Bruno mirando el panel (corte el 15), el
+                 * 18 de agosto el periodo de Bruno llegaba hasta el 14 de
+                 * septiembre, asi que su refresco le creaba a Ana el arriendo
+                 * de SEPTIEMBRE. El mismo programado generaba un numero
+                 * distinto de ocurrencias segun quien abriera la app primero y
+                 * que dia del mes fuera.
+                 *
+                 * Es la misma familia del fallo que ya costo una ola —"el
+                 * arriendo de uno acababa a nombre del otro solo porque abrio
+                 * la app primero"— y se descubrio igual: una prueba que llevaba
+                 * dias en verde se puso roja sola al cambiar la fecha del
+                 * sistema.
+                 *
+                 * La regla ahora no depende de quien mira:
+                 *
+                 *   · Lo TUYO se adelanta hasta el final de tu periodo, que es
+                 *     lo que le da sentido al panel: ver lo que viene.
+                 *   · Lo de OTRO solo se materializa hasta HOY, es decir lo que
+                 *     ya vencio. Adelantarle a alguien pendientes futuros
+                 *     usando TU calendario es inventarle datos con una regla
+                 *     que ni siquiera es la suya.
+                 *
+                 * No se pide el dia de corte del dueno al servicio de usuarios
+                 * a proposito: seria una llamada HTTP por programado ajeno en
+                 * cada refresco del panel, y "hasta hoy" ya es deterministico,
+                 * que es lo que hacia falta.
+                 */
+                boolean esMio = programado.getUserId() != null && programado.getUserId().equals(userId);
+                LocalDate hastaDonde = esMio ? finDeLaVentana : hoy;
+
+                List<Ocurrencia> faltantes = ocurrenciasQueFaltan(programado, hastaDonde);
                 if (faltantes.isEmpty()) {
                     continue;
                 }

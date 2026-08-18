@@ -89,6 +89,7 @@ public class CategoryServiceImpl implements CategoryService {
                 .color(dto.getColor())
                 .type(dto.getType())
                 .householdId(dto.getHouseholdId())
+                .reimbursable(Boolean.TRUE.equals(dto.getReimbursable()))
                 .active(true)
                 .build();
 
@@ -129,6 +130,10 @@ public class CategoryServiceImpl implements CategoryService {
         category.setColor(dto.getColor());
         category.setType(dto.getType());
         category.setHouseholdId(dto.getHouseholdId());
+        /* El interruptor se edita como cualquier otro campo: marcar una
+                   categoria como reembolsable a mitad de mes tiene que poder
+                   deshacerse igual de facil. */
+        category.setReimbursable(Boolean.TRUE.equals(dto.getReimbursable()));
 
         Category saved = categoryRepository.save(category);
         log.info("Category updated: {}", saved.getName());

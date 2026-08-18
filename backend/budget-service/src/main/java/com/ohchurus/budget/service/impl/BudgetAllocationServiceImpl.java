@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 public class BudgetAllocationServiceImpl {
 
     private final AccountServiceImpl cuentas;
+    private final RepartoDeGastos reparto;
     private final BudgetAllocationRepository allocationRepository;
     private final com.ohchurus.budget.util.ControlAcceso acceso;
     private final MovementRepository movementRepository;
@@ -36,13 +37,15 @@ public class BudgetAllocationServiceImpl {
                                         CategoryRepository categoryRepository,
                                         HouseholdServiceImpl householdService,
                                        com.ohchurus.budget.util.ControlAcceso acceso,
-                                        AccountServiceImpl cuentas) {
+                                        AccountServiceImpl cuentas,
+                                        RepartoDeGastos reparto) {
         this.allocationRepository = allocationRepository;
         this.movementRepository = movementRepository;
         this.categoryRepository = categoryRepository;
         this.householdService = householdService;
         this.acceso = acceso;
         this.cuentas = cuentas;
+        this.reparto = reparto;
     }
 
     // ===== CRUD =====
@@ -82,7 +85,6 @@ public class BudgetAllocationServiceImpl {
                         .periodEnd(periodEnd)
                         .allocatedAmount(amount)
                         .notes(notes)
-                        .status("ACTIVE")
                         .active(true)
                         .build();
             }
@@ -114,7 +116,6 @@ public class BudgetAllocationServiceImpl {
                 map.put("categoryId", a.getCategoryId());
                 map.put("householdId", a.getHouseholdId());
                 map.put("allocatedAmount", a.getAllocatedAmount());
-                map.put("status", a.getStatus());
                 map.put("notes", a.getNotes());
                 map.put("periodStart", a.getPeriodStart().toString());
                 map.put("periodEnd", a.getPeriodEnd().toString());
@@ -431,23 +432,172 @@ public class BudgetAllocationServiceImpl {
         }
     }
 
-    // ===== AUTO-CLOSE =====
+    // ========================================================================
+    // SOBRES
 
-    public ResultDTO autoCloseExpired() {
+    /**
+     * El estado de los sobres del periodo, con su arrastre.
+     *
+     * El calculo esta en Sobres, que es codigo puro. Aqui solo se reunen los
+     * datos: las asignaciones de TODOS los periodos (el disponible de este mes
+     * depende de lo que sobro en los anteriores), los movimientos, las
+     * categorias y --esto es lo que lo enlaza con la ola 3.2-- cuanto cuenta
+     * como gasto MIO cada movimiento repartido.
+     */
+    @Transactional(readOnly = true)
+    public ResultDTO envelopes(Integer budgetStartDay, LocalDate referenceDate) {
         try {
-            LocalDate today = LocalDate.now();
-            List<BudgetAllocation> expired = allocationRepository.findExpiredActive(today);
-            int closed = 0;
-            for (BudgetAllocation a : expired) {
-                a.setStatus("CLOSED");
-                allocationRepository.save(a);
-                closed++;
+            Long yo = acceso.usuarioActual();
+            if (yo == null) return new ResultDTO(new LinkedHashMap<String, Object>());
+
+            int diaDeCorte = budgetStartDay != null ? budgetStartDay : 1;
+            LocalDate ref = referenceDate != null ? referenceDate : LocalDate.now();
+            LocalDate periodo = PeriodUtils.getStartOfPeriod(diaDeCorte, ref);
+
+            List<Long> misHogares = householdService.getHouseholdIds(yo);
+            boolean sinHogar = misHogares == null || misHogares.isEmpty();
+
+            List<BudgetAllocation> asignaciones = sinHogar
+                    ? allocationRepository.findByUserIdAndActiveTrueOrderByPeriodStartAsc(yo)
+                    : allocationRepository.findTodasParaElArrastre(yo, misHogares);
+
+            List<Movement> movimientos = sinHogar
+                    ? movementRepository.findByUserIdAndActiveTrue(yo)
+                    : movementRepository.findParaBalances(yo, misHogares);
+
+            Map<Long, Category> categorias = new LinkedHashMap<>();
+            categoryRepository.findByUserIdAndActiveTrue(yo)
+                    .forEach(c -> categorias.put(c.getId(), c));
+            if (!sinHogar) {
+                misHogares.forEach(h -> categoryRepository.findByHouseholdIdAndActiveTrue(h)
+                        .forEach(c -> categorias.putIfAbsent(c.getId(), c)));
             }
-            log.info("Auto-closed {} expired budget allocations", closed);
-            return new ResultDTO(true, "Closed " + closed + " allocations", 0);
+
+            Sobres.Estado estado = Sobres.calcular(periodo, diaDeCorte, asignaciones,
+                    movimientos, categorias, reparto.misPartes(movimientos, yo));
+
+            List<Map<String, Object>> lista = new ArrayList<>();
+            for (Sobres.Sobre sobre : estado.sobres()) {
+                Map<String, Object> fila = new LinkedHashMap<>();
+                fila.put("categoryId", sobre.categoriaId());
+                fila.put("categoryName", sobre.nombre());
+                fila.put("reimbursable", sobre.reembolsable());
+                fila.put("allocated", sobre.asignado());
+                fila.put("carryover", sobre.arrastre());
+                fila.put("spent", sobre.gastado());
+                fila.put("available", sobre.disponible());
+                /* El texto viaja con la cifra: un estado no puede depender
+                   solo del signo ni del color. */
+                fila.put("label", sobre.disponible().signum() < 0 ? "Te pasaste" : "Disponible");
+                lista.add(fila);
+            }
+
+            Map<String, Object> respuesta = new LinkedHashMap<>();
+            respuesta.put("periodStart", periodo.toString());
+            respuesta.put("periodEnd", PeriodUtils.getEndOfPeriod(diaDeCorte, periodo).toString());
+            respuesta.put("envelopes", lista);
+            respuesta.put("totalAllocated", estado.totalAsignado());
+            respuesta.put("totalSpent", estado.totalGastado());
+            respuesta.put("carriedDebt", estado.deudaArrastrada());
+            respuesta.put("toBudget", estado.paraRepartir());
+            return new ResultDTO(respuesta);
         } catch (Exception e) {
-            log.error("Error auto-closing: {}", e.getMessage(), e);
-            return new ResultDTO(false, "Error auto-closing", 500);
+            log.error("Error building envelopes: {}", e.getMessage(), e);
+            return new ResultDTO(false, "Error building envelopes", 500);
         }
     }
+
+    /**
+     * Mover plata de un sobre a otro dentro del mismo periodo.
+     *
+     * Es la operacion que hace util la regla asimetrica: cuando te pasaste en
+     * Restaurantes, la respuesta no es sentirse mal, es decidir de que otro
+     * sobre sale. Un toque.
+     *
+     * NO se crea la asignacion de ORIGEN si no existe: mover desde un sobre
+     * vacio inventaria plata. El DESTINO si se crea, porque mover hacia algo
+     * que aun no tiene presupuesto es justo lo que se quiere poder hacer.
+     */
+    public ResultDTO move(Long fromCategoryId, Long toCategoryId, BigDecimal amount,
+                          Integer budgetStartDay, LocalDate referenceDate) {
+        try {
+            if (fromCategoryId == null || toCategoryId == null || amount == null) {
+                return new ResultDTO(false, "Faltan datos para mover entre sobres", 400);
+            }
+            if (fromCategoryId.equals(toCategoryId)) {
+                return new ResultDTO(false, "El origen y el destino son el mismo sobre", 400);
+            }
+            if (amount.signum() <= 0) {
+                return new ResultDTO(false, "El importe a mover tiene que ser mayor que cero", 400);
+            }
+
+            Optional<Category> origen = categoryRepository.findByIdAndActiveTrue(fromCategoryId);
+            Optional<Category> destino = categoryRepository.findByIdAndActiveTrue(toCategoryId);
+            /* Las DOS tienen que ser tuyas. Comprobando solo el destino se
+               podria vaciar el sobre de otra persona. */
+            if (origen.isEmpty() || destino.isEmpty()
+                    || !acceso.puedeVerCategoria(origen.get())
+                    || !acceso.puedeVerCategoria(destino.get())) {
+                return new ResultDTO(false, "Category not found", 404);
+            }
+
+            int diaDeCorte = budgetStartDay != null ? budgetStartDay : 1;
+            LocalDate ref = referenceDate != null ? referenceDate : LocalDate.now();
+            LocalDate periodo = PeriodUtils.getStartOfPeriod(diaDeCorte, ref);
+            LocalDate fin = PeriodUtils.getEndOfPeriod(diaDeCorte, periodo);
+            Long yo = acceso.usuarioActual();
+
+            List<BudgetAllocation> delPeriodo =
+                    allocationRepository.findByUserIdAndPeriodStartAndActiveTrue(yo, periodo);
+
+            Optional<BudgetAllocation> deOrigen = delPeriodo.stream()
+                    .filter(a -> a.getCategoryId().equals(fromCategoryId))
+                    .findFirst();
+
+            if (deOrigen.isEmpty() || deOrigen.get().getAllocatedAmount().compareTo(amount) < 0) {
+                return new ResultDTO(false,
+                        "En ese sobre no hay tanto para mover. Baja el importe, o sacalo de otro.", 400);
+            }
+
+            BudgetAllocation origenAsignacion = deOrigen.get();
+            origenAsignacion.setAllocatedAmount(origenAsignacion.getAllocatedAmount().subtract(amount));
+            allocationRepository.save(origenAsignacion);
+
+            BudgetAllocation destinoAsignacion = delPeriodo.stream()
+                    .filter(a -> a.getCategoryId().equals(toCategoryId))
+                    .findFirst()
+                    .orElseGet(() -> BudgetAllocation.builder()
+                            .userId(yo).categoryId(toCategoryId)
+                            .householdId(destino.get().getHouseholdId())
+                            .periodStart(periodo).periodEnd(fin)
+                            .allocatedAmount(BigDecimal.ZERO).active(true).build());
+            destinoAsignacion.setAllocatedAmount(destinoAsignacion.getAllocatedAmount().add(amount));
+            allocationRepository.save(destinoAsignacion);
+
+            Map<String, Object> respuesta = new LinkedHashMap<>();
+            respuesta.put("fromCategoryId", fromCategoryId);
+            respuesta.put("toCategoryId", toCategoryId);
+            respuesta.put("amount", amount);
+            respuesta.put("message", "Movido");
+            log.info("Envelope move: {} from {} to {} in {}", amount, fromCategoryId,
+                    toCategoryId, periodo);
+            return new ResultDTO(respuesta);
+        } catch (Exception e) {
+            log.error("Error moving between envelopes: {}", e.getMessage(), e);
+            return new ResultDTO(false, "Error moving between envelopes", 500);
+        }
+    }
+
+    /*
+     * Aqui vivia autoCloseExpired(), que recorria las asignaciones vencidas y
+     * les ponia status = "CLOSED". No lo llamaba NADIE: no tenia endpoint ni
+     * @Scheduled. Como era lo unico que escribia un status distinto de
+     * "ACTIVE", la consulta que filtraba por status = 'ACTIVE' devolvia
+     * siempre todas las filas, y el concepto entero no significaba nada.
+     *
+     * Se borra junto con la columna (V7) en vez de dejarlo por si acaso: un
+     * metodo muerto que promete cerrar cosas hace que el siguiente que lo lea
+     * escriba codigo defensivo contra un estado que no existe. El arrastre de
+     * los sobres, que es lo que de verdad hacia falta, lo resuelve Sobres.
+     */
 }

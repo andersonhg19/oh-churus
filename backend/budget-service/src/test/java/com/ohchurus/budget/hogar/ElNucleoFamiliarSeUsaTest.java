@@ -209,7 +209,7 @@ class ElNucleoFamiliarSeUsaTest {
                     .userId(BRUNO).categoryId(categoriaDelHogar).householdId(hogarDeAna)
                     .periodStart(LocalDate.now().withDayOfMonth(1))
                     .periodEnd(LocalDate.now().withDayOfMonth(28))
-                    .allocatedAmount(new BigDecimal("800000")).status("ACTIVE").active(true)
+                    .allocatedAmount(new BigDecimal("800000")).active(true)
                     .build()).getId();
         }
 

@@ -43,9 +43,11 @@ public class BudgetAllocation {
     @Column(nullable = false, precision = 15, scale = 2)
     private BigDecimal allocatedAmount;
 
-    @Column(nullable = false, length = 20)
-    @Builder.Default
-    private String status = "ACTIVE";
+    /* Aqui vivia `status`, que nacio para marcar asignaciones cerradas y nunca
+       llego a significar nada: lo unico que lo ponia en algo distinto de
+       'ACTIVE' era autoCloseExpired(), un metodo sin endpoint y sin @Scheduled
+       al que no llamaba nadie, asi que la consulta que filtraba por
+       status = 'ACTIVE' devolvia todas las filas. Lo quita la V7. */
 
     @Column(length = 255)
     private String notes;

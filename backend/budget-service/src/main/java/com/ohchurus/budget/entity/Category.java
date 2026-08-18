@@ -47,6 +47,26 @@ public class Category {
     @Column(nullable = false)
     private CategoryType type;
 
+    /**
+     * "Es dinero que me van a devolver."
+     *
+     * Una categoria marcada asi NO descuenta su sobregiro del total a repartir
+     * del mes siguiente: se queda esperando el reembolso.
+     *
+     * El nombre importa. Se llama por su caso de uso y no "excluida del
+     * arrastre" porque nadie sabe si quiere lo segundo; en cambio todo el mundo
+     * sabe si le van a devolver la plata. El caso real: pusiste la cuenta del
+     * almuerzo del equipo y la empresa te reembolsa — sin esto, ese mes tu
+     * presupuesto entero aparece roto por una plata que ni era tuya.
+     *
+     * Cuando el gasto se REPARTE (ola 3.2) esto no hace falta: en tu categoria
+     * solo entra tu parte. El interruptor cubre el caso de haber pagado el
+     * total sin nadie con quien repartirlo dentro de la app.
+     */
+    @Column(nullable = false)
+    @Builder.Default
+    private Boolean reimbursable = false;
+
     @Column(nullable = false)
     @Builder.Default
     private Boolean active = true;

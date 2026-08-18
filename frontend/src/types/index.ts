@@ -65,6 +65,15 @@ export interface Category {
   name: string;
   description?: string;
   type: CategoryType;
+  /**
+   * "Es dinero que me van a devolver."
+   *
+   * Una categoria marcada asi no descuenta su sobregiro del total a repartir
+   * del mes siguiente. Se llama por su caso de uso y no "excluida del
+   * arrastre" porque nadie sabe si quiere lo segundo; en cambio todo el mundo
+   * sabe si le van a devolver la plata.
+   */
+  reimbursable?: boolean;
   parentId?: string;
   icon?: string;
   color?: string;
@@ -95,6 +104,47 @@ export interface CategoryFilter {
  *   PERCENT "yo el 70 %, tu el 30 %", como el arriendo cuando uno gana mas.
  *   AMOUNT  "de estos 120.000, 45.000 son tuyos".
  */
+/**
+ * Un sobre: una categoria con lo que tiene disponible este periodo.
+ *
+ *   allocated  lo que le asignaste este mes
+ *   carryover  lo que sobro del mes pasado. NUNCA es negativo: si te pasaste,
+ *              el sobregiro no baja a la categoria, sale del total a repartir.
+ *   spent      lo gastado, contando solo TU parte de los gastos repartidos
+ *   available  allocated + carryover - spent
+ *   label      "Disponible" o "Te pasaste", escrito. Un estado nunca puede
+ *              depender solo del signo o del color.
+ */
+export interface Envelope {
+  categoryId: string;
+  categoryName: string;
+  reimbursable: boolean;
+  allocated: number;
+  carryover: number;
+  spent: number;
+  available: number;
+  label: string;
+}
+
+export interface EnvelopeState {
+  periodStart: string;
+  periodEnd: string;
+  envelopes: Envelope[];
+  totalAllocated: number;
+  totalSpent: number;
+  /** Lo que te pasaste el mes pasado y este mes tienes de menos. */
+  carriedDebt: number;
+  /** Lo que queda por repartir. Negativo = arrancas el mes con deuda. */
+  toBudget: number;
+}
+
+export interface EnvelopeMove {
+  fromCategoryId: string;
+  toCategoryId: string;
+  amount: number;
+  message: string;
+}
+
 export type SplitMode = 'EQUAL' | 'SHARES' | 'PERCENT' | 'AMOUNT';
 
 /**

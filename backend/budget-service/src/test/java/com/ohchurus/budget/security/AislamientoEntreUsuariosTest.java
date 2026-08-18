@@ -149,7 +149,7 @@ class AislamientoEntreUsuariosTest {
                 .userId(ANA).categoryId(categoriaDeAna)
                 .periodStart(LocalDate.now().withDayOfMonth(1))
                 .periodEnd(LocalDate.now().withDayOfMonth(28))
-                .allocatedAmount(new BigDecimal("2000000")).status("ACTIVE").active(true).build());
+                .allocatedAmount(new BigDecimal("2000000")).active(true).build());
         asignacionDeAna = asig.getId();
     }
 
@@ -604,6 +604,45 @@ class AislamientoEntreUsuariosTest {
                     .as("liquidar con un extrano le escribe un movimiento a nombre de la "
                             + "relacion que no existe, y le mueve el balance a la otra persona")
                     .isEqualTo(antes);
+        }
+    }
+
+    // ========================================================================
+    @Nested
+    @DisplayName("Sobres")
+    class Sobres {
+
+        @Test
+        @DisplayName("no puede sacar plata del sobre de Ana")
+        void moverDesdeElSobreAjeno() throws Exception {
+            /*
+             * Mover entre sobres toca DOS categorias, y ahi esta la trampa: es
+             * facil acordarse de comprobar el destino —"que sea mia"— y
+             * olvidarse del origen. Con solo esa mitad, Bruno vaciaria el
+             * presupuesto de Ana hacia el suyo sin tocar un solo movimiento:
+             * a ella le desapareceria la plata de Arriendo sin ninguna
+             * explicacion en la lista de gastos.
+             */
+            Long suya = categorias.save(Category.builder()
+                    .userId(BRUNO).name("Bolsillo de Bruno").type(CategoryType.EXPENSE)
+                    .active(true).build()).getId();
+
+            atacar("/v1/budget-allocation/move",
+                    "{\"fromCategoryId\":" + categoriaDeAna + ",\"toCategoryId\":" + suya
+                            + ",\"amount\":500000,\"budgetStartDay\":1}");
+
+            assertThat(asignaciones.findById(asignacionDeAna).orElseThrow().getAllocatedAmount())
+                    .as("le movieron el presupuesto a Ana desde fuera")
+                    .isEqualByComparingTo("2000000.00");
+        }
+
+        @Test
+        @DisplayName("los sobres que ve son los suyos, no los de Ana")
+        void sobresPropios() throws Exception {
+            noFiltraDatosDeAna(
+                    atacar("/v1/budget-allocation/envelopes",
+                            "{\"userId\":" + ANA + ",\"budgetStartDay\":1}"),
+                    "Arriendo de Ana");
         }
     }
 

@@ -235,6 +235,58 @@ class LasRecurrenciasNoSeDuplicanTest {
     }
 
     @Test
+    @DisplayName("lo que se genera NO depende de quien refresca ni de que dia sea")
+    void laVentanaNoDependeDeQuienMira() throws Exception {
+        /*
+         * ESTA PRUEBA NACIO DE UN FALLO QUE APARECIO SOLO.
+         *
+         * moverLaFechaNoDuplica llevaba dias en verde y un martes se puso roja
+         * sin que nadie tocara el codigo de recurrencias: habia cambiado la
+         * fecha del sistema. El corte de Ana es el 1 y el de Bruno el 15, asi
+         * que a partir del dia 15 el "periodo actual" de Bruno se mete en el
+         * mes siguiente — y como la ventana de generacion se calculaba con el
+         * dia de corte de QUIEN REFRESCA, el refresco de Bruno le creaba a Ana
+         * el arriendo del mes que viene.
+         *
+         * O sea: el mismo programado generaba un numero distinto de
+         * ocurrencias segun quien abriera la app y que dia del mes fuera. Es
+         * la misma familia del fallo que ya costo una ola —"el arriendo de uno
+         * acababa a nombre del otro solo porque abrio la app primero"— y da la
+         * misma sensacion de app inestable: cifras que cambian solas.
+         *
+         * La regla, que es lo que esta prueba fija: lo TUYO se adelanta hasta
+         * el final de TU periodo; lo de OTRO solo se materializa hasta hoy.
+         */
+        /* Ana refresca primero: su propio calendario decide cuanto se adelanta
+           lo suyo. Ese es el numero que Bruno no puede mover. */
+        refrescarElPanel(ANA, CORTE_DE_ANA);
+        int antesDeQueMireBruno = ocurrenciasVivasDe(arriendoDeAna).size();
+        assertThat(antesDeQueMireBruno).isPositive();
+
+        for (int i = 0; i < 5; i++) {
+            refrescarElPanel(BRUNO, CORTE_DE_BRUNO);
+        }
+
+        assertThat(ocurrenciasVivasDe(arriendoDeAna))
+                .as("el refresco de Bruno le creo a Ana ocurrencias que su propio calendario "
+                        + "todavia no pedia")
+                .hasSize(antesDeQueMireBruno);
+    }
+
+    @Test
+    @DisplayName("y a nadie se le adelantan pendientes futuros con el calendario de otro")
+    void aNadieSeLeAdelantaElFuturoAjeno() throws Exception {
+        for (int i = 0; i < 5; i++) {
+            refrescarElPanel(BRUNO, CORTE_DE_BRUNO);
+        }
+
+        assertThat(ocurrenciasVivasDe(arriendoDeAna))
+                .as("materializarle a alguien un pendiente futuro usando TU dia de corte es "
+                        + "inventarle datos con una regla que ni siquiera es la suya")
+                .allMatch(m -> !m.getDate().isAfter(java.time.LocalDate.now()));
+    }
+
+    @Test
     @DisplayName("mover la fecha de un pendiente no hace que se genere otro")
     void moverLaFechaNoDuplica() throws Exception {
         refrescarElPanel(ANA, CORTE_DE_ANA);

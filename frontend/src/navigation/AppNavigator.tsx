@@ -31,6 +31,7 @@ import AccountsScreen from '../screens/accounts/AccountsScreen';
 import AccountFormScreen from '../screens/accounts/AccountFormScreen';
 import ReconcileScreen from '../screens/accounts/ReconcileScreen';
 import BalancesScreen from '../screens/splits/BalancesScreen';
+import EnvelopesScreen from '../screens/budget/EnvelopesScreen';
 
 // Budget & Consolidated screens
 import BudgetScreen from '../screens/budget/BudgetScreen';
@@ -70,6 +71,7 @@ type ScheduledStackParamList = {
 };
 
 type BudgetStackParamList = {
+  Envelopes: undefined;
   BudgetMain: undefined;
   Consolidated: undefined;
 };
@@ -198,6 +200,7 @@ const BudgetNavigator = () => {
       }}
     >
       <BudgetStack.Screen name="BudgetMain" component={BudgetScreen} options={{ title: 'Presupuesto' }} />
+      <BudgetStack.Screen name="Envelopes" component={EnvelopesScreen} options={{ title: 'Sobres' }} />
       <BudgetStack.Screen name="Consolidated" component={ConsolidatedScreen} options={{ title: 'Consolidado' }} />
     </BudgetStack.Navigator>
   );

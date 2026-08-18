@@ -92,7 +92,7 @@ class ElEsquemaCuadraConElCodigoTest {
         return BudgetAllocation.builder()
                 .userId(ANA).categoryId(categoria)
                 .periodStart(periodo).periodEnd(periodo.plusMonths(1).minusDays(1))
-                .allocatedAmount(new BigDecimal("500000")).status("ACTIVE").active(viva)
+                .allocatedAmount(new BigDecimal("500000")).active(viva)
                 .build();
     }
 

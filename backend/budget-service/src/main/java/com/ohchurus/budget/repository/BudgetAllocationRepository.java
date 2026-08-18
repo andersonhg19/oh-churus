@@ -42,8 +42,23 @@ public interface BudgetAllocationRepository extends JpaRepository<BudgetAllocati
 
     List<BudgetAllocation> findByUserIdAndHouseholdIdAndActiveTrue(Long userId, Long householdId);
 
-    // Find allocations from previous period that need auto-close
-    @Query("SELECT a FROM BudgetAllocation a WHERE a.active = true AND a.status = 'ACTIVE' " +
-            "AND a.periodEnd < :today")
-    List<BudgetAllocation> findExpiredActive(@Param("today") LocalDate today);
+    /**
+     * Todas las asignaciones de una persona, de cualquier periodo.
+     *
+     * Sustituye a findExpiredActive, que buscaba asignaciones "vencidas" para
+     * cerrarlas y solo la usaba un metodo al que no llamaba nadie.
+     *
+     * La necesita el arrastre de los sobres, que se RECALCULA desde el primer
+     * periodo con datos en vez de guardarse. Por eso se piden todas y no solo
+     * las del periodo: el disponible de este mes depende de lo que sobro en
+     * todos los anteriores.
+     */
+    @Query("SELECT a FROM BudgetAllocation a WHERE a.active = true "
+            + "AND (a.userId = :userId "
+            + "     OR (a.householdId IS NOT NULL AND a.householdId IN :householdIds)) "
+            + "ORDER BY a.periodStart ASC")
+    List<BudgetAllocation> findTodasParaElArrastre(@Param("userId") Long userId,
+                                                   @Param("householdIds") List<Long> householdIds);
+
+    List<BudgetAllocation> findByUserIdAndActiveTrueOrderByPeriodStartAsc(Long userId);
 }

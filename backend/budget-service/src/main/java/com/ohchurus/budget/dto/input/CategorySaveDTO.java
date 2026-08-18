@@ -42,5 +42,15 @@ public class CategorySaveDTO {
     @NotNull(message = "es obligatorio (INCOME o EXPENSE)")
     private CategoryType type;
 
+    /**
+     * "Es dinero que me van a devolver."
+     *
+     * Se llama por su caso de uso y no "excluida del arrastre" porque nadie
+     * sabe si quiere lo segundo; en cambio todo el mundo sabe si le van a
+     * devolver la plata. Una categoria marcada asi no descuenta su sobregiro
+     * del total a repartir del mes siguiente.
+     */
+    private Boolean reimbursable;
+
     private Long householdId;
 }

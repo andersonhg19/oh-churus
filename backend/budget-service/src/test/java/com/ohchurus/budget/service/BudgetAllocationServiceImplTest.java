@@ -126,7 +126,7 @@ class BudgetAllocationServiceImplTest {
         return BudgetAllocation.builder()
                 .id(id).userId(USER_ID).categoryId(categoryId)
                 .periodStart(LocalDate.of(2026, 3, 1)).periodEnd(LocalDate.of(2026, 3, 31))
-                .allocatedAmount(amount).status("ACTIVE").active(true).build();
+                .allocatedAmount(amount).active(true).build();
     }
 
     @Nested
@@ -147,7 +147,6 @@ class BudgetAllocationServiceImplTest {
             assertTrue(result.isCorrect());
             BudgetAllocation saved = (BudgetAllocation) result.getObject();
             assertEquals(new BigDecimal("500000"), saved.getAllocatedAmount());
-            assertEquals("ACTIVE", saved.getStatus());
         }
 
         @Test
@@ -628,45 +627,21 @@ class BudgetAllocationServiceImplTest {
         }
     }
 
-    @Nested
-    @DisplayName("autoCloseExpired")
-    class AutoCloseTests {
-
-        @Test
-        @DisplayName("Should mark expired allocations as CLOSED")
-        void shouldCloseExpired() {
-            BudgetAllocation a1 = allocation(1L, 20L, new BigDecimal("100"));
-            BudgetAllocation a2 = allocation(2L, 21L, new BigDecimal("200"));
-            when(allocationRepository.findExpiredActive(any())).thenReturn(List.of(a1, a2));
-
-            ResultDTO result = service.autoCloseExpired();
-
-            assertTrue(result.isCorrect());
-            assertEquals("CLOSED", a1.getStatus());
-            assertEquals("CLOSED", a2.getStatus());
-            verify(allocationRepository, times(2)).save(any(BudgetAllocation.class));
-        }
-
-        @Test
-        @DisplayName("Should handle empty expired list")
-        void shouldHandleEmpty() {
-            when(allocationRepository.findExpiredActive(any())).thenReturn(Collections.emptyList());
-
-            ResultDTO result = service.autoCloseExpired();
-
-            assertTrue(result.isCorrect());
-            verify(allocationRepository, never()).save(any());
-        }
-
-        @Test
-        @DisplayName("Should return 500 when query fails")
-        void shouldHandleException() {
-            when(allocationRepository.findExpiredActive(any())).thenThrow(new RuntimeException("DB error"));
-
-            ResultDTO result = service.autoCloseExpired();
-
-            assertFalse(result.isCorrect());
-            assertEquals(500, result.getErrorCode());
-        }
-    }
+    /*
+     * Aqui vivian tres pruebas de autoCloseExpired(), y merecen una lapida
+     * porque son un ejemplo perfecto de cobertura que no protege nada.
+     *
+     * Comprobaban con todo detalle que el metodo marcaba las asignaciones
+     * vencidas como "CLOSED", que aguantaba una lista vacia y que devolvia 500
+     * ante un fallo de base de datos. Las tres pasaban. Y las tres probaban
+     * codigo que NADIE PODIA EJECUTAR: autoCloseExpired no tenia endpoint ni
+     * @Scheduled, asi que ese estado "CLOSED" no se escribia jamas en
+     * produccion y la unica consulta que filtraba por status = 'ACTIVE'
+     * devolvia siempre todas las filas.
+     *
+     * Tres pruebas verdes defendiendo un concepto que no existia. Se borran
+     * con el metodo y la columna (V7). Lo que de verdad hacia falta —que el
+     * presupuesto del mes que viene tenga en cuenta lo del mes pasado— lo
+     * resuelve el arrastre de los sobres, y lo prueba SobresTest.
+     */
 }

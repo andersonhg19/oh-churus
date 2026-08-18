@@ -165,6 +165,9 @@
             "format" : "int64",
             "type" : "integer"
           },
+          "reimbursable" : {
+            "type" : "boolean"
+          },
           "type" : {
             "enum" : [
               "INCOME",
@@ -395,6 +398,35 @@
           "amount",
           "categoryId",
           "date"
+        ],
+        "type" : "object"
+      },
+      "MoverEntreSobresDTO" : {
+        "properties" : {
+          "amount" : {
+            "type" : "number"
+          },
+          "budgetStartDay" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "fromCategoryId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "referenceDate" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "toCategoryId" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [
+          "amount",
+          "fromCategoryId",
+          "toCategoryId"
         ],
         "type" : "object"
       },
@@ -872,6 +904,36 @@
         ]
       }
     },
+    "/v1/budget-allocation/envelopes" : {
+      "post" : {
+        "operationId" : "envelopes",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AsignacionPeriodoDTO"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [
+          "budget-allocation-controller"
+        ]
+      }
+    },
     "/v1/budget-allocation/list" : {
       "post" : {
         "operationId" : "list",
@@ -880,6 +942,36 @@
             "application/json" : {
               "schema" : {
                 "$ref" : "#/components/schemas/AsignacionPeriodoDTO"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [
+          "budget-allocation-controller"
+        ]
+      }
+    },
+    "/v1/budget-allocation/move" : {
+      "post" : {
+        "operationId" : "move",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/MoverEntreSobresDTO"
               }
             }
           },

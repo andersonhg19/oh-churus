@@ -20,5 +20,8 @@ public class ResultCategoryDTO {
     private CategoryType type;
     private Boolean active;
     private Long householdId;
+
+    /** "Es dinero que me van a devolver": no descuenta su sobregiro del total. */
+    private Boolean reimbursable;
     private Boolean shared = false;
 }

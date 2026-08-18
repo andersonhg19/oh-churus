@@ -24,13 +24,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  * LAS DOS @Query DE BudgetAllocationRepository, CONTRA POSTGRESQL
  * ============================================================================
  *
- * `findExpiredActive` es la que cierra sola los presupuestos del periodo
- * anterior, y tiene una rareza que merece una prueba propia: compara un enum
- * de dominio con un LITERAL de texto escrito dentro del JPQL
- * (`a.status = 'ACTIVE'`). La columna es un VARCHAR, asi que funciona, pero es
- * el tipo de comparacion que un motor puede resolver distinto que otro —y si
- * dejara de encontrar filas, el sintoma no seria un error sino presupuestos
- * que se quedan abiertos para siempre y siguen contando en el mes siguiente.
+ * `findTodasParaElArrastre` es la que sostiene los sobres: trae TODAS las
+ * asignaciones de una persona, de cualquier periodo, porque el disponible de
+ * este mes depende de lo que sobro en todos los anteriores. Sustituyo a
+ * `findExpiredActive`, que buscaba asignaciones "vencidas" para cerrarlas y
+ * solo la llamaba un metodo al que no llamaba nadie.
  *
  * `findAllForUserAndHousehold` es la que decide que presupuestos ve cada
  * persona: las suyas mas las del hogar, para un periodo exacto.
@@ -68,12 +66,12 @@ class LasConsultasDePresupuestoCorrenEnPostgresTest extends PostgresDeVerdad {
         delHogar = categoria(ANA, hogar, "Servicios");
         Long deBeto = categoria(BETO, null, "Gasolina");
 
-        asignacion(ANA, deAna, null, MARZO, FIN_DE_MARZO, "500000", "ACTIVE", true);
-        asignacion(BETO, delHogar, hogar, MARZO, FIN_DE_MARZO, "300000", "ACTIVE", true);
-        asignacion(BETO, deBeto, null, MARZO, FIN_DE_MARZO, "200000", "ACTIVE", true);
+        asignacion(ANA, deAna, null, MARZO, FIN_DE_MARZO, "500000", true);
+        asignacion(BETO, delHogar, hogar, MARZO, FIN_DE_MARZO, "300000", true);
+        asignacion(BETO, deBeto, null, MARZO, FIN_DE_MARZO, "200000", true);
         asignacion(ANA, deAna, null, MARZO.plusMonths(1), FIN_DE_MARZO.plusMonths(1),
-                "600000", "ACTIVE", true);
-        asignacion(ANA, delHogar, hogar, MARZO, FIN_DE_MARZO, "100000", "ACTIVE", false);
+                "600000", true);
+        asignacion(ANA, delHogar, hogar, MARZO, FIN_DE_MARZO, "100000", false);
     }
 
     private Long categoria(Long duena, Long hogarId, String nombre) {
@@ -83,11 +81,11 @@ class LasConsultasDePresupuestoCorrenEnPostgresTest extends PostgresDeVerdad {
     }
 
     private void asignacion(Long duena, Long categoriaId, Long hogarId, LocalDate inicio,
-                            LocalDate fin, String importe, String estado, boolean viva) {
+                            LocalDate fin, String importe, boolean viva) {
         asignaciones.saveAndFlush(BudgetAllocation.builder()
                 .userId(duena).categoryId(categoriaId).householdId(hogarId)
                 .periodStart(inicio).periodEnd(fin)
-                .allocatedAmount(new BigDecimal(importe)).status(estado).active(viva).build());
+                .allocatedAmount(new BigDecimal(importe)).active(viva).build());
     }
 
     private static List<String> importesDe(List<BudgetAllocation> lista) {
@@ -120,40 +118,49 @@ class LasConsultasDePresupuestoCorrenEnPostgresTest extends PostgresDeVerdad {
     }
 
     // ========================================================================
-    // 2. findExpiredActive
+    // 2. findTodasParaElArrastre
+
+    /*
+     * Aqui vivian tres pruebas de findExpiredActive. Se van con la consulta:
+     * la usaba autoCloseExpired(), que no tenia endpoint ni @Scheduled, asi
+     * que probaban un camino que nadie podia recorrer.
+     *
+     * Lo que las sustituye comprueba algo que si se ejecuta en cada apertura
+     * de la pantalla de presupuesto.
+     */
 
     @Test
-    @DisplayName("findExpiredActive: recoge las de periodos ya cerrados y solo esas")
-    void seRecogenLasDePeriodosCerrados() {
-        List<BudgetAllocation> caducadas = asignaciones.findExpiredActive(LocalDate.of(2026, 4, 15));
+    @DisplayName("findTodasParaElArrastre: trae los periodos ANTERIORES, no solo el actual")
+    void elArrastreNecesitaElPasado() {
+        List<BudgetAllocation> todas = asignaciones.findTodasParaElArrastre(ANA, List.of(hogar));
 
-        assertThat(importesDe(caducadas))
-                .as("las tres de marzo vivas y en ACTIVE han caducado a mitad de abril; "
-                        + "la de abril no, y la borrada tampoco")
-                .containsExactlyInAnyOrder("500000", "300000", "200000");
+        assertThat(todas)
+                .as("si solo devolviera el periodo actual, el arrastre seria siempre cero y "
+                        + "lo que sobro el mes pasado desapareceria sin dejar rastro")
+                .extracting(BudgetAllocation::getPeriodStart)
+                .contains(LocalDate.of(2026, 3, 1), LocalDate.of(2026, 4, 1));
     }
 
     @Test
-    @DisplayName("findExpiredActive: el dia del cierre no cuenta como caducado")
-    void elUltimoDiaTodaviaNoCaduca() {
-        /* La condicion es `periodEnd < :today`, estricta. El ultimo dia del
-           periodo la persona todavia esta presupuestando: cerrarselo ese mismo
-           dia seria quitarle el presupuesto mientras lo usa. */
-        List<BudgetAllocation> caducadas = asignaciones.findExpiredActive(FIN_DE_MARZO);
+    @DisplayName("findTodasParaElArrastre: vienen ordenadas de la mas vieja a la mas nueva")
+    void vienenEnOrden() {
+        /* El arrastre se calcula recorriendo periodos hacia adelante. Si la
+           base las devolviera desordenadas habria que ordenarlas en memoria, y
+           el dia que alguien se olvide el arrastre saldria mal sin avisar. */
+        List<LocalDate> periodos = asignaciones.findTodasParaElArrastre(ANA, List.of(hogar))
+                .stream().map(BudgetAllocation::getPeriodStart).toList();
 
-        assertThat(caducadas).isEmpty();
+        assertThat(periodos).isSorted();
     }
 
     @Test
-    @DisplayName("findExpiredActive: una asignacion ya CERRADA no se vuelve a recoger")
-    void laYaCerradaNoSeRepesca() {
-        /* El literal 'ACTIVE' del JPQL es lo unico que impide que el cierre
-           automatico vuelva a pasar por encima de lo que ya cerro. */
-        asignacion(ANA, deAna, null, LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 31),
-                "700000", "CLOSED", true);
+    @DisplayName("findTodasParaElArrastre: la desactivada no cuenta")
+    void laBorradaNoArrastra() {
+        /* Borrar una asignacion tiene que significar que deja de contar; si
+           siguiera entrando, el sobre arrastraria plata que el usuario quito
+           a proposito. */
+        List<BudgetAllocation> todas = asignaciones.findTodasParaElArrastre(ANA, List.of(hogar));
 
-        List<BudgetAllocation> caducadas = asignaciones.findExpiredActive(LocalDate.of(2026, 4, 15));
-
-        assertThat(importesDe(caducadas)).doesNotContain("700000");
+        assertThat(todas).allMatch(BudgetAllocation::getActive);
     }
 }

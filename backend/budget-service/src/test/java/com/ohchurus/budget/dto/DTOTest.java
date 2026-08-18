@@ -91,7 +91,35 @@ class DTOTest {
     @Test
     @DisplayName("CategorySaveDTO all fields via constructor and setters, including householdId")
     void testCategorySave() {
-        CategorySaveDTO dto = new CategorySaveDTO(1L, 2L, "Cat", "Desc", 3L, "icon", "#FFF", CategoryType.INCOME, 100L);
+        /*
+         * El cuarto y ultimo constructor posicional de este fichero, con el
+         * mismo tratamiento que Movement, MovementSaveDTO y Category: por
+         * reflexion que EXISTA, y los valores con setters, que nombran cada
+         * campo.
+         *
+         * Los cuatro se rompieron al crecer su clase, y ninguna de esas roturas
+         * senalaba un problema real: solo argumentos que recolocar. Peor, una
+         * lista de nueve parametros con tres Long y dos String seguidos acepta
+         * encantada dos intercambiados y sigue en verde.
+         */
+        long camposDelDto = java.util.Arrays.stream(CategorySaveDTO.class.getDeclaredFields())
+                .filter(f -> !java.lang.reflect.Modifier.isStatic(f.getModifiers()))
+                .filter(f -> !f.isSynthetic())
+                .count();
+        assertTrue(java.util.Arrays.stream(CategorySaveDTO.class.getDeclaredConstructors())
+                        .anyMatch(c -> c.getParameterCount() == camposDelDto),
+                "@AllArgsConstructor dejo de generarse para CategorySaveDTO");
+
+        CategorySaveDTO dto = new CategorySaveDTO();
+        dto.setId(1L);
+        dto.setUserId(2L);
+        dto.setName("Cat");
+        dto.setDescription("Desc");
+        dto.setParentId(3L);
+        dto.setIcon("icon");
+        dto.setColor("#FFF");
+        dto.setType(CategoryType.INCOME);
+        dto.setHouseholdId(100L);
         assertEquals(1L, dto.getId());
         assertEquals(2L, dto.getUserId());
         assertEquals("Cat", dto.getName());
@@ -626,11 +654,28 @@ class DTOTest {
         assertNotNull(cat2.getCreatedAt());
         assertNotNull(cat2.getUpdatedAt());
 
-        // AllArgs
+        /* Mismo tratamiento que Movement y MovementSaveDTO: por reflexion que
+           el constructor EXISTA, y el ida y vuelta con el builder, que nombra
+           cada campo. El posicional se rompia cada vez que la entidad crecia
+           —ahora con `reimbursable`— y ademas aceptaba encantado dos Boolean
+           intercambiados. */
         LocalDateTime now = LocalDateTime.now();
-        Category cat3 = new Category(1L, 2L, "N", "D", 3L, "i", "#F", 50L, CategoryType.INCOME, true, now, now);
+        long camposDeCategoria = java.util.Arrays.stream(Category.class.getDeclaredFields())
+                .filter(f -> !java.lang.reflect.Modifier.isStatic(f.getModifiers()))
+                .filter(f -> !f.isSynthetic())
+                .count();
+        assertTrue(java.util.Arrays.stream(Category.class.getDeclaredConstructors())
+                        .anyMatch(c -> c.getParameterCount() == camposDeCategoria),
+                "@AllArgsConstructor dejo de generarse para Category");
+
+        Category cat3 = Category.builder()
+                .id(1L).userId(2L).name("N").description("D").parentId(3L)
+                .icon("i").color("#F").householdId(50L).type(CategoryType.INCOME)
+                .reimbursable(false).active(true).createdAt(now).updatedAt(now)
+                .build();
         assertEquals("N", cat3.getName());
         assertEquals(50L, cat3.getHouseholdId());
+        assertFalse(cat3.getReimbursable());
     }
 
     @Test
@@ -816,7 +861,7 @@ class DTOTest {
                 .id(1L).userId(2L).categoryId(3L).householdId(4L)
                 .periodStart(start).periodEnd(end)
                 .allocatedAmount(new BigDecimal("500000"))
-                .status("ACTIVE").notes("test").active(true).build();
+                .notes("test").active(true).build();
         assertEquals(1L, ba.getId());
         assertEquals(2L, ba.getUserId());
         assertEquals(3L, ba.getCategoryId());
@@ -824,7 +869,6 @@ class DTOTest {
         assertEquals(start, ba.getPeriodStart());
         assertEquals(end, ba.getPeriodEnd());
         assertEquals(new BigDecimal("500000"), ba.getAllocatedAmount());
-        assertEquals("ACTIVE", ba.getStatus());
         assertEquals("test", ba.getNotes());
         assertTrue(ba.getActive());
     }

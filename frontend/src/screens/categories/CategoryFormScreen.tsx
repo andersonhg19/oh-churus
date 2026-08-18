@@ -41,6 +41,7 @@ const CategoryFormScreen: React.FC<Props> = ({ navigation, route }) => {
   const [icon, setIcon] = useState(existing?.icon || '');
   const [color, setColor] = useState(existing?.color || '');
   const [shared, setShared] = useState(!!existing?.householdId);
+  const [reembolsable, setReembolsable] = useState(!!existing?.reimbursable);
   const [householdId, setHouseholdId] = useState<number | null>(null);
 
   /*
@@ -105,6 +106,7 @@ const CategoryFormScreen: React.FC<Props> = ({ navigation, route }) => {
         icon: icon || undefined,
         color: color || undefined,
         householdId: shared && householdId ? householdId : null,
+        reimbursable: reembolsable,
       };
       const res = await categoryService.save(data);
       if (res.correct) {
@@ -115,7 +117,7 @@ const CategoryFormScreen: React.FC<Props> = ({ navigation, route }) => {
     } catch (err: any) {
       showToast('error', 'Error', err.message || 'No se pudo guardar');
     }
-  }, [name, description, type, parentId, icon, color, shared, householdId, isEdit, existing, user, navigation, showToast]);
+  }, [name, description, type, parentId, icon, color, shared, householdId, reembolsable, isEdit, existing, user, navigation, showToast]);
 
   const { ejecutando: guardando, ejecutar: handleSave } = useAccionUnica(guardarCategoria);
 
@@ -240,6 +242,31 @@ const CategoryFormScreen: React.FC<Props> = ({ navigation, route }) => {
           </View>
         </View>
       )}
+      {type === 'EXPENSE' && (
+        <>
+          <TouchableOpacity
+            testID="alternar-reembolsable"
+            onPress={() => setReembolsable((antes) => !antes)}
+            style={[
+              styles.interruptor,
+              {
+                backgroundColor: reembolsable ? colors.secondary : colors.surface,
+                borderColor: reembolsable ? colors.secondary : colors.border,
+              },
+            ]}
+          >
+            <AppText variant="body" color={reembolsable ? '#FFFFFF' : colors.text}>
+              {reembolsable ? '✓ ' : ''}Es dinero que me van a devolver
+            </AppText>
+          </TouchableOpacity>
+          <AppText variant="caption" color={colors.textSecondary} style={styles.ayudaInterruptor}>
+            Si te pasas en esta categoria, el sobregiro no se descuenta de lo que tienes para
+            repartir el mes que viene. Para cosas como la cuenta del almuerzo del equipo, que
+            la empresa te reembolsa.
+          </AppText>
+        </>
+      )}
+
 
       <Button
         title={isEdit ? 'Actualizar' : 'Guardar'}
@@ -282,6 +309,15 @@ const ICON_EMOJIS: Record<string, string> = {
 };
 
 const styles = StyleSheet.create({
+  interruptor: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+    marginBottom: spacing.xs,
+  },
+  ayudaInterruptor: { marginBottom: spacing.md },
   container: { flex: 1 },
   content: { padding: spacing.xl, paddingBottom: spacing.xxl * 2 },
   title: { marginBottom: spacing.lg },

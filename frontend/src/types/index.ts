@@ -145,6 +145,70 @@ export interface EnvelopeMove {
   message: string;
 }
 
+/**
+ * Una fila del extracto tal y como la devuelve la vista previa.
+ *
+ * `suggestedCategoryId` sale del diccionario que la app aprendio de tus
+ * importaciones anteriores; `matchedMovementId` viene relleno cuando la fila
+ * casa con algo que ya tenias.
+ */
+export interface ImportRow {
+  row: number;
+  date: string;
+  amount: number;
+  description?: string;
+  externalId?: string;
+  suggestedType: CategoryType;
+  suggestedCategoryId?: string;
+  matchedMovementId?: string;
+  reason: string;
+}
+
+/**
+ * TRES listas, no dos.
+ *
+ *   newRows        no estaban: se crean
+ *   duplicates     ya estaban: no se tocan
+ *   confirmPending casan con un pendiente que genero una recurrencia, asi que
+ *                  lo CONFIRMAN en vez de crear otro. Sin esta tercera lista,
+ *                  importar el arriendo dejaria el pendiente colgando para
+ *                  siempre y el gasto contado dos veces.
+ */
+export interface ImportPreview {
+  newRows: ImportRow[];
+  duplicates: ImportRow[];
+  confirmPending: ImportRow[];
+  total: number;
+}
+
+export interface ImportRowChoice {
+  row: number;
+  categoryId?: string;
+  /** Cuando la fila confirma un pendiente en vez de crear un movimiento. */
+  confirmsMovementId?: string;
+}
+
+export interface ImportResult {
+  created: number;
+  confirmed: number;
+  skipped: string[];
+  message: string;
+}
+
+/** El mapeo de columnas recordado por banco. */
+export interface ImportProfile {
+  id: string;
+  bankName: string;
+  dateColumn: number;
+  amountColumn: number;
+  descriptionColumn?: number;
+  externalIdColumn?: number;
+  datePattern?: string;
+  decimalSeparator?: string;
+  hasHeader: boolean;
+  invertSign: boolean;
+}
+
 export type SplitMode = 'EQUAL' | 'SHARES' | 'PERCENT' | 'AMOUNT';
 
 /**

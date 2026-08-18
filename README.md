@@ -100,7 +100,7 @@ POST http://localhost:8820/BUDGET-SERVICE/oh-churus/v1/dashboard/summary
 POST http://localhost:8820/FASTING-SERVICE/oh-churus/v1/fasting/session/active
 ```
 
-Son 65 endpoints y **todos son POST** con el cuerpo en JSON. La respuesta es
+Son 70 endpoints y **todos son POST** con el cuerpo en JSON. La respuesta es
 siempre HTTP 200 con un `ResultDTO`:
 
 ```json

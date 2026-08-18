@@ -85,6 +85,19 @@ public class Movement {
     private Boolean isOpening = false;
 
     /**
+     * La referencia que le dio el BANCO a esta operacion, si vino en el
+     * extracto importado.
+     *
+     * Es la unica senal fiable de que dos filas son la misma operacion: el
+     * importe se repite, la fecha baila —el banco fecha la compra el dia que
+     * la liquida— y la descripcion la reescribe cualquiera. Se guarda para que
+     * el cotejo de la SIGUIENTE importacion la pueda usar; sin ella habria que
+     * adivinar por importe y fecha teniendo el dato exacto delante.
+     */
+    @Column(length = 120)
+    private String externalId;
+
+    /**
      * Como se reparte este gasto entre varias personas. Nulo = no se reparte,
      * que es el caso de la inmensa mayoria.
      *

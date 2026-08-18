@@ -32,6 +32,7 @@ import AccountFormScreen from '../screens/accounts/AccountFormScreen';
 import ReconcileScreen from '../screens/accounts/ReconcileScreen';
 import BalancesScreen from '../screens/splits/BalancesScreen';
 import EnvelopesScreen from '../screens/budget/EnvelopesScreen';
+import ImportScreen from '../screens/settings/ImportScreen';
 
 // Budget & Consolidated screens
 import BudgetScreen from '../screens/budget/BudgetScreen';
@@ -79,6 +80,7 @@ type BudgetStackParamList = {
 type SettingsStackParamList = {
   SettingsMain: undefined;
   ExportImport: undefined;
+  Import: undefined;
   PeriodConfig: undefined;
   Household: undefined;
   Consolidated: undefined;
@@ -175,6 +177,7 @@ const SettingsNavigator = () => {
     >
       <SettingsStack.Screen name="SettingsMain" component={SettingsScreen} options={{ headerShown: false }} />
       <SettingsStack.Screen name="ExportImport" component={ExportImportScreen} options={{ title: 'Exportar / Importar' }} />
+      <SettingsStack.Screen name="Import" component={ImportScreen} options={{ title: 'Importar del banco' }} />
       <SettingsStack.Screen name="PeriodConfig" component={PeriodConfigScreen} options={{ title: 'Configuracion de periodo' }} />
       <SettingsStack.Screen name="Household" component={HouseholdScreen} options={{ title: 'Nucleo Familiar' }} />
       <SettingsStack.Screen name="CategoriesList" component={CategoriesScreen} options={{ title: 'Categorias' }} />

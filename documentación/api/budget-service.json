@@ -222,6 +222,23 @@
         },
         "type" : "object"
       },
+      "FilaAImportarDTO" : {
+        "properties" : {
+          "categoryId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "confirmsMovementId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "row" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
       "GeneratePendingRequestDTO" : {
         "properties" : {
           "budgetStartDay" : {
@@ -247,6 +264,65 @@
             "type" : "integer"
           }
         },
+        "type" : "object"
+      },
+      "ImportarDTO" : {
+        "properties" : {
+          "accountId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "amountColumn" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "bankName" : {
+            "type" : "string"
+          },
+          "csv" : {
+            "type" : "string"
+          },
+          "dateColumn" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "datePattern" : {
+            "type" : "string"
+          },
+          "decimalSeparator" : {
+            "type" : "string"
+          },
+          "descriptionColumn" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "externalIdColumn" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "hasHeader" : {
+            "type" : "boolean"
+          },
+          "invertSign" : {
+            "type" : "boolean"
+          },
+          "profileId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "rememberProfile" : {
+            "type" : "boolean"
+          },
+          "rows" : {
+            "items" : {
+              "$ref" : "#/components/schemas/FilaAImportarDTO"
+            },
+            "type" : "array"
+          }
+        },
+        "required" : [
+          "csv"
+        ],
         "type" : "object"
       },
       "InvitacionPorCorreoDTO" : {
@@ -1587,6 +1663,86 @@
         },
         "tags" : [
           "household-controller"
+        ]
+      }
+    },
+    "/v1/import/confirm" : {
+      "post" : {
+        "operationId" : "confirm_1",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ImportarDTO"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [
+          "importacion-controller"
+        ]
+      }
+    },
+    "/v1/import/preview" : {
+      "post" : {
+        "operationId" : "preview",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ImportarDTO"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [
+          "importacion-controller"
+        ]
+      }
+    },
+    "/v1/import/profiles" : {
+      "post" : {
+        "operationId" : "profiles",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [
+          "importacion-controller"
         ]
       }
     },

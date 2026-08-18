@@ -338,11 +338,11 @@ app.decimal-places=0
 
 | Previsto en marzo | Hoy |
 |---|---|
-| 4 entidades (User, Category, Movement, ScheduledMovement) | **13 entidades** |
+| 4 entidades (User, Category, Movement, ScheduledMovement) | **15 entidades** |
 | 3 microservicios de negocio (auth, core, budget) | **auth, budget y fasting** (core se fusionó en budget) |
 | 2 bases de datos de negocio | **3**: `auth_db`, `budget_db`, `fasting_db` |
 | Finanzas personales para una persona | Finanzas **+ núcleo familiar compartido + ayuno intermitente** |
-| 28 endpoints en la colección Postman | **65 endpoints** |
+| 28 endpoints en la colección Postman | **70 endpoints** |
 
 Las siete entidades que no estaban en el enunciado:
 

@@ -3541,6 +3541,100 @@
           ]
         },
         {
+          "name": "Sobres",
+          "description": "LA REGLA, y es asimetrica a proposito: lo que SOBRA en una categoria se queda en ella para el mes siguiente; lo que te PASASTE no se arrastra a la categoria, se descuenta de lo que tienes para repartir. Arrastrar el sobregiro a la propia categoria castigaria dos veces. El arrastre NO se guarda: se recalcula desde el primer periodo con datos en cada peticion.",
+          "item": [
+            {
+              "name": "Ver los sobres del periodo",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/BUDGET-SERVICE/oh-churus/v1/budget-allocation/envelopes",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "BUDGET-SERVICE",
+                    "oh-churus",
+                    "v1",
+                    "budget-allocation",
+                    "envelopes"
+                  ]
+                },
+                "description": "Devuelve cada sobre con allocated, carryover, spent y available, mas toBudget (lo que queda por repartir) y carriedDebt (lo que te pasaste el mes pasado). Cada fila trae ademas la palabra escrita: un estado nunca puede depender solo del signo o del color.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"budgetStartDay\": 1\n}"
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const r = pm.response.json();",
+                      "pm.test('Responde 200', () => pm.response.to.have.status(200));",
+                      "pm.test('correct = true', () => pm.expect(r.correct, r.message).to.be.true);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Mover entre dos sobres",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/BUDGET-SERVICE/oh-churus/v1/budget-allocation/move",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "BUDGET-SERVICE",
+                    "oh-churus",
+                    "v1",
+                    "budget-allocation",
+                    "move"
+                  ]
+                },
+                "description": "La operacion que hace util la regla asimetrica: cuando te pasaste, la respuesta no es sentirse mal, es decidir de que otro sobre sale. Las DOS categorias tienen que ser tuyas; comprobando solo el destino se podria vaciar el sobre de otra persona.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"fromCategoryId\": \"{{categoriaId}}\",\n    \"toCategoryId\": \"{{categoriaDestinoId}}\",\n    \"amount\": 50000,\n    \"budgetStartDay\": 1\n}"
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const r = pm.response.json();",
+                      "pm.test('Responde 200', () => pm.response.to.have.status(200));",
+                      "pm.test('correct = true', () => pm.expect(r.correct, r.message).to.be.true);"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
           "name": "Nucleo familiar",
           "description": "El hogar compartido: crear, invitar, sacar y consultar.",
           "item": [
@@ -4731,6 +4825,144 @@
                         "excel"
                       ]
                     }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Importar del banco",
+          "description": "DOS PASOS, y el primero NO ESCRIBE NADA. Es lo que decide si la app se usa o se abandona: nadie la deja por informes feos, todo el mundo la deja por teclear sesenta movimientos al mes.",
+          "item": [
+            {
+              "name": "Vista previa del extracto",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/BUDGET-SERVICE/oh-churus/v1/import/preview",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "BUDGET-SERVICE",
+                    "oh-churus",
+                    "v1",
+                    "import",
+                    "preview"
+                  ]
+                },
+                "description": "Devuelve TRES listas: newRows, duplicates y confirmPending. La tercera es la que nadie piensa en poner y la que evita el peor resultado: importar el arriendo como nuevo dejando colgado el pendiente que lo esperaba, con el gasto contado dos veces. No escribe nada.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"csv\": \"fecha,concepto,valor,referencia\\n2026-08-01,COMPRA EXITO,-45000,REF-1\\n\",\n    \"dateColumn\": 0,\n    \"descriptionColumn\": 1,\n    \"amountColumn\": 2,\n    \"externalIdColumn\": 3,\n    \"hasHeader\": true\n}"
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const r = pm.response.json();",
+                      "pm.test('Responde 200', () => pm.response.to.have.status(200));",
+                      "pm.test('correct = true', () => pm.expect(r.correct, r.message).to.be.true);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Importar lo aceptado",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/BUDGET-SERVICE/oh-churus/v1/import/confirm",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "BUDGET-SERVICE",
+                    "oh-churus",
+                    "v1",
+                    "import",
+                    "confirm"
+                  ]
+                },
+                "description": "El CSV viaja otra vez a proposito: asi el servidor vuelve a leer EXACTAMENTE lo que se vio en la vista previa. Una fila sin categoria valida se OMITE en vez de caer en 'Otros' — meter sesenta gastos ahi es lo que hace que despues nadie se fie del presupuesto. Al confirmar, la app aprende que descripcion va en que categoria.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"csv\": \"fecha,concepto,valor,referencia\\n2026-08-01,COMPRA EXITO,-45000,REF-1\\n\",\n    \"dateColumn\": 0,\n    \"descriptionColumn\": 1,\n    \"amountColumn\": 2,\n    \"externalIdColumn\": 3,\n    \"hasHeader\": true,\n    \"rememberProfile\": true,\n    \"bankName\": \"Bancolombia\",\n    \"rows\": [\n        {\n            \"row\": 1,\n            \"categoryId\": \"{{categoriaId}}\"\n        }\n    ]\n}"
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const r = pm.response.json();",
+                      "pm.test('Responde 200', () => pm.response.to.have.status(200));",
+                      "pm.test('correct = true', () => pm.expect(r.correct, r.message).to.be.true);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Perfiles de banco guardados",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/BUDGET-SERVICE/oh-churus/v1/import/profiles",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "BUDGET-SERVICE",
+                    "oh-churus",
+                    "v1",
+                    "import",
+                    "profiles"
+                  ]
+                },
+                "description": "El mapeo de columnas se recuerda POR BANCO: la misma persona exporta de Bancolombia y de Nequi, y los formatos no se parecen en nada.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{}"
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const r = pm.response.json();",
+                      "pm.test('Responde 200', () => pm.response.to.have.status(200));",
+                      "pm.test('correct = true', () => pm.expect(r.correct, r.message).to.be.true);"
+                    ]
                   }
                 }
               ]
@@ -6444,6 +6676,11 @@
     },
     {
       "key": "cuentaId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "categoriaDestinoId",
       "value": "",
       "type": "string"
     }

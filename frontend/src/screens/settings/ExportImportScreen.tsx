@@ -38,7 +38,7 @@ const leerFalloEnJson = async (datos: any): Promise<string | null> => {
   }
 };
 
-const ExportImportScreen: React.FC = () => {
+const ExportImportScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { colors } = useTheme();
   const { showToast } = useToast();
   const { user } = useAuth();
@@ -112,11 +112,12 @@ const ExportImportScreen: React.FC = () => {
       </Card>
 
       <Card style={styles.section}>
-        <AppText variant="label" style={styles.sectionTitle}>Importar desde Excel</AppText>
+        <AppText variant="label" style={styles.sectionTitle}>Importar del banco</AppText>
         <AppText variant="caption" color={colors.textSecondary} style={styles.hint}>
-          Proximamente: carga un archivo Excel con el mismo formato para importar movimientos
+          Pega el CSV que descargaste del banco. Antes de guardar nada vas a ver que se va a
+          crear, que ya tenias y que confirma un pago que la app estaba esperando.
         </AppText>
-        <Button title="Importar Excel" onPress={() => showToast('info', 'Proximamente', 'Esta funcionalidad estara disponible pronto')} variant="outline" style={styles.actionBtn} />
+        <Button testID="ir-a-importar" title="Importar del banco" onPress={() => navigation.navigate('Import')} variant="outline" style={styles.actionBtn} />
       </Card>
     </ScrollView>
   );

@@ -647,6 +647,62 @@ class AislamientoEntreUsuariosTest {
     }
 
     // ========================================================================
+    @Nested
+    @DisplayName("Importacion")
+    class Importacion {
+
+        @Test
+        @DisplayName("no puede meter movimientos importados en la categoria de Ana")
+        void importarADondeNoDebe() throws Exception {
+            /*
+             * Importar escribe movimientos de golpe, y ahi esta el peligro: una
+             * sola peticion con la categoria de otra persona le mete sesenta
+             * gastos que no hizo. No hay que adivinar el id de cada movimiento,
+             * basta uno de categoria.
+             */
+            long antes = movimientos.count();
+
+            atacar("/v1/import/confirm",
+                    "{\"csv\":\"fecha,concepto,valor\\n2026-08-01,Colado,-99999\\n\","
+                            + "\"dateColumn\":0,\"descriptionColumn\":1,\"amountColumn\":2,"
+                            + "\"hasHeader\":true,\"rows\":[{\"row\":1,\"categoryId\":"
+                            + categoriaDeAna + "}]}");
+
+            assertThat(movimientos.count())
+                    .as("le importo un gasto dentro de la categoria de Ana")
+                    .isEqualTo(antes);
+        }
+
+        @Test
+        @DisplayName("no puede confirmar un pendiente de Ana haciendolo pasar por suyo")
+        void confirmarPendienteAjeno() throws Exception {
+            /* Confirmar un pendiente ajeno le convierte a Ana en gasto real algo
+               que ella todavia no habia dado por pagado, y le descuadra el mes
+               sin que aparezca ningun movimiento nuevo que lo explique. */
+            atacar("/v1/import/confirm",
+                    "{\"csv\":\"fecha,concepto,valor\\n2026-08-01,Arriendo,-1500000\\n\","
+                            + "\"dateColumn\":0,\"descriptionColumn\":1,\"amountColumn\":2,"
+                            + "\"hasHeader\":true,\"rows\":[{\"row\":1,"
+                            + "\"confirmsMovementId\":" + movimientoDeAna + "}]}");
+
+            assertThat(movimientos.findById(movimientoDeAna).orElseThrow().getConfirmed())
+                    .as("le confirmaron a Ana un movimiento desde fuera")
+                    .isTrue();
+        }
+
+        @Test
+        @DisplayName("la vista previa no le ensena los movimientos de Ana")
+        void laVistaPreviaNoFiltra() throws Exception {
+            noFiltraDatosDeAna(
+                    atacar("/v1/import/preview",
+                            "{\"csv\":\"fecha,concepto,valor\\n2026-08-01,Arriendo,-1500000\\n\","
+                                    + "\"dateColumn\":0,\"descriptionColumn\":1,"
+                                    + "\"amountColumn\":2,\"hasHeader\":true}"),
+                    "Arriendo de Ana");
+        }
+    }
+
+    // ========================================================================
     @Test
     @DisplayName("sin token no se llega a nada")
     void sinToken() throws Exception {

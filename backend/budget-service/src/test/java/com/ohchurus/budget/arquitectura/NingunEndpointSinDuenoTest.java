@@ -108,6 +108,13 @@ class NingunEndpointSinDuenoTest {
         EXENTAS.put("/v1/budget-allocation/summary", new Exencion(
                 "no recibe ningun id: el userId sale del token y el del cuerpo se ignora",
                 "/v1/dashboard/summary"));
+        EXENTAS.put("/v1/import/preview", new Exencion(
+                "no recibe ningun id ajeno: lee el CSV que le mandan y lo coteja contra los "
+                        + "movimientos de quien pide, que salen del token. No escribe nada",
+                "/v1/dashboard/summary"));
+        EXENTAS.put("/v1/import/profiles", new Exencion(
+                "devuelve los perfiles de banco de quien pide: el userId sale del token",
+                "/v1/dashboard/summary"));
         EXENTAS.put("/v1/budget-allocation/envelopes", new Exencion(
                 "no recibe ningun id: los sobres son los de quien pide, y del cuerpo solo "
                         + "se miran el dia de corte y la fecha",

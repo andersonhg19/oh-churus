@@ -21,6 +21,10 @@ interface ButtonProps {
   disabled?: boolean;
   size?: ButtonSize;
   style?: ViewStyle;
+  /* Para que las pruebas puedan senalar un boton concreto sin depender de su
+     texto: hay pantallas donde el titulo de la seccion y el del boton dicen lo
+     mismo, y getByText encuentra dos. */
+  testID?: string;
 }
 
 const Button: React.FC<ButtonProps> = ({
@@ -31,6 +35,7 @@ const Button: React.FC<ButtonProps> = ({
   disabled = false,
   size = 'medium',
   style,
+  testID,
 }) => {
   const { colors } = useTheme();
 
@@ -92,6 +97,7 @@ const Button: React.FC<ButtonProps> = ({
 
   return (
     <TouchableOpacity
+      testID={testID}
       style={[containerStyle, style]}
       onPress={onPress}
       disabled={disabled || loading}

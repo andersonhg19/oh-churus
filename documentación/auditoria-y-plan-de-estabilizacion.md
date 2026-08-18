@@ -236,6 +236,14 @@ Resultado: **los fallos no se manifiestan, se disfrazan de estado vacío.** Toke
 
 *Aquí ya no arreglas: decides qué producto es. El orden importa porque hay una dependencia dura.*
 
+> **HECHA, del 12 al 18 de agosto de 2026.** Las seis entradas están cerradas y
+> publicadas. El detalle de cada una —y de los tres fallos que aparecieron solos
+> por el camino, incluido uno que dejaba cincuenta pruebas de Testcontainers en
+> verde sin ejecutar ni una— está en `seguimiento/bitacora.md`, tercera parte.
+>
+> Lo que sigue sin hacer es lo de la sección 4, *Lo que NO hay que hacer*, y
+> sigue sin hacerse por los motivos que ahí se explican.
+
 #### 3.1 — Cuentas y saldo calculado (**el cimiento**)
 
 **Qué:** dos clases de cuenta (`propia`, `pasivo`). El saldo **nunca se guarda, se calcula** (`saldoInicial + Σ movimientos`), como en Firefly III y Maybe. Movimiento de tipo `apertura` con fecha explícita, no un campo de la cuenta. Migración: lo existente va a una cuenta "Sin asignar" — nadie clasifica 400 movimientos para poder abrir la app. Conciliación pobre pero suficiente: "¿cuánto dice tu banco?" → si hay diferencia, crear movimiento de ajuste.

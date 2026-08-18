@@ -599,3 +599,130 @@ calculado, reparto de gastos entre personas, sobres con arrastre, importación
 CSV, recurrencias reales y el resto de la infraestructura de confianza
 (Testcontainers y `@DataJpaTest` para las consultas JPQL, OpenAPI con la spec
 versionada). De esa lista, **Karate por el gateway en CI ya está hecho**.
+
+---
+
+## Tercera parte — la Ola 3, del 12 al 18 de agosto de 2026
+
+Aquí se dejó de arreglar y se empezó a decidir qué producto es. Las seis
+entradas de la Ola 3 están hechas.
+
+### 3.1 · Cuentas y saldo calculado
+
+La app dejó de ser una lista de deseos. Antes decía "gastaste 500.000 en
+mercado" —cierto, y contrastable contra nada—; ahora dice "en tu cuenta hay
+3.500.000", y el banco lo confirma o lo desmiente. Ese es el momento en que uno
+empieza a fiarse de lo que ve.
+
+**El saldo nunca se guarda.** Se calcula sumando los movimientos en cada
+petición. Un saldo guardado se desincroniza de los movimientos que resume y
+entonces no hay forma de saber cuál de los dos miente. **El saldo inicial
+tampoco es un campo**: es un movimiento de apertura con su fecha, porque con un
+campo solo se puede calcular el saldo de hoy y no el de un día cualquiera —que
+es justo lo que hace falta para conciliar contra un extracto viejo.
+
+Salió una distinción que no era obvia: **"qué suma en el presupuesto" y "qué
+mueve el saldo" no son la misma pregunta.** Difieren en los dos casos que más
+importan: la transferencia no suma pero sí mueve saldo, y la apertura tampoco
+suma pero es de donde sale el saldo inicial.
+
+Probado contra el volcado real (36 movimientos, 2 personas) restaurado en un
+Postgres desechable: 0 movimientos sin cuenta y 2 cuentas creadas.
+
+### 3.2 · El reparto entre personas
+
+La regla de oro: un gasto de 120.000 pagado por ti entre tres son **120.000 en
+tu cuenta** —eso salió del banco y tiene que cuadrar con el extracto— pero solo
+**40.000 en tu categoría**, porque eso es lo que gastaste tú. Los otros 80.000
+son un derecho de cobro, no un gasto.
+
+Las dos mitades tienen que cumplirse a la vez, y ahí está la gracia: si el
+reparto tocara el saldo, la app dejaría de cuadrar con el banco; si no tocara la
+categoría, el presupuesto seguiría mintiendo cada vez que alguien pone la cuenta
+del restaurante.
+
+Nadie más lo resuelve entero: Firefly III documenta compartir usuario y
+contraseña, YNAB tiene un producto de terceros para taparlo, Monarch asume bolsa
+común y Splitwise no presupuesta.
+
+### 3.3 · Sobres con la regla asimétrica
+
+Lo que sobra en una categoría se queda; lo que te pasaste se descuenta de lo que
+tienes para repartir el mes que viene. **Asimétrica a propósito**: arrastrar el
+sobregiro a la propia categoría castiga dos veces.
+
+El arrastre **no se guarda**: se recalcula desde el primer periodo con datos, por
+el mismo motivo que el saldo. Se fue con esto el `status` de las asignaciones,
+que nunca significó nada —lo único que lo cambiaba era un método sin endpoint ni
+`@Scheduled`— junto con las tres pruebas que lo cubrían con todo detalle.
+
+### 3.4 · Importar el extracto del banco
+
+Es lo que decide si la app se usa o se abandona: nadie la deja por informes
+feos, todo el mundo la deja por teclear sesenta movimientos al mes. Sustituye al
+botón "Importar Excel" que solo abría un aviso de *próximamente*.
+
+Dos pasos, y el primero no escribe nada. **Tres listas**: nuevos, duplicados, y
+los que confirman un pendiente que ya esperaba una recurrencia — la tercera es
+la que evita importar el arriendo como nuevo dejando el pendiente colgando.
+
+### 3.5 · Recurrencias reales
+
+`DAILY`, `WEEKLY` y `BIWEEKLY` generaban todos lo mismo: un movimiento al mes.
+Ahora las ocurrencias se enumeran desde el ancla, hay patrón "el tercer viernes"
+y política de fin de semana, y más de cinco ocurrencias atrasadas se **proponen**
+en vez de crearse en silencio.
+
+### 3.6 · Infraestructura de confianza
+
+18 sentencias JPQL que nunca se habían ejecutado contra un motor real ahora
+corren contra PostgreSQL en Testcontainers. La spec OpenAPI se genera del código
+y está commiteada, con un guardarraíl que rompe el build si queda atrás.
+
+---
+
+## Tres fallos que aparecieron solos, y son los más valiosos
+
+**1. Testcontainers en verde sin ejecutar nada.** Testcontainers 1.19.7 pide la
+API 1.32 del demonio y Docker Engine 29 exige la 1.44. El síntoma no es un
+error: concluye "aquí no hay Docker" habiéndolo, se salta las 50 pruebas y deja
+la construcción **en verde**. Habrían sido cincuenta pruebas decorativas.
+
+**2. La ventana de generación dependía de quién refrescaba.** Una prueba llevaba
+días en verde y se puso roja sola: había cambiado la fecha del sistema. El corte
+de uno es el 1 y el del otro el 15, así que a partir del día 15 el refresco del
+segundo le creaba al primero el arriendo del mes siguiente. El mismo programado
+generaba cosas distintas según quién abriera la app y qué día fuera.
+
+**3. Pruebas que dependían del orden de ejecución.** Un escenario no limpiaba
+los programados, y el orden por defecto de Maven es el del sistema de ficheros
+—que no coincide entre Windows y Linux—. Verde durante semanas en local, rojo en
+el CI. Auditando aparecieron **tres más** con la misma bomba sin estallar. Se
+arreglaron los cuatro escenarios y además se fijó el orden a alfabético, para
+que si alguna vuelve a depender de él falle igual en las dos partes.
+
+---
+
+## Estado a 2026-08-18
+
+| Comprobación | Resultado |
+|---|---|
+| `cd backend && mvn -B clean verify` | BUILD SUCCESS, **935 tests**, los tres suelos de cobertura cumplidos |
+| `cd frontend && npx tsc --noEmit` | sin errores |
+| `cd frontend && npx jest --coverage --ci` | **66 suites, 420 tests** |
+| CI `Pruebas` (backend + frontend + Karate por el gateway) | verde |
+| Matriz de aislamiento | 48 casos |
+| Pruebas de arquitectura | 12, y se comprobó que muerden rompiéndolas a propósito |
+| Endpoints | 70, con la spec generada del código y Postman contrastada contra ella |
+| Migraciones Flyway (budget) | V1 a V8 |
+
+**Lo único pendiente que no depende del código:** el `SONAR_TOKEN` caducó el 10
+de junio. El escáner corta con un 403 antes de mirar una línea; se renueva en
+SonarCloud (*My Account → Security*) y con `gh secret set SONAR_TOKEN`. No
+bloquea nada: quien decide es el workflow `Pruebas`.
+
+**Lo que queda como backlog**, y está en la sección "Lo que NO hay que hacer" de
+`../documentación/auditoria-y-plan-de-estabilizacion.md` con el motivo escrito:
+Row Level Security en Postgres, accesibilidad completa (0 `accessibilityLabel`
+en 22 pantallas), y el rediseño de identidad de marca. Ninguna es la razón por
+la que la app se sentía rota; esa lista ya está en cero.

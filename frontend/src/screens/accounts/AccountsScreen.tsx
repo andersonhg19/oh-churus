@@ -98,7 +98,11 @@ const AccountsScreen: React.FC<Props> = ({ navigation }) => {
           />
         ) : (
           <>
-            <Card style={styles.patrimonio}>
+            <Card
+              style={styles.patrimonio}
+              accessible
+              accessibilityLabel={`Patrimonio, lo que tienes menos lo que debes: ${formatCurrency(patrimonio)}`}
+            >
               <AppText variant="caption" color={colors.textSecondary}>
                 Patrimonio (lo que tienes menos lo que debes)
               </AppText>
@@ -121,6 +125,16 @@ const AccountsScreen: React.FC<Props> = ({ navigation }) => {
                   activeOpacity={0.7}
                   onPress={() => navigation.navigate('AccountForm', { account: cuenta })}
                   onLongPress={() => navigation.navigate('Reconcile', { account: cuenta })}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    `${cuenta.name}, ${cuenta.kind === 'LIABILITY' ? 'una deuda' : 'cuenta propia'}. ` +
+                    `${lectura.etiqueta} ${lectura.importe}` +
+                    (hayPendiente ? `. Contando lo pendiente: ${formatCurrency(cuenta.projectedBalance)}` : '')
+                  }
+                  /* Lo de mantener pulsado para conciliar solo se cuenta en una
+                     linea de texto al final de la lista, que quien va elemento
+                     por elemento oye media pantalla despues. */
+                  accessibilityHint="Ábrela para editarla, o manténla pulsada para conciliarla con tu banco"
                 >
                   <Card style={styles.cuenta}>
                     <View style={styles.filaCuenta}>
@@ -161,6 +175,8 @@ const AccountsScreen: React.FC<Props> = ({ navigation }) => {
         onPress={() => navigation.navigate('AccountForm', {})}
         activeOpacity={0.8}
         testID="nueva-cuenta"
+        accessibilityRole="button"
+        accessibilityLabel="Crear una cuenta"
       >
         <AppText variant="title" color="#FFFFFF" style={styles.fabText}>+</AppText>
       </TouchableOpacity>

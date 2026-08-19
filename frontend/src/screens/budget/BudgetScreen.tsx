@@ -269,6 +269,10 @@ const BudgetScreen: React.FC = () => {
           <TouchableOpacity
             style={[styles.addButton, { backgroundColor: colors.primary }]}
             onPress={openAddModal}
+            /* El "+" dibujado no dice nada en voz alta: lo que hace este boton
+               es abrir el formulario para ponerle presupuesto a una categoria. */
+            accessibilityRole="button"
+            accessibilityLabel="Poner presupuesto a una categoría"
           >
             <AppText variant="subtitle" color="#FFF">+</AppText>
           </TouchableOpacity>
@@ -299,11 +303,29 @@ const BudgetScreen: React.FC = () => {
                     ) : null}
                     <AppText variant="body" style={styles.categoryName}>{alloc.categoryName}</AppText>
                   </View>
-                  <TouchableOpacity onPress={() => handleDeleteAllocation(alloc.id, alloc.categoryName)}>
+                  {/* Hay un "Eliminar" por cada presupuesto de la lista. Sin
+                      el nombre de la categoria dentro, el lector suelta seis
+                      veces la misma palabra y no se sabe cual se borra. */}
+                  <TouchableOpacity
+                    onPress={() => handleDeleteAllocation(alloc.id, alloc.categoryName)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Eliminar el presupuesto de ${alloc.categoryName}`}
+                  >
                     <AppText variant="caption" color={colors.expense}>Eliminar</AppText>
                   </TouchableOpacity>
                 </View>
 
+                {/* La barra, las dos cifras y la varianza son una sola idea:
+                    cuanto llevas gastado de lo que pusiste. Sueltas, el lector
+                    va soltando numeros sin decir de que categoria son. */}
+                <View
+                  accessible
+                  accessibilityLabel={`${alloc.categoryName}: llevas gastado ${formatCurrency(alloc.actualSpent)} de ${formatCurrency(alloc.amount)}, un ${Math.round(pct)} por ciento. ${
+                    variance >= 0
+                      ? `Te quedan ${formatCurrency(variance)}`
+                      : `Te pasaste por ${formatCurrency(Math.abs(variance))}`
+                  }`}
+                >
                 {/* Progress bar */}
                 <View style={[styles.progressBarBg, { backgroundColor: colors.border }]}>
                   <View
@@ -332,6 +354,7 @@ const BudgetScreen: React.FC = () => {
                     ? `+${formatCurrency(variance)} favorable`
                     : `-${formatCurrency(Math.abs(variance))} excedido`}
                 </AppText>
+                </View>
               </Card>
             );
           })
@@ -356,16 +379,30 @@ const BudgetScreen: React.FC = () => {
         {/* Summary */}
         <Card style={styles.summaryCard}>
           <AppText variant="subtitle" style={styles.summaryTitle}>Resumen</AppText>
-          <View style={styles.summaryRow}>
+          {/* Cada fila es un titulo y su cifra: van juntos o el lector canta
+              tres numeros seguidos sin decir a que corresponde cada uno. */}
+          <View
+            style={styles.summaryRow}
+            accessible
+            accessibilityLabel={`Total presupuestado ${formatCurrency(totalBudgeted)}`}
+          >
             <AppText variant="body" color={colors.textSecondary}>Total presupuestado</AppText>
             <AppText variant="body">{formatCurrency(totalBudgeted)}</AppText>
           </View>
-          <View style={styles.summaryRow}>
+          <View
+            style={styles.summaryRow}
+            accessible
+            accessibilityLabel={`Total ejecutado ${formatCurrency(totalActual)}`}
+          >
             <AppText variant="body" color={colors.textSecondary}>Total ejecutado</AppText>
             <AppText variant="body">{formatCurrency(totalActual)}</AppText>
           </View>
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
-          <View style={styles.summaryRow}>
+          <View
+            style={styles.summaryRow}
+            accessible
+            accessibilityLabel={`Varianza: ${totalVariance >= 0 ? `te sobran ${formatCurrency(totalVariance)}` : `te pasaste por ${formatCurrency(Math.abs(totalVariance))}`}`}
+          >
             <AppText variant="body" color={colors.textSecondary}>Varianza</AppText>
             <AppText
               variant="body"
@@ -388,8 +425,18 @@ const BudgetScreen: React.FC = () => {
 
       {/* Add Allocation Modal */}
       <Modal visible={showAddModal} transparent animationType="fade" onRequestClose={() => setShowAddModal(false)}>
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowAddModal(false)}>
-          <TouchableOpacity activeOpacity={1} style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+        {/* El fondo cierra al tocarlo, asi que es un boton de verdad y hay que
+            nombrarlo. La caja de dentro NO lo es: solo esta para que un toque
+            no se escape al fondo, y marcandola accessible el lector la
+            anunciaria como boton y se tragaria todo el formulario. */}
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowAddModal(false)}
+          accessibilityRole="button"
+          accessibilityLabel="Cerrar el formulario de presupuesto"
+        >
+          <TouchableOpacity accessible={false} activeOpacity={1} style={[styles.modalContent, { backgroundColor: colors.surface }]}>
             <AppText variant="subtitle" style={styles.modalTitle}>Nuevo presupuesto</AppText>
 
             <AppText variant="caption" color={colors.textSecondary} style={styles.modalLabel}>
@@ -410,6 +457,9 @@ const BudgetScreen: React.FC = () => {
                       selectedCategoryId === Number(cat.id) && { borderColor: colors.primary, backgroundColor: 'rgba(232,168,56,0.1)' },
                     ]}
                     onPress={() => setSelectedCategoryId(Number(cat.id))}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: selectedCategoryId === Number(cat.id) }}
+                    accessibilityLabel={`Categoría ${cat.name}`}
                   >
                     <View style={styles.categoryOptionRow}>
                       {cat.color && <View style={[styles.colorDot, { backgroundColor: cat.color }]} />}
@@ -454,8 +504,14 @@ const BudgetScreen: React.FC = () => {
 
       {/* Transfer Modal */}
       <Modal visible={showTransferModal} transparent animationType="fade" onRequestClose={() => setShowTransferModal(false)}>
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowTransferModal(false)}>
-          <TouchableOpacity activeOpacity={1} style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowTransferModal(false)}
+          accessibilityRole="button"
+          accessibilityLabel="Cerrar el formulario de transferencia"
+        >
+          <TouchableOpacity accessible={false} activeOpacity={1} style={[styles.modalContent, { backgroundColor: colors.surface }]}>
             <AppText variant="subtitle" style={styles.modalTitle}>Transferencia</AppText>
 
             <AppText variant="caption" color={colors.textSecondary} style={styles.modalLabel}>
@@ -471,6 +527,11 @@ const BudgetScreen: React.FC = () => {
                     transferFromId === Number(cat.id) && { borderColor: colors.primary, backgroundColor: 'rgba(232,168,56,0.1)' },
                   ]}
                   onPress={() => setTransferFromId(Number(cat.id))}
+                  /* Origen y destino son dos listas con los mismos nombres.
+                     Sin decir de cual es cada chip, se oyen dos "Mercado". */
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: transferFromId === Number(cat.id) }}
+                  accessibilityLabel={`Sacar la plata de ${cat.name}`}
                 >
                   <View style={styles.categoryOptionRow}>
                     {cat.color && <View style={[styles.colorDot, { backgroundColor: cat.color }]} />}
@@ -493,6 +554,9 @@ const BudgetScreen: React.FC = () => {
                     transferToId === Number(cat.id) && { borderColor: colors.primary, backgroundColor: 'rgba(232,168,56,0.1)' },
                   ]}
                   onPress={() => setTransferToId(Number(cat.id))}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: transferToId === Number(cat.id) }}
+                  accessibilityLabel={`Mandar la plata a ${cat.name}`}
                 >
                   <View style={styles.categoryOptionRow}>
                     {cat.color && <View style={[styles.colorDot, { backgroundColor: cat.color }]} />}

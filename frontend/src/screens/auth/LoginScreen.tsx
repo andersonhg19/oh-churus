@@ -54,7 +54,11 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        <View style={styles.logoContainer}>
+        <View
+          style={styles.logoContainer}
+          accessible
+          accessibilityLabel="Oh Churus, tu asistente para la vida cotidiana"
+        >
           <AppText variant="title" style={styles.mascot}>🐿️</AppText>
           <AppText variant="title" color={colors.primary}>Oh Churus!</AppText>
           <AppText variant="caption" color={colors.textSecondary} style={styles.tagline}>
@@ -88,7 +92,14 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
           />
         </View>
 
-        <TouchableOpacity onPress={() => navigation.navigate('Register')} style={styles.linkContainer}>
+        {/* El enlace son dos textos: "No tienes cuenta?" y "Registrate".
+            Sueltos se oyen como una pregunta sin respuesta. */}
+        <TouchableOpacity
+          onPress={() => navigation.navigate('Register')}
+          style={styles.linkContainer}
+          accessibilityRole="link"
+          accessibilityLabel="¿No tienes cuenta? Regístrate"
+        >
           <AppText variant="body" color={colors.textSecondary}>
             No tienes cuenta?{' '}
           </AppText>

@@ -138,7 +138,11 @@ const BalancesScreen: React.FC = () => {
           />
         ) : (
           <>
-            <Card style={styles.resumen}>
+            <Card
+              style={styles.resumen}
+              accessible
+              accessibilityLabel={`${neto >= 0 ? 'En total te deben' : 'En total debes'} ${formatCurrency(Math.abs(neto))}`}
+            >
               <AppText variant="caption" color={colors.textSecondary}>
                 {neto >= 0 ? 'En total te deben' : 'En total debes'}
               </AppText>
@@ -159,6 +163,11 @@ const BalancesScreen: React.FC = () => {
                   testID={`balance-${b.userId}`}
                   activeOpacity={0.7}
                   onPress={() => liquidarCon(b)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${comoSeLlama(b.userId)}: ${b.label} ${formatCurrency(b.amount)}`}
+                  /* Que tocar la fila sirva para saldar la deuda solo se cuenta
+                     en una linea al final de la lista. */
+                  accessibilityHint={leDebo ? 'Anota que ya le pagaste' : 'Anota que ya te pagó'}
                 >
                   <Card style={styles.fila}>
                     <View style={styles.filaInterna}>

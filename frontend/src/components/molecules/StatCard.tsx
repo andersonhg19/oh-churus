@@ -28,8 +28,18 @@ const StatCard: React.FC<StatCardProps> = ({
   const { colors } = useTheme();
   const displayColor = color || colors.primary;
 
+  /*
+   * Las cifras del panel se agrupan en UN elemento con su titulo delante. Sin
+   * esto el lector va soltando "Gastos", "1.240.000", "este mes" como tres
+   * cosas sueltas, y con cuatro tarjetas seguidas no hay forma de saber que
+   * numero era de cual.
+   */
+  const loQueSeOye = [title, subtitle].filter(Boolean).join(', ');
+
   return (
-    <Card style={styles.card}>
+    <Card style={styles.card}
+      accessible
+      accessibilityLabel={loQueSeOye}>
       <View style={styles.header}>
         <AppText variant="body" style={styles.icon}>{icon}</AppText>
         {trend !== undefined && (

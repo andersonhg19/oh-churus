@@ -118,7 +118,11 @@ const FastingConfigScreen: React.FC = () => {
 
       {/* Current plan */}
       {currentPlan && (
-        <Card style={styles.currentCard}>
+        <Card
+          style={styles.currentCard}
+          accessible
+          accessibilityLabel={`Plan actual: ${currentPlan.fastingHours} horas de ayuno y ${currentPlan.eatingHours} horas para comer`}
+        >
           <AppText variant="caption" color={colors.textSecondary}>Plan actual</AppText>
           <AppText variant="subtitle" color={colors.primary}>
             {currentPlan.fastingHours}:{currentPlan.eatingHours} ({currentPlan.planType.replace('PLAN_', '').replace('_', ':')})
@@ -139,6 +143,9 @@ const FastingConfigScreen: React.FC = () => {
                 borderColor: isSelected ? colors.primary : colors.border,
               }]}
               onPress={() => handleSelectPreset(p)}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: isSelected }}
+              accessibilityLabel={`Plan ${p.label}: ${p.fastingHours} horas de ayuno y ${p.eatingHours} para comer`}
             >
               <AppText variant="body" style={{ color: isSelected ? '#FFF' : colors.text, fontWeight: isSelected ? '700' : '400' }}>
                 {p.label}
@@ -155,6 +162,10 @@ const FastingConfigScreen: React.FC = () => {
             borderColor: isCustom ? colors.secondary : colors.border,
           }]}
           onPress={() => setSelectedPlan('CUSTOM')}
+          accessibilityRole="radio"
+          accessibilityState={{ selected: isCustom }}
+          accessibilityLabel="Plan a mi medida"
+          accessibilityHint="Deja poner a mano las horas de ayuno y de comida"
         >
           <AppText variant="body" style={{ color: isCustom ? '#FFF' : colors.text, fontWeight: isCustom ? '700' : '400' }}>
             Custom
@@ -182,6 +193,9 @@ const FastingConfigScreen: React.FC = () => {
       <TouchableOpacity
         style={[styles.reminderRow, { borderColor: colors.border }]}
         onPress={() => setReminders(!reminders)}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: reminders }}
+        accessibilityLabel="Recordatorios del ayuno"
       >
         <AppText variant="body">Recordatorios</AppText>
         <AppText variant="body" color={reminders ? colors.income : colors.textMuted}>

@@ -108,7 +108,14 @@ const ExportImportScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           onNext={() => setExportPeriodStart(navigatePeriod(exportPeriodStart, budgetDay, 'next').start)}
           canGoNext={canGoNext}
         />
-        <Button title="Descargar Excel" onPress={handleExportExcel} loading={exporting} variant="secondary" style={styles.actionBtn} />
+        <Button
+          title="Descargar Excel"
+          accessibilityLabel="Descargar el reporte del periodo elegido en Excel"
+          onPress={handleExportExcel}
+          loading={exporting}
+          variant="secondary"
+          style={styles.actionBtn}
+        />
       </Card>
 
       <Card style={styles.section}>

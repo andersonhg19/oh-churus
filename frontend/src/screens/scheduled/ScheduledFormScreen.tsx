@@ -42,29 +42,32 @@ const FREQUENCY_LABELS: Record<Frequency, string> = {
 
 // El 5 es "la ultima", no "la quinta o nada": un mes con cuatro viernes usa el
 // cuarto en vez de irse al mes siguiente.
+/* `seOye` es lo que dice el lector de pantalla. En el boton cabe "1a" o "Lun"
+   porque hay cinco o siete seguidos y no hay sitio; leido en voz alta, "1a" no
+   es nada y "Mar" tanto podria ser martes como marzo. */
 const SEMANAS = [
-  { valor: 1, etiqueta: '1a' },
-  { valor: 2, etiqueta: '2a' },
-  { valor: 3, etiqueta: '3a' },
-  { valor: 4, etiqueta: '4a' },
-  { valor: 5, etiqueta: 'Ultima' },
+  { valor: 1, etiqueta: '1a', seOye: 'primera semana del mes' },
+  { valor: 2, etiqueta: '2a', seOye: 'segunda semana del mes' },
+  { valor: 3, etiqueta: '3a', seOye: 'tercera semana del mes' },
+  { valor: 4, etiqueta: '4a', seOye: 'cuarta semana del mes' },
+  { valor: 5, etiqueta: 'Ultima', seOye: 'última semana del mes' },
 ];
 
 // ISO: 1 es lunes y 7 es domingo, igual que en el backend.
 const DIAS_DE_LA_SEMANA = [
-  { valor: 1, etiqueta: 'Lun' },
-  { valor: 2, etiqueta: 'Mar' },
-  { valor: 3, etiqueta: 'Mie' },
-  { valor: 4, etiqueta: 'Jue' },
-  { valor: 5, etiqueta: 'Vie' },
-  { valor: 6, etiqueta: 'Sab' },
-  { valor: 7, etiqueta: 'Dom' },
+  { valor: 1, etiqueta: 'Lun', seOye: 'lunes' },
+  { valor: 2, etiqueta: 'Mar', seOye: 'martes' },
+  { valor: 3, etiqueta: 'Mie', seOye: 'miércoles' },
+  { valor: 4, etiqueta: 'Jue', seOye: 'jueves' },
+  { valor: 5, etiqueta: 'Vie', seOye: 'viernes' },
+  { valor: 6, etiqueta: 'Sab', seOye: 'sábado' },
+  { valor: 7, etiqueta: 'Dom', seOye: 'domingo' },
 ];
 
-const POLITICAS_FIN_DE_SEMANA: Array<{ valor: WeekendPolicy; etiqueta: string }> = [
-  { valor: 'KEEP', etiqueta: 'Dejarla' },
-  { valor: 'PREVIOUS_BUSINESS_DAY', etiqueta: 'Viernes antes' },
-  { valor: 'NEXT_BUSINESS_DAY', etiqueta: 'Lunes despues' },
+const POLITICAS_FIN_DE_SEMANA: Array<{ valor: WeekendPolicy; etiqueta: string; seOye: string }> = [
+  { valor: 'KEEP', etiqueta: 'Dejarla', seOye: 'Dejarla en el fin de semana' },
+  { valor: 'PREVIOUS_BUSINESS_DAY', etiqueta: 'Viernes antes', seOye: 'Adelantarla al viernes anterior' },
+  { valor: 'NEXT_BUSINESS_DAY', etiqueta: 'Lunes despues', seOye: 'Aplazarla al lunes siguiente' },
 ];
 
 const ScheduledFormScreen: React.FC<Props> = ({ navigation, route }) => {
@@ -201,12 +204,18 @@ const ScheduledFormScreen: React.FC<Props> = ({ navigation, route }) => {
         <TouchableOpacity
           style={[styles.typeBtn, { backgroundColor: movementType === 'INCOME' ? colors.income : colors.surface, borderColor: movementType === 'INCOME' ? colors.income : colors.border }]}
           onPress={() => { setMovementType('INCOME'); if (selectedCategory?.type !== 'INCOME') setSelectedCategory(null); }}
+          accessibilityRole="radio"
+          accessibilityState={{ selected: movementType === 'INCOME' }}
+          accessibilityLabel="Es un ingreso"
         >
           <AppText variant="body" color={movementType === 'INCOME' ? '#FFF' : colors.text}>💰 Ingreso</AppText>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.typeBtn, { backgroundColor: movementType === 'EXPENSE' ? colors.expense : colors.surface, borderColor: movementType === 'EXPENSE' ? colors.expense : colors.border }]}
           onPress={() => { setMovementType('EXPENSE'); if (selectedCategory?.type !== 'EXPENSE') setSelectedCategory(null); }}
+          accessibilityRole="radio"
+          accessibilityState={{ selected: movementType === 'EXPENSE' }}
+          accessibilityLabel="Es un gasto"
         >
           <AppText variant="body" color={movementType === 'EXPENSE' ? '#FFF' : colors.text}>💸 Gasto</AppText>
         </TouchableOpacity>
@@ -216,6 +225,16 @@ const ScheduledFormScreen: React.FC<Props> = ({ navigation, route }) => {
       <TouchableOpacity
         onPress={() => setShowCategoryPicker(!showCategoryPicker)}
         style={[styles.pickerButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+        accessibilityRole="button"
+        /* `expanded` es lo que avisa de que la lista se abrio debajo. Sin el,
+           al tocar no pasa nada audible y parece que el boton esta roto. */
+        accessibilityState={{ expanded: showCategoryPicker }}
+        accessibilityLabel={
+          selectedCategory
+            ? `Categoría elegida: ${selectedCategory.name}`
+            : `Elegir la categoría de ${movementType === 'INCOME' ? 'ingreso' : 'gasto'}`
+        }
+        accessibilityHint={showCategoryPicker ? 'Cierra la lista de categorías' : 'Abre la lista de categorías'}
       >
         <AppText variant="body" color={selectedCategory ? colors.text : colors.textMuted}>
           {selectedCategory ? `${getIconEmoji(selectedCategory.icon)} ${selectedCategory.name}` : `Seleccionar categoría de ${movementType === 'INCOME' ? 'ingreso' : 'gasto'}`}
@@ -234,6 +253,9 @@ const ScheduledFormScreen: React.FC<Props> = ({ navigation, route }) => {
                 setSelectedCategory(cat);
                 setShowCategoryPicker(false);
               }}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: cat.id === selectedCategory?.id }}
+              accessibilityLabel={`Categoría ${cat.name}`}
             >
               <AppText
                 variant="body"
@@ -264,6 +286,9 @@ const ScheduledFormScreen: React.FC<Props> = ({ navigation, route }) => {
               },
             ]}
             onPress={() => setFrequency(f)}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: frequency === f }}
+            accessibilityLabel={`Se repite ${FREQUENCY_LABELS[f].toLowerCase()}`}
           >
             <AppText variant="caption" color={frequency === f ? '#FFFFFF' : colors.text}>
               {FREQUENCY_LABELS[f]}
@@ -291,6 +316,10 @@ const ScheduledFormScreen: React.FC<Props> = ({ navigation, route }) => {
               },
             ]}
             onPress={() => setWeekOfMonth(weekOfMonth === s.valor ? null : s.valor)}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: weekOfMonth === s.valor }}
+            accessibilityLabel={s.seOye}
+            accessibilityHint={weekOfMonth === s.valor ? 'Toca de nuevo para no usar semana del mes' : undefined}
           >
             <AppText variant="caption" color={weekOfMonth === s.valor ? '#FFFFFF' : colors.text}>
               {s.etiqueta}
@@ -312,6 +341,10 @@ const ScheduledFormScreen: React.FC<Props> = ({ navigation, route }) => {
               },
             ]}
             onPress={() => setDayOfWeek(dayOfWeek === d.valor ? null : d.valor)}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: dayOfWeek === d.valor }}
+            accessibilityLabel={d.seOye}
+            accessibilityHint={dayOfWeek === d.valor ? 'Toca de nuevo para no usar día de la semana' : undefined}
           >
             <AppText variant="caption" color={dayOfWeek === d.valor ? '#FFFFFF' : colors.text}>
               {d.etiqueta}
@@ -333,6 +366,9 @@ const ScheduledFormScreen: React.FC<Props> = ({ navigation, route }) => {
               },
             ]}
             onPress={() => setWeekendPolicy(p.valor)}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: weekendPolicy === p.valor }}
+            accessibilityLabel={p.seOye}
           >
             <AppText variant="caption" color={weekendPolicy === p.valor ? '#FFFFFF' : colors.text}>
               {p.etiqueta}
@@ -343,7 +379,16 @@ const ScheduledFormScreen: React.FC<Props> = ({ navigation, route }) => {
 
       <Button title={isEdit ? 'Actualizar' : 'Guardar'} onPress={handleSave} loading={guardando} disabled={borrando} size="large" style={styles.saveBtn} />
       {isEdit && (
-        <Button title="Eliminar programado" onPress={handleDelete} loading={borrando} disabled={guardando} variant="danger" style={styles.deleteBtn} />
+        <Button
+          title="Eliminar programado"
+          accessibilityLabel={`Eliminar el programado ${existing?.name || ''}`.trim()}
+          accessibilityHint="También cancela los movimientos que quedaban por generarse"
+          onPress={handleDelete}
+          loading={borrando}
+          disabled={guardando}
+          variant="danger"
+          style={styles.deleteBtn}
+        />
       )}
       <Button title="Cancelar" onPress={() => navigation.goBack()} variant="outline" style={styles.cancelBtn} />
     </ScrollView>

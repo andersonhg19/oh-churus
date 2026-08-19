@@ -146,9 +146,13 @@ const IconPicker: React.FC<IconPickerProps> = ({ value, onChange }) => {
   return (
     <View style={styles.wrapper}>
       <AppText variant="label" style={styles.label}>Icono</AppText>
+      {/* Igual que el de color: un emoji suelto no es un nombre. */}
       <TouchableOpacity
         style={[styles.selector, { borderColor: colors.border, backgroundColor: colors.surface }]}
         onPress={() => setExpanded(!expanded)}
+        accessibilityRole="button"
+        accessibilityLabel={selectedIcon ? `Icono elegido: ${selectedIcon.label}` : 'Elegir un icono'}
+        accessibilityState={{ expanded }}
       >
         {selectedIcon ? (
           <View style={styles.selectedRow}>
@@ -180,6 +184,9 @@ const IconPicker: React.FC<IconPickerProps> = ({ value, onChange }) => {
                   {cat.icons.map((ic) => (
                     <TouchableOpacity
                       key={ic.key}
+                      accessibilityRole="radio"
+                      accessibilityLabel={ic.label}
+                      accessibilityState={{ selected: ic.key === value }}
                       style={[
                         styles.iconItem,
                         { backgroundColor: value === ic.key ? colors.primary + '30' : 'transparent' },
@@ -204,6 +211,8 @@ const IconPicker: React.FC<IconPickerProps> = ({ value, onChange }) => {
             <TouchableOpacity
               style={[styles.clearBtn, { borderColor: colors.border }]}
               onPress={() => { onChange('', ''); setExpanded(false); }}
+              accessibilityRole="button"
+              accessibilityLabel="Quitar el icono"
             >
               <AppText variant="caption" color={colors.textMuted}>Quitar icono</AppText>
             </TouchableOpacity>

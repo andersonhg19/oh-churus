@@ -63,7 +63,11 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }) => {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={styles.content}>
+      <View
+        style={styles.content}
+        accessible
+        accessibilityLabel={`${current.title}. ${current.description}`}
+      >
         <AppText style={styles.icon}>{current.icon}</AppText>
         <AppText variant="title" align="center" style={styles.title}>{current.title}</AppText>
         <AppText variant="body" align="center" color={colors.textSecondary} style={styles.desc}>
@@ -72,7 +76,13 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }) => {
       </View>
 
       {/* Dots */}
-      <View style={styles.dots}>
+      {/* Por donde vas solo se ve en el punto mas ancho: sin decirlo con
+          palabras, quien no ve la pantalla no sabe cuanto le queda. */}
+      <View
+        style={styles.dots}
+        accessible
+        accessibilityLabel={`Paso ${step + 1} de ${steps.length}`}
+      >
         {steps.map((_, i) => (
           <View
             key={i}
@@ -87,8 +97,19 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }) => {
       <View style={styles.actions}>
         {step < steps.length - 1 ? (
           <>
-            <Button title="Saltar" onPress={handleSkip} variant="outline" style={styles.btn} />
-            <Button title="Siguiente" onPress={handleNext} style={styles.btn} />
+            <Button
+              title="Saltar"
+              accessibilityLabel="Saltar la presentación e ir a la app"
+              onPress={handleSkip}
+              variant="outline"
+              style={styles.btn}
+            />
+            <Button
+              title="Siguiente"
+              accessibilityLabel={`Ir al paso ${step + 2} de ${steps.length}`}
+              onPress={handleNext}
+              style={styles.btn}
+            />
           </>
         ) : (
           <Button title="Comenzar" onPress={handleNext} size="large" style={{ width: '100%' }} />

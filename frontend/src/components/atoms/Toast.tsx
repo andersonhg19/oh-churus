@@ -50,7 +50,12 @@ export const Toast: React.FC<ToastProps> = ({ type, title, message, onDismiss })
 
   return (
     <Animated.View style={[styles.container, { transform: [{ translateY }], opacity }]}>
-      <TouchableOpacity
+      {/* El aviso desaparece solo, asi que si no se ANUNCIA al aparecer, quien
+        no mira la pantalla en ese momento se lo pierde entero. `alert` hace
+        que el lector lo lea en cuanto sale, sin esperar turno. */}
+    <TouchableOpacity
+      accessibilityRole="alert"
+      accessibilityLabel={`${title}${message ? '. ' + message : ''}`}
         activeOpacity={0.9}
         onPress={onDismiss}
         style={[

@@ -121,6 +121,10 @@ const AccountFormScreen: React.FC<Props> = ({ navigation, route }) => {
             },
           ]}
           onPress={() => setClase('OWN')}
+          accessibilityRole="radio"
+          accessibilityState={{ selected: clase === 'OWN' }}
+          /* "Propia" a secas no dice nada; el emoji del banco, menos. */
+          accessibilityLabel="Cuenta propia: el saldo es plata que tienes"
         >
           <AppText variant="body" color={clase === 'OWN' ? '#FFFFFF' : colors.text}>
             🏦 Propia
@@ -136,6 +140,9 @@ const AccountFormScreen: React.FC<Props> = ({ navigation, route }) => {
             },
           ]}
           onPress={() => setClase('LIABILITY')}
+          accessibilityRole="radio"
+          accessibilityState={{ selected: clase === 'LIABILITY' }}
+          accessibilityLabel="Deuda: el saldo es plata que debes, como una tarjeta o un préstamo"
         >
           <AppText variant="body" color={clase === 'LIABILITY' ? '#FFFFFF' : colors.text}>
             💳 Pasivo
@@ -179,7 +186,13 @@ const AccountFormScreen: React.FC<Props> = ({ navigation, route }) => {
       />
 
       {esEdicion && !existente?.isDefault && (
-        <Button title="Eliminar" onPress={borrar} loading={borrando} variant="danger" />
+        <Button
+          title="Eliminar"
+          accessibilityLabel={`Eliminar la cuenta ${existente?.name || ''}`.trim()}
+          onPress={borrar}
+          loading={borrando}
+          variant="danger"
+        />
       )}
     </ScrollView>
   );

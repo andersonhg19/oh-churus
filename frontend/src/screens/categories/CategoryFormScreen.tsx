@@ -157,6 +157,9 @@ const CategoryFormScreen: React.FC<Props> = ({ navigation, route }) => {
             },
           ]}
           onPress={() => setType('INCOME')}
+          accessibilityRole="radio"
+          accessibilityState={{ selected: type === 'INCOME' }}
+          accessibilityLabel="Categoría de ingresos"
         >
           <AppText variant="body" color={type === 'INCOME' ? '#FFFFFF' : colors.text}>
             💰 Ingreso
@@ -171,6 +174,9 @@ const CategoryFormScreen: React.FC<Props> = ({ navigation, route }) => {
             },
           ]}
           onPress={() => setType('EXPENSE')}
+          accessibilityRole="radio"
+          accessibilityState={{ selected: type === 'EXPENSE' }}
+          accessibilityLabel="Categoría de gastos"
         >
           <AppText variant="body" color={type === 'EXPENSE' ? '#FFFFFF' : colors.text}>
             💸 Gasto
@@ -189,6 +195,9 @@ const CategoryFormScreen: React.FC<Props> = ({ navigation, route }) => {
                 borderColor: !shared ? colors.primary : colors.border,
               }]}
               onPress={() => setShared(false)}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: !shared }}
+              accessibilityLabel="Solo para mí"
             >
               <AppText variant="body" color={!shared ? '#FFF' : colors.text}>👤 Personal</AppText>
             </TouchableOpacity>
@@ -198,6 +207,9 @@ const CategoryFormScreen: React.FC<Props> = ({ navigation, route }) => {
                 borderColor: shared ? colors.secondary : colors.border,
               }]}
               onPress={() => setShared(true)}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: shared }}
+              accessibilityLabel="Compartida con la casa"
             >
               <AppText variant="body" color={shared ? '#FFF' : colors.text}>🏠 Compartida</AppText>
             </TouchableOpacity>
@@ -227,7 +239,13 @@ const CategoryFormScreen: React.FC<Props> = ({ navigation, route }) => {
 
       {/* Preview */}
       {Boolean(icon || color || name) && (
-        <View style={[styles.preview, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <View
+          style={[styles.preview, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          /* El punto de color y el emoji no se oyen; lo unico que queda es el
+             nombre suelto. Juntos dicen como va a quedar la categoria. */
+          accessible
+          accessibilityLabel={`Vista previa: ${name || 'sin nombre'}, ${type === 'INCOME' ? 'de ingresos' : 'de gastos'}`}
+        >
           <AppText variant="caption" color={colors.textMuted} style={{ marginBottom: spacing.xs }}>
             Vista previa
           </AppText>
@@ -247,6 +265,10 @@ const CategoryFormScreen: React.FC<Props> = ({ navigation, route }) => {
           <TouchableOpacity
             testID="alternar-reembolsable"
             onPress={() => setReembolsable((antes) => !antes)}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: reembolsable }}
+            accessibilityLabel="Es dinero que me van a devolver"
+            accessibilityHint="Si te pasas en esta categoría, el sobregiro no se te descuenta el mes que viene"
             style={[
               styles.interruptor,
               {
@@ -277,7 +299,15 @@ const CategoryFormScreen: React.FC<Props> = ({ navigation, route }) => {
         style={styles.saveBtn}
       />
       {isEdit && (
-        <Button title="Eliminar" onPress={handleDelete} loading={borrando} disabled={guardando} variant="danger" style={styles.deleteBtn} />
+        <Button
+          title="Eliminar"
+          accessibilityLabel={`Eliminar la categoría ${existing?.name || ''}`.trim()}
+          onPress={handleDelete}
+          loading={borrando}
+          disabled={guardando}
+          variant="danger"
+          style={styles.deleteBtn}
+        />
       )}
       <Button
         title="Cancelar"

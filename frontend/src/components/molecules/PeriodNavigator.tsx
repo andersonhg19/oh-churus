@@ -30,16 +30,42 @@ const PeriodNavigator: React.FC<PeriodNavigatorProps> = ({
 
   return (
     <View style={[styles.container, { backgroundColor: colors.card, borderColor: colors.border }]}>
-      <TouchableOpacity onPress={onPrevious} style={styles.arrow}>
+      {/*
+        * Un lector de pantalla lee "<" como "menor que" y ">" como "mayor
+        * que". Sin etiqueta, los dos botones que mueven el periodo —que son la
+        * navegacion principal de media app— no significan nada.
+        */}
+      <TouchableOpacity
+        onPress={onPrevious}
+        style={styles.arrow}
+        accessibilityRole="button"
+        accessibilityLabel="Periodo anterior"
+      >
         <AppText variant="subtitle" color={colors.primary}>{'<'}</AppText>
       </TouchableOpacity>
-      <View style={styles.center}>
+      {/* El periodo se agrupa en UN elemento: si no, el lector dice el mes por
+          un lado y las dos fechas por otro, como si fueran tres cosas. */}
+      <View
+        style={styles.center}
+        accessible
+        accessibilityLabel={`Periodo ${label}, del ${periodStart} al ${periodEnd}`}
+      >
         <AppText variant="body" style={styles.label}>{label}</AppText>
         <AppText variant="caption" color={colors.textMuted}>
           {periodStart} → {periodEnd}
         </AppText>
       </View>
-      <TouchableOpacity onPress={onNext} style={styles.arrow} disabled={!canGoNext}>
+      <TouchableOpacity
+        onPress={onNext}
+        style={styles.arrow}
+        disabled={!canGoNext}
+        accessibilityRole="button"
+        accessibilityLabel="Periodo siguiente"
+        /* Sin el estado, quien no ve el gris pulsa y no pasa nada, sin saber
+           que es que ya esta en el mes actual. */
+        accessibilityState={{ disabled: !canGoNext }}
+        accessibilityHint={canGoNext ? undefined : 'Ya estas en el periodo actual'}
+      >
         <AppText variant="subtitle" color={canGoNext ? colors.primary : colors.textMuted}>{'>'}</AppText>
       </TouchableOpacity>
     </View>

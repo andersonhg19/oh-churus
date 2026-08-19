@@ -42,56 +42,89 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
       contentContainerStyle={styles.content}
     >
       {/* User info */}
-      <View style={styles.avatarSection}>
+      {/* El emoji, el nombre y el correo son una sola cosa: quien eres. */}
+      <View
+        style={styles.avatarSection}
+        accessible
+        accessibilityLabel={`Tu cuenta: ${user?.name || 'Usuario'}, ${user?.email || 'sin correo'}`}
+      >
         <AppText variant="title" style={styles.avatar}>🐿️</AppText>
         <AppText variant="subtitle">{user?.name || 'Usuario'}</AppText>
         <AppText variant="caption" color={colors.textSecondary}>{user?.email}</AppText>
       </View>
 
       {/* Menu items */}
-      <Card style={styles.menuItem} onPress={() => navigation.navigate('ExportImport')}>
+      <Card
+        style={styles.menuItem}
+        accessibilityLabel="Exportar o importar tus datos"
+        onPress={() => navigation.navigate('ExportImport')}
+      >
         <View style={styles.menuRow}>
           <AppText variant="body">📊 Exportar / Importar</AppText>
           <AppText variant="body" color={colors.textMuted}>›</AppText>
         </View>
       </Card>
 
-      <Card style={styles.menuItem} onPress={() => navigation.navigate('PeriodConfig')}>
+      <Card
+        style={styles.menuItem}
+        accessibilityLabel="Configurar el periodo del mes"
+        onPress={() => navigation.navigate('PeriodConfig')}
+      >
         <View style={styles.menuRow}>
           <AppText variant="body">📅 Configuracion de periodo</AppText>
           <AppText variant="body" color={colors.textMuted}>›</AppText>
         </View>
       </Card>
 
-      <Card style={styles.menuItem} onPress={() => navigation.navigate('Household')}>
+      <Card
+        style={styles.menuItem}
+        accessibilityLabel="Núcleo familiar"
+        onPress={() => navigation.navigate('Household')}
+      >
         <View style={styles.menuRow}>
           <AppText variant="body">🏠 Nucleo Familiar</AppText>
           <AppText variant="body" color={colors.textMuted}>›</AppText>
         </View>
       </Card>
 
-      <Card style={styles.menuItem} onPress={() => navigation.navigate('AccountsList')}>
+      <Card
+        style={styles.menuItem}
+        accessibilityLabel="Cuentas y saldos"
+        onPress={() => navigation.navigate('AccountsList')}
+      >
         <View style={styles.menuRow}>
           <AppText variant="body">🏦 Cuentas y saldos</AppText>
           <AppText variant="body" color={colors.textMuted}>›</AppText>
         </View>
       </Card>
 
-      <Card style={styles.menuItem} onPress={() => navigation.navigate('Balances')}>
+      <Card
+        style={styles.menuItem}
+        accessibilityLabel="Cuentas entre nosotros"
+        onPress={() => navigation.navigate('Balances')}
+      >
         <View style={styles.menuRow}>
           <AppText variant="body">🤝 Cuentas entre nosotros</AppText>
           <AppText variant="body" color={colors.textMuted}>›</AppText>
         </View>
       </Card>
 
-      <Card style={styles.menuItem} onPress={() => navigation.navigate('CategoriesList')}>
+      <Card
+        style={styles.menuItem}
+        accessibilityLabel="Gestionar las categorías"
+        onPress={() => navigation.navigate('CategoriesList')}
+      >
         <View style={styles.menuRow}>
           <AppText variant="body">📁 Gestionar Categorias</AppText>
           <AppText variant="body" color={colors.textMuted}>›</AppText>
         </View>
       </Card>
 
-      <Card style={styles.menuItem} onPress={() => navigation.navigate('Consolidated')}>
+      <Card
+        style={styles.menuItem}
+        accessibilityLabel="Consolidado mensual"
+        onPress={() => navigation.navigate('Consolidated')}
+      >
         <View style={styles.menuRow}>
           <AppText variant="body">📊 Consolidado Mensual</AppText>
           <AppText variant="body" color={colors.textMuted}>›</AppText>
@@ -103,6 +136,7 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
           <AppText variant="body">🎨 Apariencia</AppText>
           <Button
             title={isDark ? 'Modo claro' : 'Modo oscuro'}
+            accessibilityLabel={isDark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
             onPress={toggleTheme}
             variant="outline"
             size="small"

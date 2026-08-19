@@ -130,6 +130,15 @@ const DashboardScreen: React.FC = () => {
                 key={mode}
                 style={[styles.toggleBtn, viewMode === mode && { backgroundColor: colors.primary }]}
                 onPress={() => setViewMode(mode)}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: viewMode === mode }}
+                accessibilityLabel={
+                  mode === 'total'
+                    ? 'Ver el total'
+                    : mode === 'shared'
+                    ? 'Ver solo lo de la casa'
+                    : 'Ver solo lo mío'
+                }
               >
                 <AppText variant="caption" style={{
                   color: viewMode === mode ? '#FFF' : colors.textSecondary,
@@ -152,7 +161,13 @@ const DashboardScreen: React.FC = () => {
 
           return (
             <>
-              <View style={[styles.balanceCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              {/* El titulo y la cifra son una sola idea. Sueltos se oye
+                  "Balance Total" y, despues de otras cosas, un numero. */}
+              <View
+                style={[styles.balanceCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+                accessible
+                accessibilityLabel={`Balance ${viewMode === 'shared' ? 'de la casa' : viewMode === 'personal' ? 'personal' : 'total'}: ${formatCurrency(bal ?? 0)}`}
+              >
                 <AppText variant="caption" color={colors.textSecondary}>
                   Balance {viewMode === 'shared' ? 'Conjunto' : viewMode === 'personal' ? 'Personal' : 'Total'}
                 </AppText>
@@ -216,9 +231,14 @@ const DashboardScreen: React.FC = () => {
                     }}
                   />
                 </View>
+                {/* Hay un "+" por cada pendiente y todos se dibujan igual: sin
+                    decir de que movimiento cuelga, el lector suelta "mas, mas,
+                    mas" y no hay forma de saber cual se esta tocando. */}
                 <TouchableOpacity
                   style={[styles.subGastoBtn, { backgroundColor: colors.primary + '20', borderColor: colors.primary }]}
                   onPress={() => rootNavigation.navigate('MovementFormModal', { parentMovement: item })}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Anotar un gasto dentro de ${item.description || item.categoryName || 'este pendiente'}`}
                 >
                   <AppText variant="caption" color={colors.primary} style={{ fontWeight: '700' }}>+</AppText>
                 </TouchableOpacity>
@@ -234,8 +254,17 @@ const DashboardScreen: React.FC = () => {
 
       {/* Modal de confirmación con monto ajustable */}
       <Modal visible={!!confirmItem} transparent animationType="fade" onRequestClose={() => setConfirmItem(null)}>
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setConfirmItem(null)}>
-          <TouchableOpacity activeOpacity={1} style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setConfirmItem(null)}
+          accessibilityRole="button"
+          accessibilityLabel="Cerrar sin confirmar el movimiento"
+        >
+          {/* Esta caja no es un boton: solo evita que el toque llegue al fondo
+              y cierre. Marcada como accesible, el lector la anunciaria como
+              boton y se tragaria el formulario entero. */}
+          <TouchableOpacity accessible={false} activeOpacity={1} style={[styles.modalContent, { backgroundColor: colors.surface }]}>
             <AppText variant="subtitle" style={styles.modalTitle}>Confirmar movimiento</AppText>
             <AppText variant="body" color={colors.textSecondary} style={styles.modalDesc}>
               {confirmItem?.description || 'Sin descripcion'}
@@ -304,9 +333,15 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   subGastoBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    /*
+     * 44 y no 32. Por debajo de 44 puntos un boton se falla al tocarlo con el
+     * pulgar, y quien tiene menos precision de movimiento no lo acierta nunca.
+     * Estaba en 32 y salio al revisar la accesibilidad: el problema no era que
+     * no se anunciara, era que no se podia dar.
+     */
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',

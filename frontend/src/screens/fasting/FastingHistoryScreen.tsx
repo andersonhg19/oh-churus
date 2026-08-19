@@ -80,25 +80,25 @@ const FastingHistoryScreen: React.FC = () => {
       {summary && (
         <Card style={styles.summaryCard}>
           <View style={styles.summaryRow}>
-            <View style={styles.summaryItem}>
+            <View style={styles.summaryItem} accessible accessibilityLabel={`${summary.completed || 0} ayunos cumplidos`}>
               <AppText variant="subtitle" color={colors.income}>{summary.completed || 0}</AppText>
               <AppText variant="caption">Cumplidos</AppText>
             </View>
-            <View style={styles.summaryItem}>
+            <View style={styles.summaryItem} accessible accessibilityLabel={`${summary.incomplete || 0} ayunos incompletos`}>
               <AppText variant="subtitle" color={colors.expense}>{summary.incomplete || 0}</AppText>
               <AppText variant="caption">Incompletos</AppText>
             </View>
-            <View style={styles.summaryItem}>
+            <View style={styles.summaryItem} accessible accessibilityLabel={`${summary.complianceRate || 0} por ciento de cumplimiento`}>
               <AppText variant="subtitle" color={colors.primary}>{summary.complianceRate || 0}%</AppText>
               <AppText variant="caption">Cumplimiento</AppText>
             </View>
           </View>
           <View style={styles.summaryRow}>
-            <View style={styles.summaryItem}>
+            <View style={styles.summaryItem} accessible accessibilityLabel={`Racha actual: ${summary.currentStreak || 0}`}>
               <AppText variant="subtitle" color={colors.primary}>{summary.currentStreak || 0}</AppText>
               <AppText variant="caption">Racha actual</AppText>
             </View>
-            <View style={styles.summaryItem}>
+            <View style={styles.summaryItem} accessible accessibilityLabel={`Mejor racha: ${summary.bestStreak || 0}`}>
               <AppText variant="subtitle" color={colors.warning}>{summary.bestStreak || 0}</AppText>
               <AppText variant="caption">Mejor racha</AppText>
             </View>
@@ -110,7 +110,19 @@ const FastingHistoryScreen: React.FC = () => {
       {days.map((day: any) => {
         const cfg = STATUS_CONFIG[day.status] || STATUS_CONFIG.NOT_REGISTERED;
         return (
-          <View key={day.date} style={[styles.dayRow, { borderColor: colors.border }]}>
+          /* La fila es una sola idea: que dia, a que hora y como acabo. */
+          <View
+            key={day.date}
+            style={[styles.dayRow, { borderColor: colors.border }]}
+            accessible
+            accessibilityLabel={
+              `${day.date}: ${cfg.label}` +
+              (day.startTime
+                ? `. Empezaste a las ${new Date(day.startTime).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}` +
+                  (day.durationFormatted ? `, duró ${day.durationFormatted}` : '')
+                : '')
+            }
+          >
             <View style={styles.dayLeft}>
               <AppText variant="body">{day.date}</AppText>
               {day.startTime && (

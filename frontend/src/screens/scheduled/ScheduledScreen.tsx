@@ -121,6 +121,7 @@ const ScheduledScreen: React.FC<Props> = ({ navigation }) => {
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <Button
             title="Generar"
+            accessibilityLabel="Generar los movimientos que ya tocaban"
             onPress={handleGenerate}
             loading={generating}
             size="small"
@@ -128,6 +129,7 @@ const ScheduledScreen: React.FC<Props> = ({ navigation }) => {
           />
           <Button
             title="+ Nuevo"
+            accessibilityLabel="Crear un movimiento programado"
             onPress={() => navigation.navigate('ScheduledForm', {})}
             size="small"
           />
@@ -145,7 +147,12 @@ const ScheduledScreen: React.FC<Props> = ({ navigation }) => {
             si de verdad ocurrieron.
           </AppText>
           {propuestas.slice(0, 5).map((p) => (
-            <View key={`${p.scheduledMovementId}-${p.periodStart}`} style={styles.revisionFila}>
+            <View
+              key={`${p.scheduledMovementId}-${p.periodStart}`}
+              style={styles.revisionFila}
+              accessible
+              accessibilityLabel={`${p.name}, del ${formatDateShort(p.date)}: ${formatCurrency(p.amount)}`}
+            >
               <AppText variant="caption" numberOfLines={1} style={styles.revisionNombre}>
                 {`${formatDateShort(p.date)} - ${p.name}`}
               </AppText>
@@ -173,6 +180,10 @@ const ScheduledScreen: React.FC<Props> = ({ navigation }) => {
         renderItem={({ item }) => (
           <Card
             style={styles.itemCard}
+            accessibilityLabel={
+              `${item.name}, ${getFrequencyLabel(item.frequency).toLowerCase()}, ` +
+              `${item.categoryName || 'sin categoría'}: ${formatCurrency(item.amount)}`
+            }
             onPress={() => navigation.navigate('ScheduledForm', { scheduled: item })}
           >
             <View style={styles.itemRow}>

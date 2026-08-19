@@ -4,12 +4,22 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { spacing } from '../../theme';
 
 interface CardProps {
+  /** Lo que anuncia el lector de pantalla. */
+  accessibilityLabel?: string;
+  /**
+   * Agrupa el contenido en UN solo elemento para el lector.
+   *
+   * Hace falta tambien cuando la tarjeta NO es pulsable: una tarjeta de cifra
+   * suelta "Gastos", "1.240.000" y "este mes" como tres cosas distintas, y con
+   * cuatro seguidas no se sabe que numero era de cual.
+   */
+  accessible?: boolean;
   children: React.ReactNode;
   style?: StyleProp<ViewStyle>;
   onPress?: () => void;
 }
 
-const Card: React.FC<CardProps> = ({ children, style, onPress }) => {
+const Card: React.FC<CardProps> = ({ children, style, onPress, accessibilityLabel, accessible }) => {
   const { colors } = useTheme();
 
   const cardStyle: ViewStyle = {
@@ -27,13 +37,26 @@ const Card: React.FC<CardProps> = ({ children, style, onPress }) => {
 
   if (onPress) {
     return (
-      <TouchableOpacity style={[cardStyle, style]} onPress={onPress} activeOpacity={0.7}>
+      <TouchableOpacity
+        style={[cardStyle, style]}
+        onPress={onPress}
+        activeOpacity={0.7}
+        /* Una tarjeta pulsable es un boton aunque no lo parezca. Sin el rol, el
+           lector la anuncia como texto suelto y no dice que se puede tocar. */
+        accessible
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel}
+      >
         {children}
       </TouchableOpacity>
     );
   }
 
-  return <View style={[cardStyle, style]}>{children}</View>;
+  return (
+    <View style={[cardStyle, style]} accessible={accessible} accessibilityLabel={accessibilityLabel}>
+      {children}
+    </View>
+  );
 };
 
 export default Card;

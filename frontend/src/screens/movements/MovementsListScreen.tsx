@@ -126,6 +126,7 @@ const MovementsListScreen: React.FC = () => {
       <View style={styles.header}>
         <Input
           label=""
+          accessibilityLabel="Buscar entre tus movimientos"
           value={search}
           onChangeText={setSearch}
           placeholder="Buscar por descripcion o categoria..."

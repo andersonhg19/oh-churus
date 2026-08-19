@@ -12,10 +12,14 @@ const CenterFAB: React.FC<CenterFABProps> = ({ onPress }) => {
 
   return (
     <View style={styles.wrapper}>
+      {/* El boton mas usado de la app es un "+" suelto: el lector diria
+          "mas" y ya. Lo que hace no se deduce del simbolo. */}
       <TouchableOpacity
         style={[styles.fab, { backgroundColor: colors.primary }]}
         onPress={onPress}
         activeOpacity={0.8}
+        accessibilityRole="button"
+        accessibilityLabel="Anotar un movimiento"
       >
         <AppText style={styles.icon}>+</AppText>
       </TouchableOpacity>

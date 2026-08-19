@@ -149,7 +149,11 @@ const HouseholdScreen: React.FC = () => {
       {households.length > 0 ? (
         households.map(h => (
           <Card key={h.householdId} style={styles.section}>
-            <View style={styles.headerRow}>
+            <View
+              style={styles.headerRow}
+              accessible
+              accessibilityLabel={`Núcleo familiar ${h.name}. Tú eres ${h.role === 'OWNER' ? 'el propietario' : 'miembro'}`}
+            >
               <AppText variant="subtitle">🏠 {h.name}</AppText>
               <AppText variant="caption" color={colors.textSecondary}>
                 {h.role === 'OWNER' ? 'Propietario' : 'Miembro'}
@@ -161,7 +165,15 @@ const HouseholdScreen: React.FC = () => {
 
             {h.members.map((m, i) => (
               <View key={i} style={[styles.memberRow, { borderColor: colors.border }]}>
-                <View style={styles.memberInfo}>
+                <View
+                  style={styles.memberInfo}
+                  accessible
+                  accessibilityLabel={
+                    `${memberNames[m.userId] || `Usuario número ${m.userId}`}` +
+                    `${memberEmails[m.userId] ? `, ${memberEmails[m.userId]}` : ''}` +
+                    `. ${m.role === 'OWNER' ? 'Propietario' : 'Miembro'}`
+                  }
+                >
                   <AppText variant="body">👤 {memberNames[m.userId] || `Usuario #${m.userId}`}</AppText>
                   {memberEmails[m.userId] ? (
                     <AppText variant="caption" color={colors.textMuted}>{memberEmails[m.userId]}</AppText>
@@ -171,8 +183,10 @@ const HouseholdScreen: React.FC = () => {
                   {m.role === 'OWNER' ? 'Propietario' : 'Miembro'}
                 </AppText>
                 {h.role === 'OWNER' && m.role !== 'OWNER' && String(m.userId) !== String(user?.userId) && (
+                  /* Hay un "Sacar" por miembro y todos dicen lo mismo. */
                   <Button
                     title="Sacar"
+                    accessibilityLabel={`Sacar a ${memberNames[m.userId] || `Usuario número ${m.userId}`} del núcleo familiar`}
                     variant="danger"
                     size="small"
                     onPress={() => handleRemove(h.householdId, m.userId)}
@@ -191,7 +205,13 @@ const HouseholdScreen: React.FC = () => {
                   placeholder="Ej: pareja@correo.com"
                   keyboardType="email-address"
                 />
-                <Button title="Invitar" onPress={() => handleInvite(h.householdId)} size="small" style={styles.addBtn} />
+                <Button
+                  title="Invitar"
+                  accessibilityLabel={`Invitar a alguien a ${h.name}`}
+                  onPress={() => handleInvite(h.householdId)}
+                  size="small"
+                  style={styles.addBtn}
+                />
               </View>
             )}
           </Card>

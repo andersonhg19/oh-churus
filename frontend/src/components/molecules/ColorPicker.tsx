@@ -33,9 +33,14 @@ const ColorPicker: React.FC<ColorPickerProps> = ({ value, onChange }) => {
   return (
     <View style={styles.wrapper}>
       <AppText variant="label" style={styles.label}>Color</AppText>
+      {/* Un selector de COLOR es el caso extremo: sin nombre no hay
+          absolutamente nada que oir, solo cuadraditos. */}
       <TouchableOpacity
         style={[styles.selector, { borderColor: colors.border, backgroundColor: colors.surface }]}
         onPress={() => setExpanded(!expanded)}
+        accessibilityRole="button"
+        accessibilityLabel={value ? `Color elegido: ${value}` : 'Elegir un color'}
+        accessibilityState={{ expanded }}
       >
         {value ? (
           <View style={styles.selectedRow}>
@@ -55,6 +60,9 @@ const ColorPicker: React.FC<ColorPickerProps> = ({ value, onChange }) => {
               {PRESET_COLORS.map((c) => (
                 <TouchableOpacity
                   key={c}
+                  accessibilityRole="radio"
+                  accessibilityLabel={`Color ${c}`}
+                  accessibilityState={{ selected: c === value }}
                   style={[
                     styles.colorDot,
                     { backgroundColor: c },
@@ -72,6 +80,8 @@ const ColorPicker: React.FC<ColorPickerProps> = ({ value, onChange }) => {
             <TouchableOpacity
               style={[styles.clearBtn, { borderColor: colors.border }]}
               onPress={() => { onChange(''); setExpanded(false); }}
+              accessibilityRole="button"
+              accessibilityLabel="Quitar el color"
             >
               <AppText variant="caption" color={colors.textMuted}>Quitar color</AppText>
             </TouchableOpacity>

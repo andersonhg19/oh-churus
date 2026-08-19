@@ -121,14 +121,18 @@ const EnvelopesScreen: React.FC = () => {
         ) : (
           <>
             <Card style={styles.resumen}>
-              <AppText variant="caption" color={colors.textSecondary}>Para repartir</AppText>
-              <AppText
-                variant="title"
-                color={paraRepartir < 0 ? colors.expense : colors.text}
-                testID="para-repartir"
-              >
-                {formatCurrency(paraRepartir)}
-              </AppText>
+              {/* El titulo y la cifra son lo mismo; separados se oye "Para
+                  repartir" y, tras una pausa, un numero sin dueño. */}
+              <View accessible accessibilityLabel={`Para repartir: ${formatCurrency(paraRepartir)}`}>
+                <AppText variant="caption" color={colors.textSecondary}>Para repartir</AppText>
+                <AppText
+                  variant="title"
+                  color={paraRepartir < 0 ? colors.expense : colors.text}
+                  testID="para-repartir"
+                >
+                  {formatCurrency(paraRepartir)}
+                </AppText>
+              </View>
               {deudaArrastrada > 0 && (
                 <AppText variant="caption" color={colors.expense} testID="deuda-arrastrada">
                   Arrancas el mes con {formatCurrency(deudaArrastrada)} de menos porque el mes
@@ -153,6 +157,20 @@ const EnvelopesScreen: React.FC = () => {
                     setHaciaCategoria(null);
                     setCuanto('');
                   }}
+                  /* La fila entera es un boton, asi que sus cuatro lineas se
+                     leen de una: nombre, cuanto queda y de donde sale. */
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    `${sobre.categoryName}. ${sobre.label} ${formatCurrency(Math.abs(sobre.available))}. ` +
+                    `${formatCurrency(sobre.allocated)} asignado` +
+                    (sobre.carryover > 0 ? ` más ${formatCurrency(sobre.carryover)} que sobró del mes pasado` : '') +
+                    (sobre.reimbursable ? '. Es dinero que te van a devolver' : '')
+                  }
+                  accessibilityHint={
+                    tePasaste
+                      ? 'Elige de qué otro sobre sale esta plata'
+                      : 'Deja pasar plata de este sobre a otro'
+                  }
                 >
                   <Card style={styles.sobre}>
                     <View style={styles.filaSobre}>
@@ -205,6 +223,9 @@ const EnvelopesScreen: React.FC = () => {
                           key={s.categoryId}
                           testID={`destino-${s.categoryId}`}
                           onPress={() => setHaciaCategoria(s.categoryId)}
+                          accessibilityRole="radio"
+                          accessibilityState={{ selected: elegido }}
+                          accessibilityLabel={`Poner en ${s.categoryName}`}
                           style={[
                             styles.chipDestino,
                             {
@@ -227,9 +248,15 @@ const EnvelopesScreen: React.FC = () => {
                   placeholder="0"
                   keyboardType="numeric"
                 />
-                <Button title="Mover" onPress={ejecutarMover} loading={moviendo} />
+                <Button
+                  title="Mover"
+                  accessibilityLabel={`Mover la plata desde ${moviendoDesde.categoryName}`}
+                  onPress={ejecutarMover}
+                  loading={moviendo}
+                />
                 <Button
                   title="Cancelar"
+                  accessibilityLabel="Dejar la plata donde está"
                   onPress={() => setMoviendoDesde(null)}
                   variant="secondary"
                 />

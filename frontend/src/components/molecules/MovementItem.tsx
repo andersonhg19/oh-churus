@@ -69,10 +69,22 @@ const MovementItem: React.FC<MovementItemProps> = ({ movement, onPress, onConfir
         style={[{ transform: [{ translateX }] }]}
         {...(canSwipe ? panResponder.panHandlers : {})}
       >
+        {/*
+          * La fila entera en UN elemento: descripcion, importe y si esta
+          * pendiente. Suelto, el lector va soltando tres cosas por fila y con
+          * treinta movimientos seguidos no hay quien siga el hilo.
+          */}
         <TouchableOpacity
           style={[styles.container, { backgroundColor: colors.card, borderColor: colors.border }]}
           onPress={onPress}
           activeOpacity={0.7}
+          accessible
+          accessibilityRole="button"
+          accessibilityLabel={[
+            movement.description || movement.categoryName || 'Movimiento',
+            String(movement.amount),
+            movement.confirmed ? 'confirmado' : 'pendiente',
+          ].join(', ')}
         >
           <View style={styles.left}>
             <AppText variant="body" numberOfLines={1}>
@@ -91,6 +103,8 @@ const MovementItem: React.FC<MovementItemProps> = ({ movement, onPress, onConfir
               <TouchableOpacity
                 style={[styles.confirmBtn, { backgroundColor: colors.accent }]}
                 onPress={() => onConfirm()}
+                accessibilityRole="button"
+                accessibilityLabel={`Confirmar ${movement.description || 'el movimiento'}`}
               >
                 <AppText variant="caption" color="#FFFFFF">Confirmar</AppText>
               </TouchableOpacity>

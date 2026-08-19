@@ -65,7 +65,13 @@ const CategoryDrillDownScreen: React.FC<Props> = ({ route }) => {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { borderBottomColor: colors.border }]}>
+      {/* Nombre, total y cuantos movimientos son la cabecera entera: sueltos
+          se oyen tres datos que no se sabe si van juntos. */}
+      <View
+        style={[styles.header, { borderBottomColor: colors.border }]}
+        accessible
+        accessibilityLabel={`${categoryName}: ${formatCurrency(total)} en ${movements.length} ${movements.length === 1 ? 'movimiento' : 'movimientos'}`}
+      >
         <View style={styles.headerRow}>
           <View style={[styles.dot, { backgroundColor: color }]} />
           <AppText variant="subtitle">{categoryName}</AppText>

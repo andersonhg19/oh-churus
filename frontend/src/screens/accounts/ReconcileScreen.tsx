@@ -98,7 +98,11 @@ const ReconcileScreen: React.FC<Props> = ({ navigation, route }) => {
     >
       <AppText variant="subtitle" style={styles.titulo}>Conciliar {cuenta.name}</AppText>
 
-      <Card style={styles.tarjeta}>
+      <Card
+        style={styles.tarjeta}
+        accessible
+        accessibilityLabel={`Según la app tienes ${formatCurrency(cuenta.balance)}`}
+      >
         <AppText variant="caption" color={colors.textSecondary}>Segun la app tienes</AppText>
         <AppText variant="title" testID="saldo-app">{formatCurrency(cuenta.balance)}</AppText>
       </Card>
@@ -116,7 +120,12 @@ const ReconcileScreen: React.FC<Props> = ({ navigation, route }) => {
         keyboardType="numeric"
       />
 
-      <Button title="Comparar" onPress={ejecutarComparar} loading={comparando} />
+      <Button
+        title="Comparar"
+        accessibilityLabel="Comparar con lo que dice tu banco"
+        onPress={ejecutarComparar}
+        loading={comparando}
+      />
 
       {comparacion && (
         <Card style={styles.tarjeta}>
@@ -131,14 +140,19 @@ const ReconcileScreen: React.FC<Props> = ({ navigation, route }) => {
             </>
           ) : (
             <>
-              <AppText variant="caption" color={colors.textSecondary}>Diferencia</AppText>
-              <AppText
-                variant="title"
-                color={colors.expense}
-                testID="veredicto"
+              <View
+                accessible
+                accessibilityLabel={`Hay una diferencia de ${formatCurrency(comparacion.difference)}`}
               >
-                {formatCurrency(comparacion.difference)}
-              </AppText>
+                <AppText variant="caption" color={colors.textSecondary}>Diferencia</AppText>
+                <AppText
+                  variant="title"
+                  color={colors.expense}
+                  testID="veredicto"
+                >
+                  {formatCurrency(comparacion.difference)}
+                </AppText>
+              </View>
               <AppText variant="caption" color={colors.textSecondary} style={styles.explicacion}>
                 {comparacion.message}
               </AppText>

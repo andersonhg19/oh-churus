@@ -250,9 +250,15 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
     >
-      {/* Info de sub-gasto */}
+      {/* Info de sub-gasto. Las dos lineas son una sola idea: de que gasto
+          cuelga esto y cuanto habia presupuestado. Sueltas, el lector las lee
+          como dos datos sin relacion y no se sabe de que movimiento habla. */}
       {parentMovement && (
-        <View style={[styles.parentInfo, { borderColor: colors.primary + '40' }]}>
+        <View
+          style={[styles.parentInfo, { borderColor: colors.primary + '40' }]}
+          accessible
+          accessibilityLabel={`Sub-gasto de ${parentMovement.description || parentMovement.categoryName}. Presupuesto ${formatCurrency(parentMovement.amount)}, categoría ${parentMovement.categoryName}`}
+        >
           <AppText variant="caption" color={colors.primary} style={{ fontWeight: '700' }}>
             Sub-gasto de: {parentMovement.description || parentMovement.categoryName}
           </AppText>
@@ -271,7 +277,14 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
           <AppText style={[styles.currencySign, { color: typeColor }]}>
             {movementType === 'INCOME' ? '+' : '-'} $
           </AppText>
-          <Input label="" value={amount} onChangeText={setAmount} placeholder="0" keyboardType="numeric" />
+          <Input
+            label=""
+            accessibilityLabel="Monto del movimiento"
+            value={amount}
+            onChangeText={setAmount}
+            placeholder="0"
+            keyboardType="numeric"
+          />
         </View>
       </View>
 
@@ -297,6 +310,9 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
               borderColor: confirmed ? colors.income : colors.border,
             }]}
             onPress={() => setConfirmed(true)}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: confirmed }}
+            accessibilityLabel="Ya está pagado"
           >
             <AppText style={[styles.statusDot, { backgroundColor: colors.income }]}>{' '}</AppText>
             <AppText variant="caption" style={{ color: confirmed ? colors.income : colors.textMuted, fontWeight: confirmed ? '700' : '400' }}>
@@ -309,6 +325,9 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
               borderColor: !confirmed ? colors.warning : colors.border,
             }]}
             onPress={() => setConfirmed(false)}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: !confirmed }}
+            accessibilityLabel="Todavía está por pagar"
           >
             <AppText style={[styles.statusDot, { backgroundColor: colors.warning }]}>{' '}</AppText>
             <AppText variant="caption" style={{ color: !confirmed ? colors.warning : colors.textMuted, fontWeight: !confirmed ? '700' : '400' }}>
@@ -322,7 +341,10 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
       {!parentMovement && (() => {
         const shared = filteredCategories.filter((c: any) => c.shared || c.householdId);
         const personal = filteredCategories.filter((c: any) => !c.shared && !c.householdId);
-        const renderCat = (cat: any) => {
+        /* El grupo va en la etiqueta porque una categoria conjunta y una
+           personal pueden llamarse igual: sin el, se oyen dos "Mercado"
+           iguales en la misma pantalla y no hay forma de distinguirlas. */
+        const renderCat = (cat: any, grupo: string) => {
           const isSelected = String(cat.id) === String(selectedCategory?.id);
           return (
             <TouchableOpacity
@@ -333,6 +355,9 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
               }]}
               onPress={() => setSelectedCategory(cat)}
               activeOpacity={0.7}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: isSelected }}
+              accessibilityLabel={`Categoría ${grupo} ${cat.name}`}
             >
               <AppText style={styles.catIcon}>{getIconEmoji(cat.icon)}</AppText>
               <AppText variant="caption" style={{
@@ -349,13 +374,13 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
             {shared.length > 0 && (
               <>
                 <AppText variant="label" style={styles.sectionLabel}>Conjuntas</AppText>
-                <View style={styles.catGrid}>{shared.map(renderCat)}</View>
+                <View style={styles.catGrid}>{shared.map((c: any) => renderCat(c, 'conjunta'))}</View>
               </>
             )}
             {personal.length > 0 && (
               <>
                 <AppText variant="label" style={styles.sectionLabel}>Personales</AppText>
-                <View style={styles.catGrid}>{personal.map(renderCat)}</View>
+                <View style={styles.catGrid}>{personal.map((c: any) => renderCat(c, 'personal'))}</View>
               </>
             )}
             {shared.length === 0 && personal.length === 0 && null}
@@ -377,6 +402,10 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
               borderColor: isTransfer ? colors.primary : colors.border,
             }]}
             onPress={() => { setIsTransfer(!isTransfer); if (isTransfer) setPersonalCategoryId(null); }}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: isTransfer }}
+            accessibilityLabel="Disponibilizar a cuenta personal"
+            accessibilityHint="Pasa esta plata de la categoría conjunta a una categoría tuya"
           >
             <AppText variant="body" style={{ color: isTransfer ? colors.primary : colors.textMuted, fontWeight: isTransfer ? '700' : '400' }}>
               💰 Disponibilizar a cuenta personal
@@ -394,6 +423,9 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
                       borderColor: personalCategoryId === c.id ? (c.color || colors.secondary) : colors.border,
                     }]}
                     onPress={() => setPersonalCategoryId(c.id)}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: personalCategoryId === c.id }}
+                    accessibilityLabel={`Mandar la plata a ${c.name}`}
                   >
                     <AppText variant="caption" style={{ color: personalCategoryId === c.id ? '#FFF' : colors.text }}>
                       {c.name}
@@ -420,6 +452,13 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
                   key={cuenta.id}
                   testID={`elegir-cuenta-${cuenta.id}`}
                   onPress={() => setCuentaId(elegida ? null : cuenta.id)}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: elegida }}
+                  accessibilityLabel={`Cuenta ${cuenta.name}`}
+                  /* El aviso solo hace falta cuando ya esta elegida: es la
+                     unica situacion en la que tocar hace lo contrario de lo
+                     que se espera, quitarla en vez de ponerla. */
+                  accessibilityHint={elegida ? 'Toca de nuevo para dejar la cuenta sin elegir' : undefined}
                   style={[
                     styles.chipCuenta,
                     {
@@ -444,6 +483,10 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
             testID="alternar-reparto"
             style={[styles.cabeceraReparto, { borderColor: colors.border }]}
             onPress={() => setReparte((antes) => !antes)}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: reparte }}
+            accessibilityLabel="Repartir este gasto con otra persona"
+            accessibilityHint={reparte ? 'Cierra las opciones de reparto' : 'Abre las opciones para dividir el gasto'}
           >
             <AppText variant="label">
               {reparte ? '👥 Repartir este gasto' : '👥 ¿Lo compartes con alguien?'}
@@ -459,16 +502,22 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
               </AppText>
 
               <View style={styles.filaModos}>
+                {/* El tercer texto es lo que se oye: en la pantalla cabe "%",
+                    pero un lector de pantalla leyendo "por ciento" a secas no
+                    dice que es la forma de repartir. */}
                 {([
-                  ['EQUAL', 'A medias'],
-                  ['SHARES', 'Partes'],
-                  ['PERCENT', '%'],
-                  ['AMOUNT', 'Importe'],
-                ] as [SplitMode, string][]).map(([modo, etiqueta]) => (
+                  ['EQUAL', 'A medias', 'Repartir a medias'],
+                  ['SHARES', 'Partes', 'Repartir por partes'],
+                  ['PERCENT', '%', 'Repartir por porcentaje'],
+                  ['AMOUNT', 'Importe', 'Repartir poniendo el importe de cada uno'],
+                ] as [SplitMode, string, string][]).map(([modo, etiqueta, seOye]) => (
                   <TouchableOpacity
                     key={modo}
                     testID={`modo-${modo}`}
                     onPress={() => setModoReparto(modo)}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: modoReparto === modo }}
+                    accessibilityLabel={seOye}
                     style={[
                       styles.chipModo,
                       {
@@ -494,6 +543,9 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
                     <TouchableOpacity
                       testID={`persona-${quien}`}
                       onPress={() => alternarPersona(quien)}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: elegido }}
+                      accessibilityLabel={`Repartir con la persona ${quien}`}
                       style={[
                         styles.chipPersona,
                         {
@@ -538,7 +590,15 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
       {/* Acciones */}
       <Button title={isTransfer ? 'Disponibilizar' : isEdit ? 'Actualizar' : parentMovement ? 'Registrar sub-gasto' : 'Guardar'} onPress={handleSave} loading={guardando} disabled={borrando} size="large" style={styles.saveBtn} />
       {isEdit && (
-        <Button title="Eliminar" onPress={handleDelete} loading={borrando} disabled={guardando} variant="danger" style={styles.deleteBtn} />
+        <Button
+          title="Eliminar"
+          accessibilityLabel={`Eliminar el movimiento ${existing?.description || existing?.categoryName || ''}`.trim()}
+          onPress={handleDelete}
+          loading={borrando}
+          disabled={guardando}
+          variant="danger"
+          style={styles.deleteBtn}
+        />
       )}
     </ScrollView>
   );

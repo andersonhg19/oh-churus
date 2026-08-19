@@ -103,6 +103,8 @@ const CategoriesScreen: React.FC<Props> = ({ navigation }) => {
         style={[styles.fab, { backgroundColor: colors.primary }]}
         onPress={() => navigation.navigate('CategoryForm', {})}
         activeOpacity={0.8}
+        accessibilityRole="button"
+        accessibilityLabel="Crear una categoría"
       >
         <AppText variant="title" color="#FFFFFF" style={styles.fabText}>+</AppText>
       </TouchableOpacity>

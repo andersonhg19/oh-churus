@@ -86,6 +86,11 @@ const ParentCategoryPicker: React.FC<ParentCategoryPickerProps> = ({
       <TouchableOpacity
         style={[styles.selector, { borderColor: colors.border, backgroundColor: colors.surface }]}
         onPress={() => setExpanded(!expanded)}
+        accessibilityRole="button"
+        accessibilityLabel={selectedOption
+          ? `Categoria padre: ${selectedOption.name}`
+          : 'Elegir categoria padre'}
+        accessibilityState={{ expanded }}
       >
         {selectedOption ? (
           <AppText variant="body" color={colors.text}>
@@ -106,6 +111,9 @@ const ParentCategoryPicker: React.FC<ParentCategoryPickerProps> = ({
           ) : (
             <ScrollView style={{ maxHeight: 250 }}>
               <TouchableOpacity
+                accessibilityRole="radio"
+                accessibilityLabel="Sin padre, categoria raiz"
+                accessibilityState={{ selected: !value }}
                 style={[
                   styles.option,
                   { backgroundColor: !value ? colors.primary + '20' : 'transparent' },
@@ -120,6 +128,11 @@ const ParentCategoryPicker: React.FC<ParentCategoryPickerProps> = ({
               {filteredOptions.map((opt) => (
                 <TouchableOpacity
                   key={opt.id}
+                  accessibilityRole="radio"
+                  /* El tipo va en la etiqueta porque en pantalla se distingue
+                     por COLOR, y el color no es una senal para todo el mundo. */
+                  accessibilityLabel={`${opt.name}, ${opt.type === 'INCOME' ? 'ingreso' : 'gasto'}`}
+                  accessibilityState={{ selected: value === opt.id }}
                   style={[
                     styles.option,
                     {

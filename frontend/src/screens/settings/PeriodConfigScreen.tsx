@@ -58,7 +58,13 @@ const PeriodConfigScreen: React.FC = () => {
         <AppText variant="caption" color={colors.textMuted} style={styles.currentLabel}>
           Valor actual: dia {user?.budgetStartDay || 1}
         </AppText>
-        <Button title="Guardar" onPress={handleSave} loading={saving} style={styles.saveBtn} />
+        <Button
+          title="Guardar"
+          accessibilityLabel="Guardar el día en que empieza tu mes"
+          onPress={handleSave}
+          loading={saving}
+          style={styles.saveBtn}
+        />
       </Card>
     </ScrollView>
   );

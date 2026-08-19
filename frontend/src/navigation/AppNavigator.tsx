@@ -220,6 +220,15 @@ const CenterTabButton: React.FC<any> = ({ onPress, ...rest }) => {
       style={fabStyles.wrapper}
       onPress={onPress}
       activeOpacity={0.85}
+      /*
+       * El boton central de la barra es el mas usado de la app y es un "+"
+       * sin etiqueta visible: las otras pestanas tienen su texto debajo y el
+       * lector lo aprovecha, pero esta lleva `tabBarLabel: ''` a proposito
+       * para que el circulo quede limpio. Sin esto, la accion principal de la
+       * app se anuncia como "mas" y ya.
+       */
+      accessibilityRole="button"
+      accessibilityLabel="Anotar un movimiento"
     >
       <View style={[fabStyles.fab, { backgroundColor: colors.primary, borderColor: colors.surface }]}>
         <Text style={[fabStyles.icon, { color: colors.surface }]}>+</Text>

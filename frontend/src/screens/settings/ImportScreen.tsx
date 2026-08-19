@@ -139,7 +139,11 @@ const ImportScreen: React.FC = () => {
 
   const pintarFila = (fila: ImportRow, conCategoria: boolean) => (
     <Card key={fila.row} style={styles.fila}>
-      <View style={styles.filaCabecera}>
+      <View
+        style={styles.filaCabecera}
+        accessible
+        accessibilityLabel={`${fila.description || 'Sin descripción'}: ${formatCurrency(Math.abs(fila.amount))} ${fila.amount < 0 ? 'de gasto' : 'de ingreso'}`}
+      >
         <AppText variant="body">{fila.description || '(sin descripcion)'}</AppText>
         <AppText
           variant="body"
@@ -171,6 +175,12 @@ const ImportScreen: React.FC = () => {
                     borderColor: elegida ? colors.primary : colors.border,
                   },
                 ]}
+                /* La MISMA lista de categorias se repite en cada fila del
+                   extracto. Sin decir de que movimiento es el chip, el lector
+                   suelta "Mercado" sesenta veces sin diferencia ninguna. */
+                accessibilityRole="radio"
+                accessibilityState={{ selected: elegida }}
+                accessibilityLabel={`Categoría ${c.name} para ${fila.description || 'la fila ' + fila.row}`}
               >
                 <AppText variant="caption" color={elegida ? '#FFFFFF' : colors.text}>
                   {c.name}
@@ -235,6 +245,9 @@ const ImportScreen: React.FC = () => {
           <TouchableOpacity
             testID="alternar-cabecera"
             onPress={() => setConCabecera((a) => !a)}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: conCabecera }}
+            accessibilityLabel="La primera fila son los títulos"
             style={[styles.interruptor, {
               backgroundColor: conCabecera ? colors.secondary : colors.surface,
               borderColor: conCabecera ? colors.secondary : colors.border,
@@ -248,6 +261,9 @@ const ImportScreen: React.FC = () => {
           <TouchableOpacity
             testID="alternar-signo"
             onPress={() => setInvertirSigno((a) => !a)}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: invertirSigno }}
+            accessibilityLabel="Mi banco exporta los gastos en positivo"
             style={[styles.interruptor, {
               backgroundColor: invertirSigno ? colors.secondary : colors.surface,
               borderColor: invertirSigno ? colors.secondary : colors.border,

@@ -107,12 +107,20 @@ const DonutChart: React.FC<DonutChartProps> = ({
 
       {/* Legend */}
       <View style={styles.legend}>
+        {/*
+          * La dona en si es un dibujo y no hay forma de "oirla", pero su
+          * LEYENDA si: cada entrada lleva el nombre y el importe juntos, que
+          * es exactamente la informacion que da el grafico.
+          */}
         {data.filter(d => d.percentage > 0).map(slice => (
           <TouchableOpacity
             key={slice.id}
             style={styles.legendItem}
             onPress={() => onSlicePress?.(slice)}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={`${slice.label}: ${slice.value}`}
+            accessibilityHint="Ver el detalle de esta categoria"
           >
             <View style={[styles.legendDot, { backgroundColor: slice.color }]} />
             <View style={styles.legendText}>

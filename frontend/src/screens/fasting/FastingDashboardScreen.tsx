@@ -129,6 +129,17 @@ const FastingDashboardScreen: React.FC = () => {
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
+  /* "00:34:12" leido en voz alta es "cero cero dos puntos treinta y cuatro":
+     no se entiende. Para el lector de pantalla el tiempo se dice en palabras. */
+  const tiempoEnPalabras = (secs: number) => {
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    if (h === 0 && m === 0) return 'menos de un minuto';
+    const horas = h === 0 ? '' : h === 1 ? '1 hora' : `${h} horas`;
+    const minutos = m === 0 ? '' : m === 1 ? '1 minuto' : `${m} minutos`;
+    return [horas, minutos].filter(Boolean).join(' y ');
+  };
+
   const formatDT = (dt: string) => {
     if (!dt) return '--:--';
     const d = new Date(dt);
@@ -191,7 +202,11 @@ const FastingDashboardScreen: React.FC = () => {
           </Card>
         ) : (
           <>
-            <Card style={styles.planCard}>
+            <Card
+              style={styles.planCard}
+              accessible
+              accessibilityLabel={`Plan activo: ${plan.fastingHours} horas de ayuno y ${plan.eatingHours} para comer. ${statusLabel}`}
+            >
               <AppText variant="caption" color={colors.textSecondary}>Plan activo</AppText>
               <AppText variant="subtitle" color={colors.primary}>{plan.fastingHours}:{plan.eatingHours}</AppText>
               <AppText variant="caption" color={statusColor}>{statusLabel}</AppText>
@@ -206,7 +221,17 @@ const FastingDashboardScreen: React.FC = () => {
                     rotation="-90" origin={`${size / 2}, ${size / 2}`} />
                 )}
               </Svg>
-              <View style={styles.timerText}>
+              {/* El emoji de la zona, la cifra y el estado son una sola cosa:
+                  cuanto llevas de ayuno. El emoji suelto no dice nada. */}
+              <View
+                style={styles.timerText}
+                accessible
+                accessibilityLabel={
+                  isActive
+                    ? `Llevas ${tiempoEnPalabras(elapsed)} de ayuno. ${statusLabel}`
+                    : `Ayuno sin empezar. ${statusLabel}`
+                }
+              >
                 {isActive && currentZone && (
                   <AppText style={{ fontSize: 28, marginBottom: 2 }}>{currentZone.icon}</AppText>
                 )}
@@ -221,7 +246,13 @@ const FastingDashboardScreen: React.FC = () => {
 
             {/* Zona actual + descripción */}
             {isActive && currentZone && (
-              <Card style={[styles.zoneCard, { borderLeftColor: currentZone.color, borderLeftWidth: 4 }]}>
+              <Card
+                style={[styles.zoneCard, { borderLeftColor: currentZone.color, borderLeftWidth: 4 }]}
+                accessible
+                accessibilityLabel={`${currentZone.name}. ${currentZone.desc}.${
+                  nextZone ? ` Luego viene ${nextZone.name}, en ${Math.ceil(nextZone.minH - elapsedHours)} horas.` : ''
+                }`}
+              >
                 <AppText variant="body" style={{ color: currentZone.color, fontWeight: '700' }}>
                   {currentZone.icon} {currentZone.name}
                 </AppText>
@@ -262,11 +293,19 @@ const FastingDashboardScreen: React.FC = () => {
             {/* Horas inicio / objetivo */}
             {isActive && (
               <View style={styles.timesRow}>
-                <View style={styles.timeCol}>
+                <View
+                  style={styles.timeCol}
+                  accessible
+                  accessibilityLabel={`Empezaste el ${formatDT(session.startTime)}`}
+                >
                   <AppText variant="caption" color={colors.textSecondary}>Inicio</AppText>
                   <AppText variant="body">{formatDT(session.startTime)}</AppText>
                 </View>
-                <View style={styles.timeCol}>
+                <View
+                  style={styles.timeCol}
+                  accessible
+                  accessibilityLabel={`Terminas el ${formatDT(session.targetEndTime)}`}
+                >
                   <AppText variant="caption" color={colors.textSecondary}>Objetivo</AppText>
                   <AppText variant="body" color={colors.primary}>{formatDT(session.targetEndTime)}</AppText>
                 </View>
@@ -279,14 +318,27 @@ const FastingDashboardScreen: React.FC = () => {
               ) : (
                 <>
                   <Button title="Finalizar Ayuno" onPress={openStopModal} size="large" />
-                  <Button title="Cancelar" onPress={handleCancel} variant="outline" style={{ marginTop: spacing.sm }} />
+                  {/* "Cancelar" a secas suena a cerrar la pantalla; lo que
+                      hace es tirar el ayuno que llevas empezado. */}
+                  <Button
+                    title="Cancelar"
+                    accessibilityLabel="Cancelar el ayuno"
+                    accessibilityHint="Se pierde el tiempo que llevas"
+                    onPress={handleCancel}
+                    variant="outline"
+                    style={{ marginTop: spacing.sm }}
+                  />
                 </>
               )}
             </View>
 
             {/* Water Tracker */}
             <Card style={styles.waterCard}>
-              <View style={styles.waterHeader}>
+              <View
+                style={styles.waterHeader}
+                accessible
+                accessibilityLabel={`Agua: llevas ${water?.glasses || 0} vasos de los ${water?.goalGlasses || 8} del día`}
+              >
                 <AppText variant="label">💧 Agua</AppText>
                 <AppText variant="caption" color={colors.textSecondary}>
                   {water?.glasses || 0} / {water?.goalGlasses || 8} vasos
@@ -303,6 +355,11 @@ const FastingDashboardScreen: React.FC = () => {
                 <TouchableOpacity
                   style={[styles.waterBtn, { backgroundColor: '#4FC3F7', opacity: waterBusy ? 0.5 : 1 }]}
                   disabled={waterBusy}
+                  accessibilityRole="button"
+                  accessibilityLabel="Anotar un vaso de agua"
+                  /* Mientras se guarda no responde, y sin esto el boton se
+                     queda mudo: solo baja la opacidad, que no se ve ni se oye. */
+                  accessibilityState={{ disabled: waterBusy }}
                   onPress={async () => {
                     if (!user || waterBusy) return;
                     setWaterBusy(true);
@@ -323,6 +380,13 @@ const FastingDashboardScreen: React.FC = () => {
                 <TouchableOpacity
                   style={[styles.waterBtn, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, opacity: waterBusy || (water?.glasses || 0) <= 0 ? 0.5 : 1 }]}
                   disabled={waterBusy || (water?.glasses || 0) <= 0}
+                  /* "- 1" no dice menos uno de que. Y cuando no hay vasos que
+                     quitar hay que decir por que no responde: hoy solo se ve
+                     porque el boton esta un poco mas palido. */
+                  accessibilityRole="button"
+                  accessibilityLabel="Quitar un vaso de agua"
+                  accessibilityState={{ disabled: waterBusy || (water?.glasses || 0) <= 0 }}
+                  accessibilityHint={(water?.glasses || 0) <= 0 ? 'Todavía no has anotado ningún vaso hoy' : undefined}
                   onPress={async () => {
                     if (!user || waterBusy || (water?.glasses || 0) <= 0) return;
                     setWaterBusy(true);
@@ -346,7 +410,14 @@ const FastingDashboardScreen: React.FC = () => {
                 <AppText variant="label" style={{ marginBottom: spacing.sm }}>🏆 Logros</AppText>
                 <View style={styles.achieveGrid}>
                   {achievements.map((a: any) => (
-                    <View key={a.code} style={[styles.achieveItem, { opacity: a.unlocked ? 1 : 0.3 }]}>
+                    /* Que un logro este conseguido o no se ve SOLO en la
+                       opacidad. Aqui al menos se dice con palabras. */
+                    <View
+                      key={a.code}
+                      style={[styles.achieveItem, { opacity: a.unlocked ? 1 : 0.3 }]}
+                      accessible
+                      accessibilityLabel={`${a.name}. ${a.unlocked ? 'Conseguido' : 'Todavía sin conseguir'}`}
+                    >
                       <AppText style={{ fontSize: 24 }}>{a.icon}</AppText>
                       <AppText variant="caption" align="center" numberOfLines={1}>{a.name}</AppText>
                     </View>
@@ -360,8 +431,15 @@ const FastingDashboardScreen: React.FC = () => {
 
       {/* Modal para editar fecha/hora */}
       <Modal visible={!!showTimeModal} transparent animationType="fade" onRequestClose={() => setShowTimeModal(null)}>
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowTimeModal(null)}>
-          <TouchableOpacity activeOpacity={1} style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowTimeModal(null)}
+          accessibilityRole="button"
+          accessibilityLabel={showTimeModal === 'start' ? 'Cerrar sin iniciar el ayuno' : 'Cerrar sin finalizar el ayuno'}
+        >
+          {/* Solo esta para que el toque no llegue al fondo y cierre. */}
+          <TouchableOpacity accessible={false} activeOpacity={1} style={[styles.modalContent, { backgroundColor: colors.surface }]}>
             <AppText variant="subtitle" style={styles.modalTitle}>
               {showTimeModal === 'start' ? 'Iniciar Ayuno' : 'Finalizar Ayuno'}
             </AppText>

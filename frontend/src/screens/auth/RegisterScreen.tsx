@@ -57,7 +57,11 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        <View style={styles.logoContainer}>
+        <View
+          style={styles.logoContainer}
+          accessible
+          accessibilityLabel="Oh Churus. Crea tu cuenta y empieza a organizar tu vida"
+        >
           <AppText variant="title" style={styles.mascot}>🐿️</AppText>
           <AppText variant="title" color={colors.primary}>Oh Churus!</AppText>
           <AppText variant="caption" color={colors.textSecondary} style={styles.tagline}>
@@ -98,7 +102,12 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
           />
         </View>
 
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.linkContainer}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.linkContainer}
+          accessibilityRole="link"
+          accessibilityLabel="¿Ya tienes cuenta? Inicia sesión"
+        >
           <AppText variant="body" color={colors.textSecondary}>
             Ya tienes cuenta?{' '}
           </AppText>

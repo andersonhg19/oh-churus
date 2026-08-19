@@ -147,8 +147,9 @@ const ConsolidatedScreen: React.FC = () => {
         />
       </View>
 
-      {/* Income Card */}
-      <Card style={styles.metricCard}>
+      {/* Income Card. El titulo y la cifra van juntos: separados se oye
+          "Ingresos" y, mas tarde, un numero sin dueño. */}
+      <Card style={styles.metricCard} accessible accessibilityLabel={`Ingresos: ${formatCurrency(income)}`}>
         <View style={styles.metricHeader}>
           <View style={[styles.metricIndicator, { backgroundColor: colors.income }]} />
           <AppText variant="body" color={colors.textSecondary}>Ingresos</AppText>
@@ -159,7 +160,7 @@ const ConsolidatedScreen: React.FC = () => {
       </Card>
 
       {/* Expense Card */}
-      <Card style={styles.metricCard}>
+      <Card style={styles.metricCard} accessible accessibilityLabel={`Gastos: ${formatCurrency(expense)}`}>
         <View style={styles.metricHeader}>
           <View style={[styles.metricIndicator, { backgroundColor: colors.expense }]} />
           <AppText variant="body" color={colors.textSecondary}>Gastos</AppText>
@@ -170,7 +171,7 @@ const ConsolidatedScreen: React.FC = () => {
       </Card>
 
       {/* Balance Card */}
-      <Card style={styles.metricCard}>
+      <Card style={styles.metricCard} accessible accessibilityLabel={`Balance: ${formatCurrency(balance)}. ${statusLabel}`}>
         <View style={styles.metricHeader}>
           <View style={[styles.metricIndicator, { backgroundColor: balanceColor }]} />
           <AppText variant="body" color={colors.textSecondary}>Balance</AppText>
@@ -189,7 +190,11 @@ const ConsolidatedScreen: React.FC = () => {
 
       {/* Tab-specific extra info */}
       {activeTab === 'shared' && (data.shared?.transfersToPersonal ?? 0) > 0 && (
-        <Card style={styles.extraCard}>
+        <Card
+          style={styles.extraCard}
+          accessible
+          accessibilityLabel={`Transferencias a personal: ${formatCurrency(data.shared.transfersToPersonal)}`}
+        >
           <AppText variant="body" color={colors.textSecondary}>
             Transferencias a personal
           </AppText>
@@ -200,7 +205,11 @@ const ConsolidatedScreen: React.FC = () => {
       )}
 
       {activeTab === 'personal' && (data.personal?.incomeFromTransfer ?? 0) > 0 && (
-        <Card style={styles.extraCard}>
+        <Card
+          style={styles.extraCard}
+          accessible
+          accessibilityLabel={`Ingreso por transferencia: ${formatCurrency(data.personal.incomeFromTransfer)}`}
+        >
           <AppText variant="body" color={colors.textSecondary}>
             Ingreso por transferencia
           </AppText>
@@ -215,17 +224,29 @@ const ConsolidatedScreen: React.FC = () => {
         <Card style={styles.budgetCard}>
           <AppText variant="subtitle" style={styles.budgetTitle}>Ejecucion presupuestal</AppText>
 
-          <View style={styles.budgetRow}>
+          <View
+            style={styles.budgetRow}
+            accessible
+            accessibilityLabel={`Presupuestado ${formatCurrency(totalBudgeted)}`}
+          >
             <AppText variant="body" color={colors.textSecondary}>Presupuestado</AppText>
             <AppText variant="body">{formatCurrency(totalBudgeted)}</AppText>
           </View>
-          <View style={styles.budgetRow}>
+          <View
+            style={styles.budgetRow}
+            accessible
+            accessibilityLabel={`Ejecutado ${formatCurrency(totalActual)}`}
+          >
             <AppText variant="body" color={colors.textSecondary}>Ejecutado</AppText>
             <AppText variant="body">{formatCurrency(totalActual)}</AppText>
           </View>
 
           {/* Progress bar */}
-          <View style={styles.budgetBarContainer}>
+          <View
+            style={styles.budgetBarContainer}
+            accessible
+            accessibilityLabel={`Llevas ejecutado el ${Math.round(budgetExecPct)} por ciento de lo presupuestado`}
+          >
             <View style={[styles.budgetBarBg, { backgroundColor: colors.border }]}>
               <View
                 style={[
@@ -239,7 +260,11 @@ const ConsolidatedScreen: React.FC = () => {
             </AppText>
           </View>
 
-          <View style={styles.budgetRow}>
+          <View
+            style={styles.budgetRow}
+            accessible
+            accessibilityLabel={`Varianza: ${totalBudgeted - totalActual >= 0 ? 'te sobran' : 'te pasaste por'} ${formatCurrency(Math.abs(totalBudgeted - totalActual))}`}
+          >
             <AppText variant="body" color={colors.textSecondary}>Varianza</AppText>
             <AppText
               variant="body"

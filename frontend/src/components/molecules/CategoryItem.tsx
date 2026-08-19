@@ -27,6 +27,8 @@ const CategoryItem: React.FC<CategoryItemProps> = ({
 
   return (
     <TouchableOpacity
+      accessibilityRole="button"
+      accessibilityLabel={`Categoria ${category.name}`}
       style={[
         styles.container,
         {
@@ -39,8 +41,18 @@ const CategoryItem: React.FC<CategoryItemProps> = ({
       activeOpacity={0.7}
     >
       <View style={styles.left}>
+        {/* El "+" y el "-" que despliegan las subcategorias: sin nombre el
+            lector dice "mas" y "menos", que no significan nada aqui. */}
         {hasChildren && (
-          <TouchableOpacity onPress={onToggle} style={styles.expandBtn}>
+          <TouchableOpacity
+            onPress={onToggle}
+            style={styles.expandBtn}
+            accessibilityRole="button"
+            accessibilityLabel={expanded
+              ? `Plegar las subcategorias de ${category.name}`
+              : `Desplegar las subcategorias de ${category.name}`}
+            accessibilityState={{ expanded }}
+          >
             <AppText variant="body">{expanded ? '-' : '+'}</AppText>
           </TouchableOpacity>
         )}

@@ -55,6 +55,14 @@ const CapsuleToggle: React.FC<CapsuleToggleProps> = ({ options, selected, onChan
           key={option.value}
           style={styles.option}
           onPress={() => onChange(option.value)}
+          /*
+           * `radio` y no `button`: son opciones excluyentes, y con `selected`
+           * el lector anuncia CUAL esta puesta. Sin eso solo se sabe por el
+           * color de fondo, que para mucha gente no es una senal.
+           */
+          accessibilityRole="radio"
+          accessibilityLabel={option.label}
+          accessibilityState={{ selected: option.value === selected }}
           activeOpacity={0.7}
         >
           <AppText

@@ -25,6 +25,16 @@ interface ButtonProps {
      texto: hay pantallas donde el titulo de la seccion y el del boton dicen lo
      mismo, y getByText encuentra dos. */
   testID?: string;
+  /**
+   * Lo que anuncia un lector de pantalla. Por defecto, el propio titulo.
+   *
+   * Se pasa a mano cuando el titulo no basta por si solo: un boton que pone
+   * "Eliminar" en una pantalla llena de cosas no dice QUE elimina, y quien no
+   * ve la pantalla se queda sin saberlo.
+   */
+  accessibilityLabel?: string;
+  /** El "para que sirve", cuando el nombre no lo deja claro del todo. */
+  accessibilityHint?: string;
 }
 
 const Button: React.FC<ButtonProps> = ({
@@ -36,6 +46,8 @@ const Button: React.FC<ButtonProps> = ({
   size = 'medium',
   style,
   testID,
+  accessibilityLabel,
+  accessibilityHint,
 }) => {
   const { colors } = useTheme();
 
@@ -102,6 +114,21 @@ const Button: React.FC<ButtonProps> = ({
       onPress={onPress}
       disabled={disabled || loading}
       activeOpacity={0.7}
+      /*
+       * accessible envuelve el boton entero en UN solo elemento para el lector.
+       * Sin esto anuncia por separado el contenedor y el texto de dentro, y hay
+       * que pasar dos veces por cada boton.
+       */
+      accessible
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel || title}
+      accessibilityHint={accessibilityHint}
+      /*
+       * `busy` es lo que hace que cargando NO sea solo una animacion: sin el,
+       * quien no ve la rueda pulsa otra vez creyendo que no paso nada. Y
+       * `disabled` explica por que no responde, en vez de dejarlo mudo.
+       */
+      accessibilityState={{ disabled: disabled || loading, busy: loading }}
     >
       {loading ? (
         <ActivityIndicator color={getTextColor()} size="small" />

@@ -726,3 +726,82 @@ bloquea nada: quien decide es el workflow `Pruebas`.
 Row Level Security en Postgres, accesibilidad completa (0 `accessibilityLabel`
 en 22 pantallas), y el rediseño de identidad de marca. Ninguna es la razón por
 la que la app se sentía rota; esa lista ya está en cero.
+
+---
+
+## Cuarta parte — accesibilidad y cierre, 19 de agosto de 2026
+
+Se cerró lo último que quedaba señalado del plan de auditoría.
+
+### Accesibilidad: de 0 a 157 etiquetas
+
+La app tenía **cero** `accessibilityLabel`. Un lector de pantalla no podía usarla.
+
+Se empezó por los **átomos**, que es donde una sola corrección cubre 86 usos: el
+botón anuncia `busy` mientras carga —sin eso, quien no ve la ruedecita pulsa
+otra vez creyendo que no pasó nada— y el campo de texto une su etiqueta visible
+con el propio campo.
+
+**Los peores casos eran símbolos.** `<` y `>` del navegador de periodo se leían
+"menor que" y "mayor que": la navegación principal de media app no significaba
+nada. El `+` central de la barra, la acción más usada, se anunciaba "más" — y el
+mismo `+` sale en otros tres sitios con tres significados distintos. `- 1` para
+quitar un vaso de agua es "menos uno" de nada. `1a`, `Ultima`, `Lun`, `Mar` no
+son palabras al oírlas, y "Mar" puede ser martes o marzo. Los selectores de
+color e icono eran el extremo: sin nombre no hay literalmente nada que oír.
+
+### Y tres defectos que no eran de accesibilidad
+
+Etiquetar obliga a decir en voz alta qué hace cada cosa, y ahí se ve lo que no
+se puede usar:
+
+1. **El campo del MONTO y el buscador no existían.** Los dos pasan `label=""` a
+   propósito para no repetir texto, y el átomo hacía `accessibilityLabel={label}`:
+   cadena vacía. Los dos campos más usados de la app, invisibles.
+2. **Un botón de 32×32**, por debajo del mínimo de 44 para acertar con el pulgar.
+   No era que no se anunciara: es que no se podía dar.
+3. **Estados que solo existían como opacidad** — deshabilitado, logro conseguido.
+   Quedan dichos con palabras; la señal visible sigue pendiente.
+
+### El bug del tope de página
+
+Antes de esto salió otro, y llevaba meses vivo: `SummaryScreen` pedía 200
+movimientos contra un `@Max(100)`. El validador rechazaba, el advice lo
+convertía en `correct: false`, la pantalla hacía `if (res.correct)` y no
+entraba. **Las barras de "presupuesto vs real" no funcionaron nunca**, sin un
+solo error a la vista, porque la dona y los totales de al lado sí funcionan.
+
+Estaba anotado en la auditoría de la ola 1 y se quedó sin hacer tres olas. Y
+volvió a aparecer el mismo día en la pantalla de importación recién escrita.
+
+### Protección de rama
+
+`main` ya no admite *force push* ni borrado, y las tres comprobaciones del CI
+son obligatorias. **No se bloquea a administradores a propósito**: eres el único
+que trabaja aquí y eso obligaría a abrir un PR para cada cambio. La consecuencia
+hay que saberla — GitHub avisa con *"Bypassed rule violations"* en cada push
+directo, y las comprobaciones no frenan nada. Si algún día se quiere lo
+segundo, hay que pasar a trabajar por PR.
+
+---
+
+## Estado a 2026-08-19
+
+| Comprobación | Resultado |
+|---|---|
+| `cd backend && mvn -B clean verify` | BUILD SUCCESS, **939 tests**, los tres suelos cumplidos |
+| `cd frontend && npx tsc --noEmit` | sin errores |
+| `cd frontend && npx jest --coverage --ci` | **67 suites, 422 tests** |
+| CI `Pruebas` | verde, incluido Karate por el gateway |
+| Elementos interactivos sin nombre | **0**, vigilado por `NadaInteractivoSinNombre` |
+| Matriz de aislamiento | 48 casos |
+| Pruebas de arquitectura | 12 |
+
+**Sigue pendiente y no depende del código:** renovar el `SONAR_TOKEN`.
+
+**Sigue abierto por decisión, no por descuido:** los 7 módulos aparcados de
+`documentación/puntos-futuros.md` (roles, configuración global, moneda por
+usuario, modo offline, notificaciones, auditoría, metas de ahorro), Row Level
+Security en Postgres, el rediseño de identidad de marca, y las tres señales
+visibles que hoy solo se explican con palabras (estado deshabilitado y logros
+por opacidad, y las acciones que solo existen por gesto largo).

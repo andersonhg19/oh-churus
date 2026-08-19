@@ -1,3 +1,21 @@
+# ---------------------------------------------------------------------------
+# TECHOS DE MEMORIA
+#
+# Sin ellos la JVM coge hasta un cuarto de la RAM de la maquina: medido con
+# `docker stats` sobre este mismo stack, los cinco servicios sumaban 3,1 GB en
+# un equipo de 47 GB. Esa cifra no dice lo que el servicio NECESITA, dice lo
+# que el equipo le dejaba coger.
+#
+# Con MaxRAMPercentage la JVM se ajusta al limite del CONTENEDOR y no al de la
+# maquina, asi que este mismo compose se porta igual en un portatil que en un
+# servidor pequeno. El stack completo baja de 3,1 GB a ~1,5 GB.
+#
+# Los numeros salen de la medicion y no de un catalogo: budget-service es el
+# que mas trabaja —movimientos, reparto, sobres, importacion— y lleva mas.
+# UseSerialGC porque con heaps de 300 MB el recolector paralelo gasta mas en
+# hilos de lo que ahorra.
+# ---------------------------------------------------------------------------
+
 networks:
   oh-churus-network:
     driver: bridge
@@ -17,6 +35,7 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./backend/init-db/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql
+    mem_limit: 256m
     networks:
       - oh-churus-network
     healthcheck:
@@ -32,6 +51,9 @@ services:
       context: ./backend/discovery-service
     ports:
       - "8760:8760"
+    mem_limit: 384m
+    environment:
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75 -Xss512k -XX:+UseSerialGC"
     networks:
       - oh-churus-network
     healthcheck:
@@ -49,6 +71,9 @@ services:
     depends_on:
       discovery-service:
         condition: service_healthy
+    mem_limit: 384m
+    environment:
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75 -Xss512k -XX:+UseSerialGC"
     networks:
       - oh-churus-network
 
@@ -65,11 +90,13 @@ services:
       postgres:
         condition: service_healthy
     environment:
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75 -Xss512k -XX:+UseSerialGC"
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/auth_db
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-OhChurus2026}
       SECRET: ${SECRET:-ohchurus@secret.key}
       EXP_TIME: ${EXP_TIME:-864000000}
+    mem_limit: 448m
     networks:
       - oh-churus-network
     healthcheck:
@@ -90,10 +117,12 @@ services:
       postgres:
         condition: service_healthy
     environment:
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75 -Xss512k -XX:+UseSerialGC"
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/budget_db
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-OhChurus2026}
       SECRET: ${SECRET:-ohchurus@secret.key}
+    mem_limit: 512m
     networks:
       - oh-churus-network
     healthcheck:
@@ -114,10 +143,12 @@ services:
       postgres:
         condition: service_healthy
     environment:
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75 -Xss512k -XX:+UseSerialGC"
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/fasting_db
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-OhChurus2026}
       SECRET: ${SECRET:-ohchurus@secret.key}
+    mem_limit: 448m
     networks:
       - oh-churus-network
     healthcheck:

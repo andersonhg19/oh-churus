@@ -19,6 +19,7 @@ public class CategoryFilterDTO {
     private CategoryType type;
     @Min(0)
     private int page = 0;
-    @Min(1) @Max(100)
+    /** Mismo tope que MovementFilterDTO: ver el porque alli. */
+    @Min(1) @Max(500)
     private int size = 10;
 }

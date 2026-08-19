@@ -113,7 +113,7 @@
           },
           "size" : {
             "format" : "int32",
-            "maximum" : 100,
+            "maximum" : 500,
             "minimum" : 1,
             "type" : "integer"
           },
@@ -396,7 +396,7 @@
           },
           "size" : {
             "format" : "int32",
-            "maximum" : 100,
+            "maximum" : 500,
             "minimum" : 1,
             "type" : "integer"
           },
@@ -611,7 +611,7 @@
           },
           "size" : {
             "format" : "int32",
-            "maximum" : 100,
+            "maximum" : 500,
             "minimum" : 1,
             "type" : "integer"
           },

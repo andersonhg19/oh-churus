@@ -18,6 +18,15 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa</artifactId>
         </dependency>
+
+        <!-- Declarado explicitamente aunque llegue de rebote por otro starter:
+             de el depende que el aspecto que anuncia la identidad a PostgreSQL
+             llegue a aplicarse, y si desapareciera con la transitiva dejaria
+             de aplicarse EN SILENCIO. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-aop</artifactId>
+        </dependency>
         <!-- El esquema lo manda Flyway (db/migration), no ddl-auto -->
         <dependency>
             <groupId>org.flywaydb</groupId>

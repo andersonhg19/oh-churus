@@ -298,7 +298,14 @@ Esta sección vale tanto como el plan.
 ### Mejoras "de libro" que en **este** proyecto no compensan
 
 1. **Partida doble literal de Firefly III.** Duplica el volumen de datos y obliga a modelar cuentas de gasto e ingreso que en Oh Churus ya son categorías. **Roba la regla estructural de las transferencias, no la maquinaria.**
-2. **Row Level Security en Postgres — ahora no.** Es la única capa que convierte "no debería pasar" en "no puede pasar", pero exige un rol de app sin ownership, `SET LOCAL`/`RESET` por transacción (una fuga aquí cruza datos entre peticiones del pool), otro rol para Flyway, y Testcontainers para probarla. **Es fase 2 de la Ola 3, después de 2.7.** Ponerla antes es construir el techo sin los muros.
+2. ~~**Row Level Security en Postgres — ahora no.**~~ — **HECHA el 4 de septiembre de 2026 (ola 4.6)**, y la espera estuvo bien tomada: los muros —la identidad en el token, la matriz de aislamiento, Flyway con `validate` y Testcontainers— tenían que estar antes.
+
+   Se hizo con `FORCE ROW LEVEL SECURITY` y con políticas **que respetan el hogar**, no con un simple "solo lo tuyo": aquí dos personas comparten los movimientos que caen en categorías del hogar, y la versión simple habría dejado el consolidado a medias sin que nada fallara — que es la peor forma de romperse.
+
+   Del `SET LOCAL` / `RESET` que preocupaba en esta misma línea: se usa `set_config(..., true)`, **local a la transacción**, así que no hay ningún `RESET` que se pueda olvidar; PostgreSQL lo deshace al cerrar. Ése era exactamente el punto por el que se cruzan datos entre peticiones del pool.
+
+   Lo que **no** se hizo, a propósito: cambiar las credenciales de la aplicación. Un superusuario se salta RLS siempre, incluso con `FORCE`, así que hoy las políticas están puestas y **dormidas**, y `ComprobacionDeRls` lo dice en el arranque para que nadie confunda "existen" con "protegen". Activarlas es un cambio de despliegue, escrito al final de la migración `V9`. Once pruebas con Testcontainers y un rol normal comprueban que entonces sí protege: ni un `SELECT` sin `WHERE`, ni un `UPDATE` masivo, ni un `DELETE` ajeno, ni un `INSERT` a nombre de otro.
+
 3. **Pact / consumer-driven contract testing.** Con un único consumidor, OpenAPI + validador de respuestas tiene mucha mejor relación coste/beneficio.
 4. **Cron obligatorio para recurrencias.** Es la fuente número uno de fricción de soporte de Firefly III. El modelo de propuesta de Actual + idempotencia da el mismo resultado percibido con una fracción del riesgo.
 5. **Rediseño de identidad de marca** (ardilla SVG, repaletizar a marrones, tokens de radio y sombra, sustituir los 51 hex sueltos). Todo cierto, nada de ello es la razón por la que la app se siente rota. **Excepción barata que sí hago:** corregir `fontSize.xs === fontSize.sm` (dos escalones idénticos), subir los textos de 10-11 px, y los ~6 colores del tema claro que están bajo 3:1 — o, si no quieres tocarlos, **quita el toggle de tema claro** en vez de dejarlo roto. Media hora en cualquiera de los dos casos.

@@ -805,3 +805,115 @@ usuario, modo offline, notificaciones, auditoría, metas de ahorro), Row Level
 Security en Postgres, el rediseño de identidad de marca, y las tres señales
 visibles que hoy solo se explican con palabras (estado deshabilitado y logros
 por opacidad, y las acciones que solo existen por gesto largo).
+
+---
+
+## Quinta parte — la Ola 4, de aplicación a plataforma. 4 de septiembre de 2026
+
+El disparador no fue una auditoría sino una frase: *"quiero meter aquí varias
+aplicaciones"*. Eso obliga a resolver lo que hasta hoy no existía —**quién es
+cada quien y qué puede hacer**— y a hacerlo aprendiendo de dos proyectos que ya
+lo tienen resuelto, `dropshipping` y `HexaQuantum`.
+
+El análisis de esos dos, con lo que se adoptó y lo que **no** se copió y por
+qué, está en `../documentación/ola-4-plataforma-y-permisos.md`. En una frase:
+los dos responden a "¿qué puedes hacer?" con una tabla de roles y un
+`hasAuthority` por endpoint —el suelo, y aquí no existía—, y HexaQuantum va un
+paso más allá con `Module → Page → PageTypeUser`, que es justamente el paso que
+Oh Churus necesitaba.
+
+### El hueco, dicho sin rodeos
+
+La Ola 2 cerró la identidad: el `userId` sale del token. Nunca se respondió a la
+segunda pregunta. Hasta esta ola, la única regla de autorización de los tres
+servicios era `anyRequest().authenticated()`, que traducido significa:
+**cualquiera con un token válido llegaba a cualquier endpoint**.
+
+### Qué entró
+
+**4.1 · Roles.** `Role` con `active` y auditoría, el claim `roles` firmado en el
+token, autoridades en los tres filtros JWT y `hasAuthority(ADMIN)` sobre
+`/v1/admin`. Dos invariantes que no se pueden saltar: al último administrador no
+se le quita el rol ni se le desactiva la cuenta, y nadie se desactiva a sí mismo.
+Sin la primera, la plataforma se queda sin ningún administrador con dos clics y
+ya no hay forma de crear otro desde la aplicación.
+
+**4.2 · Módulos, páginas y permisos.** Una aplicación pasa a ser una fila con
+sus páginas, y quién la ve lo decide un permiso por rol. Cuatro banderas por
+página —ver, crear, editar, borrar— y no una casilla de "se ve o no se ve":
+"puede entrar" y "puede borrar" no son la misma pregunta. **No existir es no
+poder**: sin fila no hay permiso, y quitarlo todo borra la fila.
+
+**4.3 · La administración se puede usar.** Cuatro pantallas —usuarios y roles,
+roles, módulos y permisos, auditoría— y `useMenu`, que trae del servidor lo que
+esa persona puede ver. Cuando el backend se niega, **se lee el motivo**.
+
+**4.4 · Auditoría.** Quién cambió qué, cuándo y de qué valor a qué valor.
+Después del commit, en otro hilo, y si falla se queja y se calla.
+
+**4.5 · La moneda sale del código.** Dos niveles —lo de la instalación y lo de
+cada persona— con una regla de una frase: si el usuario no ha elegido, manda lo
+global.
+
+**4.6 · Row Level Security.** La fase 2 que la Ola 3 aparcó con motivo escrito.
+
+**4.7 · Lo visible.** Contraste, tamaños de letra y los estados que solo
+existían como opacidad.
+
+### Cuatro cosas que aparecieron por el camino
+
+**1. Un `NullPointerException` esperando.** `getById` de auth comparaba con
+`equals()` sobre el resultado de `getAuthenticatedUserId()`, que devuelve `null`
+sin sesión. La comprobación además estaba duplicada: la segunda mitad ya trataba
+el nulo bien.
+
+**2. El botón se leía bien en un tema y mal en el otro.** Escribía su texto
+siempre en blanco, y en el tema oscuro el botón principal tiene el fondo ámbar
+claro: **2.08:1**. El mismo componente, el mismo código, sin que nada fallara.
+Salió al escribir la prueba que mide el contraste, no mirando la pantalla.
+
+**3. Siete colores del tema claro por debajo de 3:1**, y con varios de ellos se
+escriben cifras. El peor, el naranja de "pendiente", en 1.93.
+
+**4. `value` es palabra reservada en H2.** Se sabía de `key` y se había evitado;
+con `value` no, y la migración falló con un error de sintaxis. La columna se
+llama `config_value`.
+
+### Y tres guardarraíles que hicieron su trabajo solos
+
+`NingunEndpointSinDueno` se puso rojo con los nueve endpoints nuevos hasta que
+entraron en la matriz de aislamiento. `LaSpecPublicadaEstaAlDia`, hasta que se
+regeneró la spec — tres veces. Y `ElMenuLlevaAPantallasQueExisten`, escrito en
+esta misma ola, obligó a vaciar su propia lista de excepciones en cuanto las
+tres pantallas de administración existieron.
+
+De regalo, `NadaSeEscribeMasPequeno` se acusó a sí mismo la primera vez que
+corrió: el comentario que explica su única excepción menciona `fontSize: 1`.
+
+---
+
+## Estado a 2026-09-04
+
+| Comprobación | Resultado |
+|---|---|
+| `cd backend && mvn -B clean verify` | BUILD SUCCESS, **1.105 tests**, los tres suelos de cobertura cumplidos |
+| `cd frontend && npx tsc --noEmit` | sin errores |
+| `cd frontend && npx jest --ci` | **76 suites, 506 tests** |
+| Matriz de aislamiento (auth) | 16 casos, incluidos los de autorización |
+| Row Level Security | 11 casos contra PostgreSQL con un rol normal |
+| Contraste de los dos temas | 31 comprobaciones, WCAG AA |
+| Endpoints | 82, con la spec generada del código |
+| Migraciones Flyway | auth V1–V7, budget V1–V9 |
+
+**Lo que sigue pendiente y no depende del código:** renovar el `SONAR_TOKEN`
+(decisión explícita: se ve después), y **activar** RLS cambiando la conexión a
+un rol sin superusuario — hoy las políticas están puestas y dormidas, y el
+servicio lo dice al arrancar.
+
+**Lo que queda del backlog de `puntos-futuros.md`**, y por qué no entró en esta
+ola: modo offline, notificaciones, reportes en PDF y multi-moneda con tasas de
+cambio. Los cuatro son **features de la aplicación de finanzas**, no de la
+plataforma, y tres de ellos necesitan una decisión que no es técnica: por dónde
+notificar, de dónde salen las tasas, y si el rediseño que exige el modo offline
+compensa para dos personas. De ese backlog, esta ola cerró los puntos 1 (roles),
+2 (configuración global), 3 (preferencias por usuario) y 8 (auditoría).

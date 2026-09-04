@@ -4,7 +4,9 @@
 
 ---
 
-### 1. Módulo de Roles y Permisos
+### ~~1. Módulo de Roles y Permisos~~
+**ESTADO:** HECHO en la ola 4.1 y 4.2 (4-sep-2026). Fue mas alla de lo que aqui se pedia: ademas de Role y la relacion con User, hay modulos, paginas y cuatro permisos por pagina, que es lo que permite alojar varias aplicaciones.
+
 **Origen:** Fase 1 original
 **Descripción:** Sistema de roles (ADMIN, USER) con tabla UserRole para asignar múltiples roles por usuario. Control de acceso por endpoint según rol.
 **Entidades:**
@@ -14,7 +16,9 @@
 
 ---
 
-### 2. Módulo de Configuraciones del Sistema (AppConfiguration)
+### ~~2. Módulo de Configuraciones del Sistema (AppConfiguration)~~
+**ESTADO:** HECHO en la ola 4.5 (4-sep-2026). Tabla oc_auth_app_config y pantalla de administracion.
+
 **Origen:** Core Service original
 **Descripción:** Tabla clave-valor para configuraciones globales de la app (moneda por defecto, decimales, nombre app, versión). CRUD completo con endpoint.
 **Entidades:**
@@ -23,7 +27,9 @@
 
 ---
 
-### 3. Preferencias por Usuario (currency, decimalPlaces)
+### ~~3. Preferencias por Usuario (currency, decimalPlaces)~~
+**ESTADO:** HECHO en la ola 4.5 (4-sep-2026). Nulo significa "lo que diga la configuracion global", no "sin moneda".
+
 **Origen:** Auth Service - simplificación Fase 1
 **Descripción:** Permitir que cada usuario tenga su propia moneda y decimales. Campos a agregar en User:
 - `currency` (String(10), DEFAULT 'COP') - código ISO de moneda
@@ -53,7 +59,9 @@
 
 ---
 
-### 8. Audit Service
+### ~~8. Audit Service~~
+**ESTADO:** HECHO en la ola 4.4 (4-sep-2026), pero NO como microservicio aparte: la auditoria vive donde vive el dato. Dropshipping tiene un servicio dedicado porque escriben en el seis servicios; aqui serian tres, y ya hay cinco servicios para dos personas.
+
 **Descripción:** Microservicio dedicado para registrar cambios en entidades (quién cambió qué y cuándo). Event-based con ApplicationEventPublisher.
 
 ---

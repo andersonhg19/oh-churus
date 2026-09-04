@@ -10,6 +10,20 @@ interface UserInfo {
   name: string;
   email: string;
   budgetStartDay: number;
+  /**
+   * Los roles que el backend firmo en el token.
+   *
+   * Sirven PARA PINTAR, nunca para decidir. Quien decide si una operacion se
+   * hace es el servidor, que lee el rol del token y no de aqui: esta lista
+   * vive en el telefono y cualquiera puede cambiarla. Si en algun momento algo
+   * importante depende solo de este campo, es un fallo de seguridad, no una
+   * optimizacion.
+   *
+   * Opcional porque una sesion guardada antes de la ola 4 no lo tiene, y
+   * porque el backend anterior no lo enviaba. Ausente se lee como "ninguno",
+   * nunca como "todos".
+   */
+  roles?: string[];
 }
 
 interface AuthContextType {
@@ -17,6 +31,8 @@ interface AuthContextType {
   token: string | null;
   loading: boolean;
   isAuthenticated: boolean;
+  /** Solo para decidir que se muestra. La puerta la cierra el backend. */
+  esAdmin: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -28,6 +44,7 @@ const AuthContext = createContext<AuthContextType>({
   token: null,
   loading: true,
   isAuthenticated: false,
+  esAdmin: false,
   login: async () => {},
   register: async () => {},
   logout: async () => {},
@@ -55,7 +72,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         if (storedToken && storedUser) {
           setToken(storedToken);
           const parsed = JSON.parse(storedUser);
-          setUser({ budgetStartDay: 1, ...parsed });
+          /* Una sesion guardada antes de la ola 4 no tiene roles. Se restaura
+             con la lista vacia —que significa "no se pinta nada de mas"— y no
+             con un rol por defecto, que seria regalar permisos que su token no
+             dice que tenga. */
+          setUser({ budgetStartDay: 1, roles: [], ...parsed });
 
           // Refrescar budgetStartDay desde el backend
           try {
@@ -127,6 +148,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       name: authData.name,
       email: authData.email,
       budgetStartDay,
+      roles: authData.roles ?? [],
     };
     await AsyncStorage.setItem(USER_KEY, JSON.stringify(userInfo));
     setUser(userInfo);
@@ -143,6 +165,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       name: authData.name,
       email: authData.email,
       budgetStartDay: 1,
+      roles: authData.roles ?? [],
     };
     await Promise.all([
       AsyncStorage.setItem(TOKEN_KEY, authData.token),
@@ -177,6 +200,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         token,
         loading,
         isAuthenticated: !!token && !!user,
+        esAdmin: !!user?.roles?.includes('ADMIN'),
         login,
         register,
         logout,

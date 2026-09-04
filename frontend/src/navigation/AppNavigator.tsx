@@ -34,6 +34,15 @@ import BalancesScreen from '../screens/splits/BalancesScreen';
 import EnvelopesScreen from '../screens/budget/EnvelopesScreen';
 import ImportScreen from '../screens/settings/ImportScreen';
 
+// Administracion (ola 4). Se registran SIEMPRE, y quien no es administrador
+// simplemente no tiene como llegar: la entrada no se pinta y el backend
+// responde 403 a las tres. Registrarlas condicionalmente obligaria a rehacer
+// el arbol de navegacion cuando cambia el rol, y un arbol que cambia debajo de
+// una pantalla abierta es como se pierde el sitio donde estabas.
+import AdminUsersScreen from '../screens/admin/AdminUsersScreen';
+import AdminRolesScreen from '../screens/admin/AdminRolesScreen';
+import AdminModulesScreen from '../screens/admin/AdminModulesScreen';
+
 // Budget & Consolidated screens
 import BudgetScreen from '../screens/budget/BudgetScreen';
 import ConsolidatedScreen from '../screens/consolidated/ConsolidatedScreen';
@@ -90,6 +99,9 @@ type SettingsStackParamList = {
   AccountForm: { account?: Account };
   Reconcile: { account: Account };
   Balances: undefined;
+  AdminUsers: undefined;
+  AdminRoles: undefined;
+  AdminModules: undefined;
 };
 
 // --- Stacks ---
@@ -187,6 +199,9 @@ const SettingsNavigator = () => {
       <SettingsStack.Screen name="Reconcile" component={ReconcileScreen} options={{ title: 'Conciliar' }} />
       <SettingsStack.Screen name="Balances" component={BalancesScreen} options={{ title: 'Cuentas entre nosotros' }} />
       <SettingsStack.Screen name="Consolidated" component={ConsolidatedScreen} options={{ title: 'Consolidado Mensual' }} />
+      <SettingsStack.Screen name="AdminUsers" component={AdminUsersScreen} options={{ title: 'Usuarios' }} />
+      <SettingsStack.Screen name="AdminRoles" component={AdminRolesScreen} options={{ title: 'Roles' }} />
+      <SettingsStack.Screen name="AdminModules" component={AdminModulesScreen} options={{ title: 'Modulos y permisos' }} />
     </SettingsStack.Navigator>
   );
 };

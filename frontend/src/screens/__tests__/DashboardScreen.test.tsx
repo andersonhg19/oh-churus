@@ -30,7 +30,7 @@ jest.mock('../../services/movementService', () => ({
 
 jest.spyOn(AuthContext, 'useAuth').mockReturnValue({
   user: { userId: '1', name: 'Anderson', email: 'a@b.com', budgetStartDay: 1 },
-  token: 'tok', loading: false, isAuthenticated: true,
+  token: 'tok', loading: false, isAuthenticated: true, esAdmin: false,
   login: jest.fn(), register: jest.fn(), logout: jest.fn(), updateUser: jest.fn(),
 });
 

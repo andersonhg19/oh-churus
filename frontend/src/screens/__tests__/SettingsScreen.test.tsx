@@ -7,7 +7,7 @@ import * as AuthContext from '../../contexts/AuthContext';
 const logout = jest.fn();
 jest.spyOn(AuthContext, 'useAuth').mockReturnValue({
   user: { userId: '1', name: 'Anderson', email: 'a@b.com', budgetStartDay: 1 },
-  token: 'tok', loading: false, isAuthenticated: true,
+  token: 'tok', loading: false, isAuthenticated: true, esAdmin: false,
   login: jest.fn(), register: jest.fn(), logout, updateUser: jest.fn(),
 });
 
@@ -35,6 +35,32 @@ describe('SettingsScreen', () => {
     );
     fireEvent.press(getByText(/Configuracion de periodo/));
     expect(mockNavigation.navigate).toHaveBeenCalledWith('PeriodConfig');
+  });
+
+  it('quien no es administrador NO ve la seccion de administracion', () => {
+    /* El menu no llega en las pruebas, asi que se cae al rol del token: aqui
+       esAdmin es false. Esconder los botones no es la seguridad —la seguridad
+       es el 403 del backend— pero ensenar puertas que no se pueden abrir es
+       una mala pantalla. */
+    const { queryByText } = render(
+      <SettingsScreen navigation={mockNavigation} route={{} as any} />, { wrapper: Wrapper },
+    );
+    expect(queryByText(/Usuarios y roles/)).toBeNull();
+    expect(queryByText(/Modulos y permisos/)).toBeNull();
+  });
+
+  it('y quien si lo es, la ve y puede entrar', () => {
+    jest.spyOn(AuthContext, 'useAuth').mockReturnValue({
+      user: { userId: '1', name: 'Anderson', email: 'a@b.com', budgetStartDay: 1, roles: ['ADMIN'] },
+      token: 'tok', loading: false, isAuthenticated: true, esAdmin: true,
+      login: jest.fn(), register: jest.fn(), logout, updateUser: jest.fn(),
+    });
+
+    const { getByText } = render(
+      <SettingsScreen navigation={mockNavigation} route={{} as any} />, { wrapper: Wrapper },
+    );
+    fireEvent.press(getByText(/Usuarios y roles/));
+    expect(mockNavigation.navigate).toHaveBeenCalledWith('AdminUsers');
   });
 
   it('toggles the theme', () => {

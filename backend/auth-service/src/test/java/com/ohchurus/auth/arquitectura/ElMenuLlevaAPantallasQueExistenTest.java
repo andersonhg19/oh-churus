@@ -46,13 +46,15 @@ class ElMenuLlevaAPantallasQueExistenTest {
 
     /**
      * Pantallas que la V4 siembra y que el navegador todavia no tiene, con el
-     * motivo. Las tres de administracion se escriben en el bloque siguiente de
-     * esta misma ola; hasta entonces, el menu las trae y el movil no las pinta
-     * porque no las encuentra — que es el comportamiento correcto de un menu
-     * que se adelanta, no un fallo.
+     * motivo al lado.
+     *
+     * Esta vacia, y la idea es que siga vacia. Estuvo un rato con las tres de
+     * administracion dentro —el menu se sembro antes de que las pantallas
+     * existieran— y la segunda prueba de este fichero es la que obliga a
+     * sacarlas en cuanto aparecieron: una lista de excepciones que nadie
+     * revisa deja de ser una excepcion y pasa a ser un agujero.
      */
-    private static final Set<String> AUN_NO_EXISTEN =
-            Set.of("AdminUsers", "AdminRoles", "AdminModules");
+    private static final Set<String> AUN_NO_EXISTEN = Set.of();
 
     @Test
     @DisplayName("cada ruta sembrada corresponde con una pantalla del navegador")

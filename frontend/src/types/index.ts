@@ -19,6 +19,90 @@ export interface AuthResponse {
   userId: string;
   name: string;
   email: string;
+  /**
+   * Los mismos roles que van firmados dentro del token. Vienen aparte para no
+   * tener que descodificar el JWT solo para saber si pintar el menu de
+   * administracion. Lo que manda es el token; esto es comodidad de pintado.
+   * Opcional porque un backend anterior a la ola 4 no lo envia.
+   */
+  roles?: string[];
+}
+
+// ---- Administracion (ola 4) ----
+export interface AdminUser {
+  id: number;
+  name: string;
+  email: string;
+  budgetStartDay?: number;
+  active: boolean;
+  roles: string[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface Rol {
+  id: number;
+  name: string;
+  description?: string;
+  active: boolean;
+  usuarios: number;
+}
+
+export interface PaginaDeModulo {
+  id: number;
+  code: string;
+  name: string;
+  route: string;
+  icon?: string;
+  inMenu: boolean;
+  sortOrder: number;
+  active: boolean;
+}
+
+export interface ModuloAdmin {
+  id: number;
+  code: string;
+  name: string;
+  icon?: string;
+  sortOrder: number;
+  active: boolean;
+  pages: PaginaDeModulo[];
+}
+
+export interface PermisoDeRol {
+  pageId: number;
+  moduleCode: string;
+  pageCode: string;
+  pageName: string;
+  canRead: boolean;
+  canCreate: boolean;
+  canUpdate: boolean;
+  canDelete: boolean;
+}
+
+export interface PaginaDelMenu {
+  code: string;
+  name: string;
+  route: string;
+  icon?: string;
+  inMenu: boolean;
+  sortOrder: number;
+  canRead: boolean;
+  canCreate: boolean;
+  canUpdate: boolean;
+  canDelete: boolean;
+}
+
+export interface ModuloDelMenu {
+  code: string;
+  name: string;
+  icon?: string;
+  sortOrder: number;
+  pages: PaginaDelMenu[];
+}
+
+export interface MenuPropio {
+  modules: ModuloDelMenu[];
 }
 
 export interface LoginRequest {

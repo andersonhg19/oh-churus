@@ -7,6 +7,7 @@ import Card from '../../components/atoms/Card';
 import Button from '../../components/atoms/Button';
 import { spacing } from '../../theme';
 import { confirmarAccion } from '../../utils/confirmar';
+import { useMenu } from '../../hooks/useMenu';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { CategoryTree } from '../../types';
 
@@ -20,6 +21,9 @@ type SettingsStackParamList = {
   PeriodConfig: undefined;
   Household: undefined;
   Consolidated: undefined;
+  AdminUsers: undefined;
+  AdminRoles: undefined;
+  AdminModules: undefined;
 };
 
 type Props = NativeStackScreenProps<SettingsStackParamList, 'SettingsMain'>;
@@ -27,6 +31,12 @@ type Props = NativeStackScreenProps<SettingsStackParamList, 'SettingsMain'>;
 const SettingsScreen: React.FC<Props> = ({ navigation }) => {
   const { colors, isDark, toggleTheme } = useTheme();
   const { user, logout } = useAuth();
+  /* Que se pinta lo dice el servidor. Si no contesta, se cae al rol del
+     token; ver useMenu. Y en cualquiera de los dos casos, quien no deba entrar
+     recibe un 403 aunque llegue a la pantalla: esto es para no ensenar puertas
+     que no se pueden abrir, no para cerrarlas. */
+  const { puedeVer } = useMenu();
+  const veLaAdministracion = puedeVer('AdminUsers', true);
 
   const handleLogout = () =>
     confirmarAccion({
@@ -131,6 +141,47 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
         </View>
       </Card>
 
+      {veLaAdministracion && (
+        <>
+          <AppText variant="caption" color={colors.textSecondary} style={styles.seccion}>
+            Administracion
+          </AppText>
+
+          <Card
+            style={styles.menuItem}
+            accessibilityLabel="Administrar las cuentas y sus roles"
+            onPress={() => navigation.navigate('AdminUsers')}
+          >
+            <View style={styles.menuRow}>
+              <AppText variant="body">👥 Usuarios y roles</AppText>
+              <AppText variant="body" color={colors.textMuted}>›</AppText>
+            </View>
+          </Card>
+
+          <Card
+            style={styles.menuItem}
+            accessibilityLabel="Administrar los roles que existen"
+            onPress={() => navigation.navigate('AdminRoles')}
+          >
+            <View style={styles.menuRow}>
+              <AppText variant="body">🔑 Roles</AppText>
+              <AppText variant="body" color={colors.textMuted}>›</AppText>
+            </View>
+          </Card>
+
+          <Card
+            style={styles.menuItem}
+            accessibilityLabel="Administrar los modulos y los permisos de cada rol"
+            onPress={() => navigation.navigate('AdminModules')}
+          >
+            <View style={styles.menuRow}>
+              <AppText variant="body">🧩 Modulos y permisos</AppText>
+              <AppText variant="body" color={colors.textMuted}>›</AppText>
+            </View>
+          </Card>
+        </>
+      )}
+
       <Card style={styles.menuItem}>
         <View style={styles.menuRow}>
           <AppText variant="body">🎨 Apariencia</AppText>
@@ -160,6 +211,7 @@ const styles = StyleSheet.create({
   avatarSection: { alignItems: 'center', marginBottom: spacing.xl },
   avatar: { fontSize: 64, marginBottom: spacing.sm },
   menuItem: { marginBottom: spacing.sm },
+  seccion: { marginTop: spacing.md, marginBottom: spacing.xs, textTransform: 'uppercase' },
   menuRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   logoutBtn: { marginTop: spacing.xl },
   version: { marginTop: spacing.xl },

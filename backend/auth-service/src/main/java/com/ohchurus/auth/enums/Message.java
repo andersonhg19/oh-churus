@@ -20,6 +20,8 @@ public class Message {
         roleInUse,
         systemRoleCannotChange,
         lastAdminCannotLoseRole,
-        cannotDeactivateSelf
+        cannotDeactivateSelf,
+        pageNotFound,
+        adminKeepsAdminModule
     }
 }

@@ -30,6 +30,38 @@
         ],
         "type" : "object"
       },
+      "PermisoSaveDTO" : {
+        "properties" : {
+          "canCreate" : {
+            "type" : "boolean"
+          },
+          "canDelete" : {
+            "type" : "boolean"
+          },
+          "canRead" : {
+            "type" : "boolean"
+          },
+          "canUpdate" : {
+            "type" : "boolean"
+          },
+          "pageId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "roleName" : {
+            "type" : "string"
+          }
+        },
+        "required" : [
+          "canCreate",
+          "canDelete",
+          "canRead",
+          "canUpdate",
+          "pageId",
+          "roleName"
+        ],
+        "type" : "object"
+      },
       "ResultDTO" : {
         "properties" : {
           "correct" : {
@@ -181,6 +213,89 @@
   },
   "openapi" : "3.0.1",
   "paths" : {
+    "/v1/admin/modules/all" : {
+      "post" : {
+        "operationId" : "modulos",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "summary" : "Modulos con sus paginas, incluidos los desactivados",
+        "tags" : [
+          "Administracion de modulos y permisos"
+        ]
+      }
+    },
+    "/v1/admin/permissions/save" : {
+      "post" : {
+        "operationId" : "guardarPermiso",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PermisoSaveDTO"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "summary" : "Fija lo que un rol puede hacer en una pagina",
+        "tags" : [
+          "Administracion de modulos y permisos"
+        ]
+      }
+    },
+    "/v1/admin/permissions/{roleName}" : {
+      "post" : {
+        "operationId" : "permisosDeRol",
+        "parameters" : [
+          {
+            "in" : "path",
+            "name" : "roleName",
+            "required" : true,
+            "schema" : {
+              "type" : "string"
+            }
+          }
+        ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "summary" : "Permisos de un rol, pagina a pagina",
+        "tags" : [
+          "Administracion de modulos y permisos"
+        ]
+      }
+    },
     "/v1/admin/roles/all" : {
       "post" : {
         "operationId" : "getAll_2",
@@ -525,6 +640,27 @@
         ]
       }
     },
+    "/v1/menu/mine" : {
+      "post" : {
+        "operationId" : "miMenu",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "summary" : "Modulos y paginas del usuario autenticado",
+        "tags" : [
+          "Menu"
+        ]
+      }
+    },
     "/v1/users/all" : {
       "post" : {
         "operationId" : "getAll",
@@ -656,11 +792,19 @@
   "tags" : [
     {
       "description" : "Requiere rol ADMIN",
+      "name" : "Administracion de modulos y permisos"
+    },
+    {
+      "description" : "Requiere rol ADMIN",
       "name" : "Administracion de roles"
     },
     {
       "description" : "Requiere rol ADMIN",
       "name" : "Administracion de usuarios"
+    },
+    {
+      "description" : "Los modulos y paginas que ve quien pregunta",
+      "name" : "Menu"
     }
   ]
 }

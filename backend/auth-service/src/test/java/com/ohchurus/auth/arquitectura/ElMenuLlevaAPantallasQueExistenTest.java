@@ -1,0 +1,164 @@
+package com.ohchurus.auth.arquitectura;
+
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
+
+/**
+ * ============================================================================
+ * EL MENU LLEVA A PANTALLAS QUE EXISTEN
+ * ============================================================================
+ *
+ * El menu de la ola 4 sale de la base de datos: cada pagina guarda el nombre
+ * de ruta con el que el navegador del movil conoce esa pantalla. Es un acuerdo
+ * entre dos ficheros que no se compilan juntos —una migracion SQL en el
+ * backend y un .tsx en el frontend— y esa clase de acuerdo se rompe en
+ * silencio: nadie se entera hasta que alguien pulsa el boton y no pasa nada.
+ *
+ * Aqui se compara la lista de "route" que siembra V4 con los name="..." de
+ * AppNavigator.tsx. Si alguien renombra una pantalla en el movil, esto se pone
+ * rojo y dice cual.
+ *
+ * SI NO ENCUENTRA EL FRONTEND, LA PRUEBA SE SALTA en vez de fallar: el backend
+ * tiene que poder construirse solo —en un contenedor de CI que solo clona
+ * backend/, por ejemplo— sin que una comprobacion opcional lo impida.
+ */
+@DisplayName("El menu lleva a pantallas que existen de verdad")
+class ElMenuLlevaAPantallasQueExistenTest {
+
+    private static final String MIGRACION = "src/main/resources/db/migration/V4__modulos_paginas_y_permisos.sql";
+    private static final String NAVEGADOR = "frontend/src/navigation/AppNavigator.tsx";
+
+    /**
+     * Pantallas que la V4 siembra y que el navegador todavia no tiene, con el
+     * motivo. Las tres de administracion se escriben en el bloque siguiente de
+     * esta misma ola; hasta entonces, el menu las trae y el movil no las pinta
+     * porque no las encuentra — que es el comportamiento correcto de un menu
+     * que se adelanta, no un fallo.
+     */
+    private static final Set<String> AUN_NO_EXISTEN =
+            Set.of("AdminUsers", "AdminRoles", "AdminModules");
+
+    @Test
+    @DisplayName("cada ruta sembrada corresponde con una pantalla del navegador")
+    void cadaRutaExiste() {
+        Path navegador = buscarNavegador();
+        assumeTrue(navegador != null, "no encuentro el frontend desde aqui; prueba omitida");
+
+        Set<String> pantallas = extraer(leer(navegador), "name=\"([A-Za-z0-9_]+)\"");
+        Set<String> rutasSembradas = rutasDeLaMigracion();
+
+        assertThat(rutasSembradas)
+                .as("la migracion no siembra ninguna ruta: ¿cambio el formato del fichero?")
+                .isNotEmpty();
+
+        List<String> huerfanas = new ArrayList<>();
+        for (String ruta : rutasSembradas) {
+            if (AUN_NO_EXISTEN.contains(ruta)) continue;
+            if (!pantallas.contains(ruta)) huerfanas.add(ruta);
+        }
+
+        assertThat(huerfanas)
+                .as("""
+                        estas rutas del menu no corresponden con ninguna pantalla del movil.
+
+                          QUE HACER: o se renombro una pantalla en AppNavigator.tsx y hay que
+                          actualizar la V4 (o escribir una migracion nueva si la V4 ya se
+                          aplico en algun sitio), o la pantalla esta por escribir y va a
+                          AUN_NO_EXISTEN en este fichero con el motivo al lado.
+
+                          Un menu que apunta a una pantalla inexistente es un boton que no
+                          hace nada, y no falla en ningun sitio: el usuario pulsa y se queda
+                          mirando.""")
+                .isEmpty();
+    }
+
+    @Test
+    @DisplayName("la lista de pantallas por escribir no se pudre")
+    void laListaDePendientesNoSePudre() {
+        Path navegador = buscarNavegador();
+        assumeTrue(navegador != null, "no encuentro el frontend desde aqui; prueba omitida");
+
+        Set<String> pantallas = extraer(leer(navegador), "name=\"([A-Za-z0-9_]+)\"");
+
+        List<String> yaExisten = AUN_NO_EXISTEN.stream().filter(pantallas::contains).toList();
+
+        assertThat(yaExisten)
+                .as("estas pantallas ya existen en el navegador: quitalas de AUN_NO_EXISTEN "
+                        + "para que vuelvan a estar vigiladas")
+                .isEmpty();
+    }
+
+    // ========================================================================
+
+    private static Set<String> rutasDeLaMigracion() {
+        /* La migracion escribe las paginas como
+             SELECT 'modulo', 'code', 'Nombre', 'Ruta', 'icono', TRUE, 1
+           asi que la ruta es el cuarto literal de cada linea que empieza por
+           SELECT dentro del bloque de paginas. Se busca por forma —un
+           identificador en mayuscula inicial— en vez de por posicion, que es
+           mas robusto ante un cambio de columnas. */
+        Set<String> rutas = new LinkedHashSet<>();
+        for (String linea : leer(raizDelModulo().resolve(MIGRACION)).split("\\R")) {
+            String limpia = linea.trim();
+            if (!limpia.startsWith("SELECT '")) continue;
+            List<String> literales = new ArrayList<>(extraer(limpia, "'([^']*)'"));
+            /* modulo, code, nombre, RUTA, icono */
+            if (literales.size() >= 4) rutas.add(literales.get(3));
+        }
+        return rutas;
+    }
+
+    private static Set<String> extraer(String texto, String patron) {
+        Matcher m = Pattern.compile(patron).matcher(texto);
+        Set<String> encontrados = new LinkedHashSet<>();
+        while (m.find()) encontrados.add(m.group(1));
+        return encontrados;
+    }
+
+    private static String leer(Path fichero) {
+        try {
+            return Files.readString(fichero, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new UncheckedIOException("No puedo leer " + fichero, e);
+        }
+    }
+
+    private static Path raizDelModulo() {
+        Path actual = Paths.get("").toAbsolutePath();
+        for (Path candidato : List.of(actual,
+                actual.resolve("auth-service"),
+                actual.resolve("backend/auth-service"))) {
+            if (Files.isDirectory(candidato.resolve("src/main/java/com/ohchurus/auth"))) {
+                return candidato;
+            }
+        }
+        throw new IllegalStateException("No encuentro la raiz de auth-service desde " + actual);
+    }
+
+    /** Sube por el arbol buscando la carpeta del movil. Puede no estar. */
+    private static Path buscarNavegador() {
+        Path actual = raizDelModulo();
+        for (int i = 0; i < 4 && actual != null; i++) {
+            Path candidato = actual.resolve(NAVEGADOR);
+            if (Files.isRegularFile(candidato)) return candidato;
+            actual = actual.getParent();
+        }
+        return null;
+    }
+}

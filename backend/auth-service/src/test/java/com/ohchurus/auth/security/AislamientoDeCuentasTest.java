@@ -207,6 +207,35 @@ class AislamientoDeCuentasTest {
     }
 
     @Test
+    @DisplayName("ni los modulos, ni los permisos de nadie")
+    void administracionDeModulosCerrada() throws Exception {
+        assertThat(estadoAtacando("/v1/admin/modules/all", null)).isEqualTo(403);
+        assertThat(estadoAtacando("/v1/admin/permissions/USER", null)).isEqualTo(403);
+        assertThat(estadoAtacando("/v1/admin/permissions/save",
+                "{\"roleName\":\"USER\",\"pageId\":1,\"canRead\":true,\"canCreate\":true,"
+                        + "\"canUpdate\":true,\"canDelete\":true}"))
+                .as("Bruno se concedio permisos a si mismo")
+                .isEqualTo(403);
+    }
+
+    @Test
+    @DisplayName("el menu solo trae lo que ESE usuario puede ver")
+    void elMenuNoEsUnCatalogo() throws Exception {
+        /* No hay forma de pedir el menu de otro: el endpoint no recibe ningun
+           id, los roles salen del token. Y lo que devuelve es lo concedido, no
+           el catalogo entero con marcas — si fuera lo segundo, la lista de
+           pantallas de administracion viajaria al telefono de cualquiera. */
+        String suMenu = atacar("/v1/menu/mine", null);
+
+        assertThat(suMenu)
+                .as("el menu de un usuario corriente nombra el modulo de administracion")
+                .doesNotContain("administracion");
+        assertThat(suMenu)
+                .as("ni sus pantallas")
+                .doesNotContain("AdminUsers");
+    }
+
+    @Test
     @DisplayName("y el ascenso no se consigue escribiendolo en el token")
     void elRolNoSeFalsifica() throws Exception {
         /* El claim "roles" va DENTRO del token firmado. Bruno puede escribir

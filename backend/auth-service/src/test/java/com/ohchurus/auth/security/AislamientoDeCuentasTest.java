@@ -219,6 +219,15 @@ class AislamientoDeCuentasTest {
     }
 
     @Test
+    @DisplayName("y la auditoria no se lee sin ser administrador")
+    void auditoriaCerrada() throws Exception {
+        /* Es el registro de quien hizo que en toda la plataforma: correos,
+           horas y cambios de permisos de todo el mundo. */
+        assertThat(estadoAtacando("/v1/admin/audit/all", "{\"page\":0,\"size\":50}"))
+                .isEqualTo(403);
+    }
+
+    @Test
     @DisplayName("el menu solo trae lo que ESE usuario puede ver")
     void elMenuNoEsUnCatalogo() throws Exception {
         /* No hay forma de pedir el menu de otro: el endpoint no recibe ningun

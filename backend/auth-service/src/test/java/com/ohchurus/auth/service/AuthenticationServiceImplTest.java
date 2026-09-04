@@ -39,6 +39,9 @@ class AuthenticationServiceImplTest {
     @Mock
     private SecParams secParams;
 
+    @Mock
+    private org.springframework.context.ApplicationEventPublisher eventos;
+
     @InjectMocks
     private AuthenticationServiceImpl authenticationService;
 

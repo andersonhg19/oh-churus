@@ -4,6 +4,7 @@ import com.ohchurus.auth.dto.input.PermisoSaveDTO;
 import com.ohchurus.auth.dto.output.ResultDTO;
 import com.ohchurus.auth.dto.output.ResultModuleDTO;
 import com.ohchurus.auth.dto.output.ResultPermisoDTO;
+import com.ohchurus.auth.entity.AuditLog;
 import com.ohchurus.auth.entity.Module;
 import com.ohchurus.auth.entity.Page;
 import com.ohchurus.auth.entity.Role;
@@ -14,8 +15,10 @@ import com.ohchurus.auth.repository.PageRepository;
 import com.ohchurus.auth.repository.RolePermissionRepository;
 import com.ohchurus.auth.repository.RoleRepository;
 import com.ohchurus.auth.service.AdminModuleService;
+import com.ohchurus.auth.service.CambioAuditable;
 import com.ohchurus.auth.util.SecurityUtils;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,13 +35,24 @@ public class AdminModuleServiceImpl implements AdminModuleService {
     private final PageRepository paginas;
     private final RoleRepository roles;
     private final RolePermissionRepository permisos;
+    private final ApplicationEventPublisher eventos;
 
     public AdminModuleServiceImpl(ModuleRepository modulos, PageRepository paginas,
-                                  RoleRepository roles, RolePermissionRepository permisos) {
+                                  RoleRepository roles, RolePermissionRepository permisos,
+                                  ApplicationEventPublisher eventos) {
         this.modulos = modulos;
         this.paginas = paginas;
         this.roles = roles;
         this.permisos = permisos;
+        this.eventos = eventos;
+    }
+
+    /** Un cambio de permisos es de lo mas delicado que hay aqui: se anota. */
+    private void anotarPermiso(Long pageId, String detalle) {
+        eventos.publishEvent(new CambioAuditable(
+                SecurityUtils.getAuthenticatedUserId(),
+                SecurityUtils.getAuthenticatedEmail(),
+                "RolePermission", pageId, AuditLog.Accion.PERMISSION_CHANGE, detalle));
     }
 
     @Override
@@ -120,6 +134,8 @@ public class AdminModuleServiceImpl implements AdminModuleService {
         if (sinNada) {
             existente.ifPresent(permisos::delete);
             log.info("Permiso retirado: {} sobre {}", dto.getRoleName(), pagina.get().getCode());
+            anotarPermiso(dto.getPageId(),
+                    dto.getRoleName() + " pierde todo sobre " + pagina.get().getCode());
             return new ResultDTO(true, "OK", 0);
         }
 
@@ -135,6 +151,9 @@ public class AdminModuleServiceImpl implements AdminModuleService {
         permisos.save(permiso);
 
         log.info("Permiso guardado: {} sobre {}", dto.getRoleName(), pagina.get().getCode());
+        anotarPermiso(dto.getPageId(), dto.getRoleName() + " sobre " + pagina.get().getCode()
+                + ": ver=" + dto.getCanRead() + " crear=" + dto.getCanCreate()
+                + " editar=" + dto.getCanUpdate() + " borrar=" + dto.getCanDelete());
         return new ResultDTO(new ResultPermisoDTO(
                 pagina.get().getId(),
                 pagina.get().getModule().getCode(),

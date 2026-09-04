@@ -1,6 +1,7 @@
 import api from './api';
 import {
   AdminUser,
+  LineaDeAuditoria,
   MenuPropio,
   ModuloAdmin,
   PageDTO,
@@ -100,6 +101,25 @@ export const adminService = {
     const response = await api.post<ResultDTO<PermisoDeRol>>(
       `${ADMIN_BASE}/permissions/save`,
       data,
+    );
+    return response.data;
+  },
+
+  /**
+   * El registro de quien hizo que. SOLO LECTURA: no hay metodo para escribir
+   * ni para borrar, porque tampoco existe el endpoint. Un registro que se
+   * puede retocar desde la aplicacion no prueba nada.
+   */
+  auditoria: async (filtro: {
+    actorUserId?: number;
+    entityType?: string;
+    ultimosDias?: number;
+    page?: number;
+    size?: number;
+  }) => {
+    const response = await api.post<ResultDTO<PageDTO<LineaDeAuditoria>>>(
+      `${ADMIN_BASE}/audit/all`,
+      filtro,
     );
     return response.data;
   },

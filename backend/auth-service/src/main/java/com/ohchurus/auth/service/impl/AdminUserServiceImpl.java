@@ -5,14 +5,17 @@ import com.ohchurus.auth.dto.input.UserFilterDTO;
 import com.ohchurus.auth.dto.input.UserSaveDTO;
 import com.ohchurus.auth.dto.output.ResultAdminUserDTO;
 import com.ohchurus.auth.dto.output.ResultDTO;
+import com.ohchurus.auth.entity.AuditLog;
 import com.ohchurus.auth.entity.Role;
 import com.ohchurus.auth.entity.User;
 import com.ohchurus.auth.enums.Message;
 import com.ohchurus.auth.repository.RoleRepository;
 import com.ohchurus.auth.repository.UserRepository;
 import com.ohchurus.auth.service.AdminUserService;
+import com.ohchurus.auth.service.CambioAuditable;
 import com.ohchurus.auth.util.SecurityUtils;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -43,13 +46,31 @@ public class AdminUserServiceImpl implements AdminUserService {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
+    private final ApplicationEventPublisher eventos;
 
     public AdminUserServiceImpl(UserRepository userRepository,
                                 RoleRepository roleRepository,
-                                PasswordEncoder passwordEncoder) {
+                                PasswordEncoder passwordEncoder,
+                                ApplicationEventPublisher eventos) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
+        this.eventos = eventos;
+    }
+
+    /**
+     * Deja anotado quien hizo esto.
+     *
+     * El evento se publica DENTRO de la transaccion y el que escucha espera al
+     * commit, asi que solo se anota lo que de verdad se guardo. Los datos van
+     * explicitos —no la entidad para que el otro lado la desmonte con
+     * reflexion—: si falta uno, no compila.
+     */
+    private void anotar(AuditLog.Accion accion, Long entityId, String detalle) {
+        eventos.publishEvent(new CambioAuditable(
+                SecurityUtils.getAuthenticatedUserId(),
+                SecurityUtils.getAuthenticatedEmail(),
+                "User", entityId, accion, detalle));
     }
 
     @Override
@@ -117,6 +138,7 @@ public class AdminUserServiceImpl implements AdminUserService {
 
         User saved = userRepository.save(user);
         log.info("Admin creo la cuenta {}", saved.getEmail());
+        anotar(AuditLog.Accion.USER_CREATE, saved.getId(), "Alta de " + saved.getEmail());
         return new ResultDTO(aDTO(saved, nombresDeRol(saved.getRoles())));
     }
 
@@ -143,9 +165,14 @@ public class AdminUserServiceImpl implements AdminUserService {
             return new ResultDTO(false, Message.Msj.lastAdminCannotLoseRole.toString(), 105);
         }
 
+        List<String> antes = nombresDeRol(user.getRoles());
         user.setRoles(nuevos);
         userRepository.save(user);
         log.info("Roles de {} fijados a {}", user.getEmail(), dto.getRoles());
+        /* De que a que: sin el "antes", la linea dice que alguien tiene
+           ADMIN pero no si se lo acaban de dar. */
+        anotar(AuditLog.Accion.ROLES_ASSIGNED, user.getId(),
+                user.getEmail() + ": " + antes + " -> " + nombresDeRol(nuevos));
         return new ResultDTO(aDTO(user, nombresDeRol(nuevos)));
     }
 
@@ -170,6 +197,8 @@ public class AdminUserServiceImpl implements AdminUserService {
         user.setActive(activar);
         userRepository.save(user);
         log.info("Cuenta {} {}", user.getEmail(), activar ? "reactivada" : "desactivada");
+        anotar(activar ? AuditLog.Accion.USER_ACTIVATE : AuditLog.Accion.USER_DEACTIVATE,
+                user.getId(), user.getEmail());
         return new ResultDTO(aDTO(user, nombresDeRol(user.getRoles())));
     }
 

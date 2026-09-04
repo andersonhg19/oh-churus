@@ -4,12 +4,15 @@ import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.ohchurus.auth.dto.input.AuthenticationRequest;
 import com.ohchurus.auth.dto.input.AuthenticationResponse;
+import com.ohchurus.auth.entity.AuditLog;
 import com.ohchurus.auth.entity.Role;
 import com.ohchurus.auth.entity.User;
 import com.ohchurus.auth.repository.UserRepository;
 import com.ohchurus.auth.security.SecParams;
 import com.ohchurus.auth.service.AuthenticationService;
+import com.ohchurus.auth.service.CambioAuditable;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -25,13 +28,16 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     private final AuthenticationManager authenticationManager;
     private final UserRepository userRepository;
     private final SecParams secParams;
+    private final ApplicationEventPublisher eventos;
 
     public AuthenticationServiceImpl(AuthenticationManager authenticationManager,
                                      UserRepository userRepository,
-                                     SecParams secParams) {
+                                     SecParams secParams,
+                                     ApplicationEventPublisher eventos) {
         this.authenticationManager = authenticationManager;
         this.userRepository = userRepository;
         this.secParams = secParams;
+        this.eventos = eventos;
     }
 
     @Override
@@ -68,6 +74,15 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                 .sign(Algorithm.HMAC256(secParams.getSecret()));
 
         log.info("User authenticated: {}", user.getEmail());
+
+        /* Solo las entradas que SALEN BIEN. Anotar tambien los intentos
+           fallidos convertiria la tabla en el sitio donde se acumulan las
+           contrasenas mal tecleadas de todo el mundo, que casi siempre son
+           la de otro servicio. El limite de intentos es otro problema y se
+           resuelve en otro sitio. */
+        eventos.publishEvent(new CambioAuditable(
+                user.getId(), user.getEmail(), "User", user.getId(),
+                AuditLog.Accion.LOGIN, "Entro con los roles " + roles));
 
         AuthenticationResponse response = new AuthenticationResponse();
         response.setToken(jwt);

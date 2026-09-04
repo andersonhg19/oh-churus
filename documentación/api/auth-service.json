@@ -15,6 +15,35 @@
         ],
         "type" : "object"
       },
+      "AuditoriaFilterDTO" : {
+        "properties" : {
+          "actorUserId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "entityType" : {
+            "type" : "string"
+          },
+          "page" : {
+            "format" : "int32",
+            "minimum" : 0,
+            "type" : "integer"
+          },
+          "size" : {
+            "format" : "int32",
+            "maximum" : 200,
+            "minimum" : 1,
+            "type" : "integer"
+          },
+          "ultimosDias" : {
+            "format" : "int32",
+            "maximum" : 3650,
+            "minimum" : 1,
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
       "AuthenticationRequest" : {
         "properties" : {
           "email" : {
@@ -213,6 +242,37 @@
   },
   "openapi" : "3.0.1",
   "paths" : {
+    "/v1/admin/audit/all" : {
+      "post" : {
+        "operationId" : "consultar",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AuditoriaFilterDTO"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "summary" : "Quien cambio que y cuando",
+        "tags" : [
+          "Auditoria"
+        ]
+      }
+    },
     "/v1/admin/modules/all" : {
       "post" : {
         "operationId" : "modulos",
@@ -801,6 +861,10 @@
     {
       "description" : "Requiere rol ADMIN",
       "name" : "Administracion de usuarios"
+    },
+    {
+      "description" : "Requiere rol ADMIN. Solo lectura",
+      "name" : "Auditoria"
     },
     {
       "description" : "Los modulos y paginas que ve quien pregunta",

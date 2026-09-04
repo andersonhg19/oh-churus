@@ -42,6 +42,7 @@ import ImportScreen from '../screens/settings/ImportScreen';
 import AdminUsersScreen from '../screens/admin/AdminUsersScreen';
 import AdminRolesScreen from '../screens/admin/AdminRolesScreen';
 import AdminModulesScreen from '../screens/admin/AdminModulesScreen';
+import AdminAuditScreen from '../screens/admin/AdminAuditScreen';
 
 // Budget & Consolidated screens
 import BudgetScreen from '../screens/budget/BudgetScreen';
@@ -102,6 +103,7 @@ type SettingsStackParamList = {
   AdminUsers: undefined;
   AdminRoles: undefined;
   AdminModules: undefined;
+  AdminAudit: undefined;
 };
 
 // --- Stacks ---
@@ -202,6 +204,7 @@ const SettingsNavigator = () => {
       <SettingsStack.Screen name="AdminUsers" component={AdminUsersScreen} options={{ title: 'Usuarios' }} />
       <SettingsStack.Screen name="AdminRoles" component={AdminRolesScreen} options={{ title: 'Roles' }} />
       <SettingsStack.Screen name="AdminModules" component={AdminModulesScreen} options={{ title: 'Modulos y permisos' }} />
+      <SettingsStack.Screen name="AdminAudit" component={AdminAuditScreen} options={{ title: 'Auditoria' }} />
     </SettingsStack.Navigator>
   );
 };

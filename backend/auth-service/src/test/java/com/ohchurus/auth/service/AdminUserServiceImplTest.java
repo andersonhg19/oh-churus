@@ -40,6 +40,7 @@ class AdminUserServiceImplTest {
     @Mock private UserRepository userRepository;
     @Mock private RoleRepository roleRepository;
     @Mock private PasswordEncoder passwordEncoder;
+    @Mock private org.springframework.context.ApplicationEventPublisher eventos;
 
     @InjectMocks private AdminUserServiceImpl servicio;
 

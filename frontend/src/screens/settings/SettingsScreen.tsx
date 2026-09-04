@@ -24,6 +24,7 @@ type SettingsStackParamList = {
   AdminUsers: undefined;
   AdminRoles: undefined;
   AdminModules: undefined;
+  AdminAudit: undefined;
 };
 
 type Props = NativeStackScreenProps<SettingsStackParamList, 'SettingsMain'>;
@@ -176,6 +177,17 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
           >
             <View style={styles.menuRow}>
               <AppText variant="body">🧩 Modulos y permisos</AppText>
+              <AppText variant="body" color={colors.textMuted}>›</AppText>
+            </View>
+          </Card>
+
+          <Card
+            style={styles.menuItem}
+            accessibilityLabel="Ver el registro de quien hizo que"
+            onPress={() => navigation.navigate('AdminAudit')}
+          >
+            <View style={styles.menuRow}>
+              <AppText variant="body">📜 Auditoria</AppText>
               <AppText variant="body" color={colors.textMuted}>›</AppText>
             </View>
           </Card>

@@ -37,6 +37,7 @@ class AdminModuleServiceImplTest {
     @Mock private PageRepository paginas;
     @Mock private RoleRepository roles;
     @Mock private RolePermissionRepository permisos;
+    @Mock private org.springframework.context.ApplicationEventPublisher eventos;
 
     @InjectMocks private AdminModuleServiceImpl servicio;
 

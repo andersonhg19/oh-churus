@@ -3,13 +3,16 @@ package com.ohchurus.auth.service.impl;
 import com.ohchurus.auth.dto.input.RoleSaveDTO;
 import com.ohchurus.auth.dto.output.ResultDTO;
 import com.ohchurus.auth.dto.output.ResultRoleDTO;
+import com.ohchurus.auth.entity.AuditLog;
 import com.ohchurus.auth.entity.Role;
 import com.ohchurus.auth.enums.Message;
 import com.ohchurus.auth.repository.RoleRepository;
 import com.ohchurus.auth.repository.UserRepository;
+import com.ohchurus.auth.service.CambioAuditable;
 import com.ohchurus.auth.service.RoleService;
 import com.ohchurus.auth.util.SecurityUtils;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,10 +37,21 @@ public class RoleServiceImpl implements RoleService {
 
     private final RoleRepository roleRepository;
     private final UserRepository userRepository;
+    private final ApplicationEventPublisher eventos;
 
-    public RoleServiceImpl(RoleRepository roleRepository, UserRepository userRepository) {
+    public RoleServiceImpl(RoleRepository roleRepository, UserRepository userRepository,
+                           ApplicationEventPublisher eventos) {
         this.roleRepository = roleRepository;
         this.userRepository = userRepository;
+        this.eventos = eventos;
+    }
+
+    /** Quien toco los roles queda anotado; ver AuditoriaListener. */
+    private void anotar(AuditLog.Accion accion, Long entityId, String detalle) {
+        eventos.publishEvent(new CambioAuditable(
+                SecurityUtils.getAuthenticatedUserId(),
+                SecurityUtils.getAuthenticatedEmail(),
+                "Role", entityId, accion, detalle));
     }
 
     @Override
@@ -67,6 +81,7 @@ public class RoleServiceImpl implements RoleService {
                     .build();
             Role guardado = roleRepository.save(nuevo);
             log.info("Rol creado: {}", guardado.getName());
+            anotar(AuditLog.Accion.ROLE_CREATE, guardado.getId(), guardado.getName());
             return new ResultDTO(aDTO(guardado));
         }
 
@@ -75,6 +90,7 @@ public class RoleServiceImpl implements RoleService {
             return new ResultDTO(false, Message.Msj.roleNotFound.toString(), 104);
         }
         Role rol = encontrado.get();
+        String nombreAnterior = rol.getName();
 
         boolean esDelSistema = ROLES_DEL_SISTEMA.contains(rol.getName());
         if (esDelSistema && !rol.getName().equals(nombre)) {
@@ -94,6 +110,10 @@ public class RoleServiceImpl implements RoleService {
         }
         roleRepository.save(rol);
         log.info("Rol actualizado: {}", rol.getName());
+        anotar(AuditLog.Accion.ROLE_UPDATE, rol.getId(),
+                nombreAnterior.equals(rol.getName())
+                        ? rol.getName()
+                        : nombreAnterior + " -> " + rol.getName());
         return new ResultDTO(aDTO(rol));
     }
 
@@ -124,6 +144,7 @@ public class RoleServiceImpl implements RoleService {
         rol.setActive(false);
         roleRepository.save(rol);
         log.info("Rol desactivado: {}", rol.getName());
+        anotar(AuditLog.Accion.ROLE_DEACTIVATE, rol.getId(), rol.getName());
         return new ResultDTO(aDTO(rol));
     }
 

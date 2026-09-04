@@ -41,7 +41,15 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 @DisplayName("El menu lleva a pantallas que existen de verdad")
 class ElMenuLlevaAPantallasQueExistenTest {
 
-    private static final String MIGRACION = "src/main/resources/db/migration/V4__modulos_paginas_y_permisos.sql";
+    /**
+     * Se miran TODAS las migraciones, no solo la que creo las tablas.
+     *
+     * La V4 sembro las primeras paginas y la V6 anadio la de auditoria; si
+     * esto apuntara a un fichero concreto, cada migracion nueva entraria sin
+     * vigilancia y la comprobacion se iria quedando vieja sin que nadie lo
+     * note — que es exactamente como se pudren los guardarrailes.
+     */
+    private static final String MIGRACIONES = "src/main/resources/db/migration";
     private static final String NAVEGADOR = "frontend/src/navigation/AppNavigator.tsx";
 
     /**
@@ -116,14 +124,24 @@ class ElMenuLlevaAPantallasQueExistenTest {
            identificador en mayuscula inicial— en vez de por posicion, que es
            mas robusto ante un cambio de columnas. */
         Set<String> rutas = new LinkedHashSet<>();
-        for (String linea : leer(raizDelModulo().resolve(MIGRACION)).split("\\R")) {
-            String limpia = linea.trim();
-            if (!limpia.startsWith("SELECT '")) continue;
-            List<String> literales = new ArrayList<>(extraer(limpia, "'([^']*)'"));
-            /* modulo, code, nombre, RUTA, icono */
-            if (literales.size() >= 4) rutas.add(literales.get(3));
+        for (Path migracion : ficherosDeMigracion()) {
+            for (String linea : leer(migracion).split("\\R")) {
+                String limpia = linea.trim();
+                if (!limpia.startsWith("SELECT '")) continue;
+                List<String> literales = new ArrayList<>(extraer(limpia, "'([^']*)'"));
+                /* modulo, code, nombre, RUTA, icono */
+                if (literales.size() >= 4) rutas.add(literales.get(3));
+            }
         }
         return rutas;
+    }
+
+    private static List<Path> ficherosDeMigracion() {
+        try (var ficheros = Files.list(raizDelModulo().resolve(MIGRACIONES))) {
+            return ficheros.filter(f -> f.getFileName().toString().endsWith(".sql")).sorted().toList();
+        } catch (IOException e) {
+            throw new UncheckedIOException("No puedo listar las migraciones", e);
+        }
     }
 
     private static Set<String> extraer(String texto, String patron) {

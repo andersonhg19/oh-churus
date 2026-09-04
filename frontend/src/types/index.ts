@@ -105,6 +105,17 @@ export interface MenuPropio {
   modules: ModuloDelMenu[];
 }
 
+export interface LineaDeAuditoria {
+  id: number;
+  actorUserId?: number;
+  actorEmail?: string;
+  entityType: string;
+  entityId?: number;
+  action: string;
+  details?: string;
+  occurredAt: string;
+}
+
 export interface LoginRequest {
   email: string;
   password: string;

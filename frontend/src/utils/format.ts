@@ -41,17 +41,74 @@ const desdeISO = (fecha: string): Date => {
 };
 
 /**
+ * El simbolo con el que se escribe cada moneda.
+ *
+ * Un mapa corto y no `Intl` con style:'currency', porque Intl escribe "COP 1.234"
+ * y "US$ 1.234" segun el idioma del telefono: la misma cifra se veria distinta
+ * en dos moviles de la misma casa. Lo que no esta en el mapa se escribe con su
+ * codigo delante, que es feo pero nunca es ambiguo.
+ */
+const SIMBOLOS: Record<string, string> = {
+  COP: '$', USD: 'US$', EUR: '€', MXN: 'MX$', ARS: 'AR$',
+  CLP: 'CL$', PEN: 'S/', BRL: 'R$', GBP: '£',
+};
+
+/**
+ * Como se escriben los importes AHORA MISMO.
+ *
+ * Vive en el modulo y no en un contexto de React a proposito: `formatCurrency`
+ * se llama desde quince pantallas y tambien desde funciones sueltas que no son
+ * componentes, y convertirlo en un hook obligaria a tocar los quince sitios
+ * para pasar por parametro algo que es igual en toda la app.
+ *
+ * El valor de partida es el que habia escrito a mano antes de la ola 4, asi
+ * que si el backend no contesta, todo se ve exactamente como se veia.
+ */
+let formatoActual = { currency: 'COP', decimalPlaces: 0, locale: 'es-CO' };
+
+/** Lo llama el contexto de sesion en cuanto el servidor dice las preferencias. */
+export const configurarFormatoDeMoneda = (formato: {
+  currency?: string;
+  decimalPlaces?: number;
+  locale?: string;
+}): void => {
+  formatoActual = {
+    currency: formato.currency?.trim() || formatoActual.currency,
+    /* Un numero de decimales imposible se ignora en vez de romper
+       toLocaleString, que lanza con cualquier cosa fuera de 0..20 y dejaria la
+       pantalla en blanco sin explicacion. */
+    decimalPlaces:
+      typeof formato.decimalPlaces === 'number' &&
+      formato.decimalPlaces >= 0 &&
+      formato.decimalPlaces <= 4
+        ? formato.decimalPlaces
+        : formatoActual.decimalPlaces,
+    locale: formato.locale?.trim() || formatoActual.locale,
+  };
+};
+
+export const formatoDeMoneda = () => ({ ...formatoActual });
+
+/**
  * Importe con su signo. Un deficit de -500.000 se mostraba como "$500.000":
  * `Math.abs` borraba el menos, y tres pantallas lo volvian a pegar a mano,
  * cada una a su manera.
  */
 export const formatCurrency = (amount: number): string => {
   const valor = Number.isFinite(amount) ? amount : 0;
-  const formatted = Math.abs(valor).toLocaleString('es-CO', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  });
-  return `${valor < 0 ? '-' : ''}$${formatted}`;
+  const { currency, decimalPlaces, locale } = formatoActual;
+  let formatted: string;
+  try {
+    formatted = Math.abs(valor).toLocaleString(locale, {
+      minimumFractionDigits: decimalPlaces,
+      maximumFractionDigits: decimalPlaces,
+    });
+  } catch {
+    /* Un locale que este movil no conozca no puede dejar sin cifra a nadie. */
+    formatted = Math.abs(valor).toFixed(decimalPlaces);
+  }
+  const simbolo = SIMBOLOS[currency] ?? `${currency} `;
+  return `${valor < 0 ? '-' : ''}${simbolo}${formatted}`;
 };
 
 export const formatDate = (date: string): string => {

@@ -130,6 +130,16 @@ public class UserServiceImpl implements UserService {
             user.setBudgetStartDay(dto.getBudgetStartDay());
         }
 
+        /* Nulo es "no lo mandaste", no "borralo". La pantalla de periodo envia
+           solo el dia de corte, y sin esta distincion cada guardado desde ahi
+           le borraria a la persona la moneda que habia elegido. */
+        if (dto.getCurrency() != null && !dto.getCurrency().isBlank()) {
+            user.setCurrency(dto.getCurrency().trim().toUpperCase());
+        }
+        if (dto.getDecimalPlaces() != null) {
+            user.setDecimalPlaces(dto.getDecimalPlaces());
+        }
+
         if (dto.getPassword() != null && !dto.getPassword().isBlank()) {
             user.setPassword(passwordEncoder.encode(dto.getPassword()));
         }

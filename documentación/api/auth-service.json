@@ -1,6 +1,30 @@
 {
   "components" : {
     "schemas" : {
+      "AppConfigSaveDTO" : {
+        "properties" : {
+          "configKey" : {
+            "maxLength" : 80,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "description" : {
+            "maxLength" : 300,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "value" : {
+            "maxLength" : 300,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [
+          "configKey",
+          "value"
+        ],
+        "type" : "object"
+      },
       "AsignarRolesDTO" : {
         "properties" : {
           "roles" : {
@@ -199,6 +223,17 @@
             "minimum" : 1,
             "type" : "integer"
           },
+          "currency" : {
+            "maxLength" : 10,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "decimalPlaces" : {
+            "format" : "int32",
+            "maximum" : 4,
+            "minimum" : 0,
+            "type" : "integer"
+          },
           "email" : {
             "maxLength" : 150,
             "minLength" : 0,
@@ -270,6 +305,58 @@
         "summary" : "Quien cambio que y cuando",
         "tags" : [
           "Auditoria"
+        ]
+      }
+    },
+    "/v1/admin/config/all" : {
+      "post" : {
+        "operationId" : "configuracion",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "summary" : "Ajustes de la instalacion. Requiere rol ADMIN",
+        "tags" : [
+          "Preferencias"
+        ]
+      }
+    },
+    "/v1/admin/config/save" : {
+      "post" : {
+        "operationId" : "guardar",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AppConfigSaveDTO"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "summary" : "Cambia un ajuste de la instalacion. Requiere rol ADMIN",
+        "tags" : [
+          "Preferencias"
         ]
       }
     },
@@ -721,6 +808,27 @@
         ]
       }
     },
+    "/v1/preferences/mine" : {
+      "post" : {
+        "operationId" : "mias",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "summary" : "Moneda, decimales y formato del usuario autenticado",
+        "tags" : [
+          "Preferencias"
+        ]
+      }
+    },
     "/v1/users/all" : {
       "post" : {
         "operationId" : "getAll",
@@ -869,6 +977,10 @@
     {
       "description" : "Los modulos y paginas que ve quien pregunta",
       "name" : "Menu"
+    },
+    {
+      "description" : "Como se muestran los importes",
+      "name" : "Preferencias"
     }
   ]
 }

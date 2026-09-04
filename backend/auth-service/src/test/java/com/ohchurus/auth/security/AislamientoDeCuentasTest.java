@@ -219,6 +219,23 @@ class AislamientoDeCuentasTest {
     }
 
     @Test
+    @DisplayName("la configuracion de la instalacion tampoco se toca sin el rol")
+    void configuracionCerrada() throws Exception {
+        assertThat(estadoAtacando("/v1/admin/config/all", null)).isEqualTo(403);
+        assertThat(estadoAtacando("/v1/admin/config/save",
+                "{\"configKey\":\"app.currency\",\"value\":\"XXX\"}"))
+                .as("Bruno le cambio la moneda a toda la instalacion")
+                .isEqualTo(403);
+    }
+
+    @Test
+    @DisplayName("pero sus PROPIAS preferencias si las puede consultar")
+    void preferenciasPropiasSi() throws Exception {
+        /* No recibe ningun id: no hay forma de pedir las de otro. */
+        assertThat(estadoAtacando("/v1/preferences/mine", null)).isEqualTo(200);
+    }
+
+    @Test
     @DisplayName("y la auditoria no se lee sin ser administrador")
     void auditoriaCerrada() throws Exception {
         /* Es el registro de quien hizo que en toda la plataforma: correos,

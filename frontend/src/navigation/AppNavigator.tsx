@@ -24,6 +24,7 @@ import ScheduledFormScreen from '../screens/scheduled/ScheduledFormScreen';
 import SettingsScreen from '../screens/settings/SettingsScreen';
 import ExportImportScreen from '../screens/settings/ExportImportScreen';
 import PeriodConfigScreen from '../screens/settings/PeriodConfigScreen';
+import CurrencyConfigScreen from '../screens/settings/CurrencyConfigScreen';
 import HouseholdScreen from '../screens/settings/HouseholdScreen';
 import CategoriesScreen from '../screens/categories/CategoriesScreen';
 import CategoryFormScreen from '../screens/categories/CategoryFormScreen';
@@ -92,6 +93,7 @@ type SettingsStackParamList = {
   ExportImport: undefined;
   Import: undefined;
   PeriodConfig: undefined;
+  CurrencyConfig: undefined;
   Household: undefined;
   Consolidated: undefined;
   CategoriesList: undefined;
@@ -193,6 +195,7 @@ const SettingsNavigator = () => {
       <SettingsStack.Screen name="ExportImport" component={ExportImportScreen} options={{ title: 'Exportar / Importar' }} />
       <SettingsStack.Screen name="Import" component={ImportScreen} options={{ title: 'Importar del banco' }} />
       <SettingsStack.Screen name="PeriodConfig" component={PeriodConfigScreen} options={{ title: 'Configuracion de periodo' }} />
+      <SettingsStack.Screen name="CurrencyConfig" component={CurrencyConfigScreen} options={{ title: 'Moneda y decimales' }} />
       <SettingsStack.Screen name="Household" component={HouseholdScreen} options={{ title: 'Nucleo Familiar' }} />
       <SettingsStack.Screen name="CategoriesList" component={CategoriesScreen} options={{ title: 'Categorias' }} />
       <SettingsStack.Screen name="CategoryForm" component={CategoryFormScreen} options={{ title: 'Categoria' }} />

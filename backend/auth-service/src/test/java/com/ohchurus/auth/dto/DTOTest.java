@@ -61,7 +61,7 @@ class DTOTest {
     @Test
     @DisplayName("UserSaveDTO getters/setters")
     void testUserSaveDTO() {
-        UserSaveDTO dto = new UserSaveDTO(1L, "Name", "e@e.com", "pass", 15);
+        UserSaveDTO dto = new UserSaveDTO(1L, "Name", "e@e.com", "pass", 15, "COP", 0);
         assertEquals(1L, dto.getId());
         assertEquals("Name", dto.getName());
         assertEquals("e@e.com", dto.getEmail());
@@ -110,7 +110,7 @@ class DTOTest {
         assertNotNull(noArgs.getUpdatedAt());
 
         // AllArgs constructor
-        User allArgs = new User(3L, "All", "a@a.com", "p", 1, true, new java.util.HashSet<>(), null, null);
+        User allArgs = new User(3L, "All", "a@a.com", "p", 1, true, null, null, new java.util.HashSet<>(), null, null);
         assertEquals(3L, allArgs.getId());
         assertEquals("All", allArgs.getName());
     }

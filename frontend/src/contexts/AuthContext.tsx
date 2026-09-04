@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authService } from '../services/authService';
+import { preferenciasService } from '../services/adminService';
+import { configurarFormatoDeMoneda } from '../utils/format';
 import { TOKEN_KEY, registrarCierreDeSesion } from '../services/api';
 
 const USER_KEY = '@oh_churus_user';
@@ -109,6 +111,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
     loadStoredAuth();
   }, []);
+
+  useEffect(() => {
+    /* Las preferencias de formato se piden UNA vez por sesion y se guardan en
+       el modulo de formato, no en el estado de React: formatCurrency se llama
+       desde quince pantallas y desde funciones que no son componentes.
+       Si la peticion falla no pasa nada visible — el formateador conserva lo
+       que ya tenia, que es lo que estaba escrito a mano antes de la ola 4. */
+    if (token) {
+      preferenciasService
+        .mias()
+        .then((res) => {
+          if (res.correct && res.object) {
+            configurarFormatoDeMoneda(res.object);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [token]);
 
   /* Cualquier peticion que reciba un 401 cierra la sesion, venga de la
      pantalla que venga. Sin esto habia que acordarse en las 23 pantallas. */

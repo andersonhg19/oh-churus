@@ -1,8 +1,10 @@
 import api from './api';
 import {
   AdminUser,
+  AjusteGlobal,
   LineaDeAuditoria,
   MenuPropio,
+  Preferencias,
   ModuloAdmin,
   PageDTO,
   PermisoDeRol,
@@ -132,6 +134,39 @@ export const adminService = {
 export const menuService = {
   mio: async () => {
     const response = await api.post<ResultDTO<MenuPropio>>(`${MENU_BASE}/mine`);
+    return response.data;
+  },
+};
+
+const PREFERENCIAS_BASE = '/AUTH-SERVICE/oh-churus/v1';
+
+/**
+ * Como se escriben los importes para quien pregunta.
+ *
+ * Vienen RESUELTAS: el servidor ya decidio si manda lo que eligio la persona o
+ * lo global. Combinarlo aqui seria repartir la misma regla entre dos sitios
+ * que se actualizan por separado.
+ */
+export const preferenciasService = {
+  mias: async () => {
+    const response = await api.post<ResultDTO<Preferencias>>(
+      `${PREFERENCIAS_BASE}/preferences/mine`,
+    );
+    return response.data;
+  },
+
+  configuracion: async () => {
+    const response = await api.post<ResultDTO<AjusteGlobal[]>>(
+      `${PREFERENCIAS_BASE}/admin/config/all`,
+    );
+    return response.data;
+  },
+
+  guardarAjuste: async (data: { configKey: string; value: string; description?: string }) => {
+    const response = await api.post<ResultDTO<AjusteGlobal>>(
+      `${PREFERENCIAS_BASE}/admin/config/save`,
+      data,
+    );
     return response.data;
   },
 };

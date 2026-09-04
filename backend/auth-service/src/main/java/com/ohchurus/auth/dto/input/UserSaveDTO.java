@@ -29,4 +29,17 @@ public class UserSaveDTO {
     @Min(value = 1, message = "debe estar entre 1 y 31")
     @Max(value = 31, message = "debe estar entre 1 y 31")
     private Integer budgetStartDay;
+
+    /**
+     * Moneda y decimales propios. Nulo significa "sigue con lo global", no
+     * "borralo": para volver a lo global hay un endpoint aparte, porque un
+     * nulo en una peticion de guardado casi siempre es un campo que el cliente
+     * no envio, no una eleccion.
+     */
+    @Size(max = 10, message = "no puede superar los 10 caracteres")
+    private String currency;
+
+    @Min(value = 0, message = "debe estar entre 0 y 4")
+    @Max(value = 4, message = "debe estar entre 0 y 4")
+    private Integer decimalPlaces;
 }

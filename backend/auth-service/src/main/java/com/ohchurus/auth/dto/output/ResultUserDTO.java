@@ -14,4 +14,6 @@ public class ResultUserDTO {
     private String email;
     private Integer budgetStartDay;
     private Boolean active;
+    private String currency;
+    private Integer decimalPlaces;
 }

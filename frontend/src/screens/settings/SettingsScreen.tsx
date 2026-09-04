@@ -19,6 +19,7 @@ type SettingsStackParamList = {
   CategoryForm: { category?: CategoryTree };
   ExportImport: undefined;
   PeriodConfig: undefined;
+  CurrencyConfig: undefined;
   Household: undefined;
   Consolidated: undefined;
   AdminUsers: undefined;
@@ -83,6 +84,17 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
       >
         <View style={styles.menuRow}>
           <AppText variant="body">📅 Configuracion de periodo</AppText>
+          <AppText variant="body" color={colors.textMuted}>›</AppText>
+        </View>
+      </Card>
+
+      <Card
+        style={styles.menuItem}
+        accessibilityLabel="Elegir la moneda y los decimales"
+        onPress={() => navigation.navigate('CurrencyConfig')}
+      >
+        <View style={styles.menuRow}>
+          <AppText variant="body">💱 Moneda y decimales</AppText>
           <AppText variant="body" color={colors.textMuted}>›</AppText>
         </View>
       </Card>

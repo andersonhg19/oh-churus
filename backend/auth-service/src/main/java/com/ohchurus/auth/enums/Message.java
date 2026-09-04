@@ -22,6 +22,7 @@ public class Message {
         lastAdminCannotLoseRole,
         cannotDeactivateSelf,
         pageNotFound,
-        adminKeepsAdminModule
+        adminKeepsAdminModule,
+        invalidConfigValue
     }
 }

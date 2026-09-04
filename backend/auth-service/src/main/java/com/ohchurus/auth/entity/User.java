@@ -40,6 +40,20 @@ public class User {
     private Boolean active = true;
 
     /**
+     * La moneda y los decimales de esta persona.
+     *
+     * NULO SIGNIFICA "lo que diga la configuracion global", no "sin moneda".
+     * Por eso no llevan valor por defecto: con un DEFAULT en la columna, cada
+     * cuenta se quedaria congelada con la moneda que hubiera el dia en que se
+     * creo, y cambiar la global no le serviria de nada a nadie.
+     */
+    @Column(length = 10)
+    private String currency;
+
+    @Column(name = "decimal_places")
+    private Integer decimalPlaces;
+
+    /**
      * Los roles de esta persona.
      *
      * PEREZOSO Y SIN CASCADA, y las dos cosas a proposito. En los proyectos que

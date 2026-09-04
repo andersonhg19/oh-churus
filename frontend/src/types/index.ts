@@ -105,6 +105,22 @@ export interface MenuPropio {
   modules: ModuloDelMenu[];
 }
 
+export interface Preferencias {
+  currency: string;
+  decimalPlaces: number;
+  locale: string;
+  /** Si viene de una eleccion propia o de la configuracion de la instalacion. */
+  propia: boolean;
+}
+
+export interface AjusteGlobal {
+  id: number;
+  configKey: string;
+  value: string;
+  description?: string;
+  active: boolean;
+}
+
 export interface LineaDeAuditoria {
   id: number;
   actorUserId?: number;

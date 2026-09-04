@@ -276,8 +276,11 @@ const MainTabs = () => {
         },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
+        /* Eran 11 px: los rotulos de la barra principal, o sea el texto que
+           mas veces se lee de toda la app. La barra ya tiene altura de sobra
+           para 14. */
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: 14,
           fontWeight: '600',
         },
       }}
@@ -372,7 +375,7 @@ const FastingTabs = () => {
         },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
+        tabBarLabelStyle: { fontSize: 14, fontWeight: '600' },
       }}
     >
       <FastingTab.Screen

@@ -316,7 +316,9 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontWeight: '700',
-    fontSize: 12,
+    /* Era 12. La escala del proyecto empieza en 14 y este texto dice el
+       ESTADO de un mes: no es un adorno. */
+    fontSize: 14,
   },
   extraCard: {
     marginBottom: spacing.sm,

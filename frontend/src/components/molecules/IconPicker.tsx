@@ -260,9 +260,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: spacing.xs,
     borderRadius: 8,
-    width: 64,
+    width: 84,
   },
-  iconLabel: { fontSize: 10, textAlign: 'center' },
+  /* Era 10, y con el ancho de 64 no cabia nada mas. Sube a 14 —el minimo
+     de la escala— y el hueco crece con el: encoger la letra para que quepa el
+     texto es resolver el problema equivocado. */
+  iconLabel: { fontSize: 14, textAlign: 'center' },
   clearBtn: {
     marginTop: spacing.sm,
     alignItems: 'center',

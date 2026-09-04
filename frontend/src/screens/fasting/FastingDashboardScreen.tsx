@@ -281,7 +281,9 @@ const FastingDashboardScreen: React.FC = () => {
                       }]} />
                       <AppText variant="caption" style={{
                         color: reached ? z.color : colors.textMuted,
-                        fontSize: 10,
+                        /* Era 10. Dice a que hora empieza cada fase del ayuno,
+                           que es la informacion de esta barra entera. */
+                        fontSize: 14,
                         fontWeight: current ? '700' : '400',
                       }}>{z.minH}h</AppText>
                     </View>
@@ -353,7 +355,13 @@ const FastingDashboardScreen: React.FC = () => {
               </View>
               <View style={styles.waterActions}>
                 <TouchableOpacity
-                  style={[styles.waterBtn, { backgroundColor: '#4FC3F7', opacity: waterBusy ? 0.5 : 1 }]}
+                  /* La opacidad sola no es una senal: sobre un fondo claro
+                     apenas se nota, y a contraluz nada. Cambia tambien el
+                     color y, mientras guarda, el propio texto lo dice. */
+                  style={[styles.waterBtn, {
+                    backgroundColor: waterBusy ? colors.textMuted : '#4FC3F7',
+                    opacity: waterBusy ? 0.7 : 1,
+                  }]}
                   disabled={waterBusy}
                   accessibilityRole="button"
                   accessibilityLabel="Anotar un vaso de agua"
@@ -375,10 +383,20 @@ const FastingDashboardScreen: React.FC = () => {
                     finally { setWaterBusy(false); }
                   }}
                 >
-                  <AppText variant="body" color="#FFF">+ 1 vaso</AppText>
+                  <AppText variant="body" color="#FFF">
+                    {waterBusy ? 'Guardando...' : '+ 1 vaso'}
+                  </AppText>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.waterBtn, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, opacity: waterBusy || (water?.glasses || 0) <= 0 ? 0.5 : 1 }]}
+                  /* Igual que el de arriba: el estado no puede vivir solo en
+                     la opacidad. Cuando no hay nada que quitar, el borde se
+                     apaga y el texto lo explica. */
+                  style={[styles.waterBtn, {
+                    backgroundColor: colors.surface,
+                    borderWidth: 1,
+                    borderColor: waterBusy || (water?.glasses || 0) <= 0 ? colors.textMuted : colors.border,
+                    opacity: waterBusy || (water?.glasses || 0) <= 0 ? 0.7 : 1,
+                  }]}
                   disabled={waterBusy || (water?.glasses || 0) <= 0}
                   /* "- 1" no dice menos uno de que. Y cuando no hay vasos que
                      quitar hay que decir por que no responde: hoy solo se ve
@@ -410,16 +428,42 @@ const FastingDashboardScreen: React.FC = () => {
                 <AppText variant="label" style={{ marginBottom: spacing.sm }}>🏆 Logros</AppText>
                 <View style={styles.achieveGrid}>
                   {achievements.map((a: any) => (
-                    /* Que un logro este conseguido o no se ve SOLO en la
-                       opacidad. Aqui al menos se dice con palabras. */
+                    /*
+                     * UN LOGRO CONSEGUIDO SE VE, NO SE INTUYE.
+                     *
+                     * Estaba solo en la opacidad: 1 contra 0.3. En una
+                     * pantalla al sol las dos son lo mismo, y quien mira de
+                     * reojo no distingue "lo tengo" de "no lo tengo" — que es
+                     * justo lo unico que un logro tiene que comunicar.
+                     *
+                     * Ahora hay tres senales que no dependen de la vista fina:
+                     * el candado, el marco del conseguido, y la palabra.
+                     */
                     <View
                       key={a.code}
-                      style={[styles.achieveItem, { opacity: a.unlocked ? 1 : 0.3 }]}
+                      style={[
+                        styles.achieveItem,
+                        {
+                          opacity: a.unlocked ? 1 : 0.55,
+                          borderWidth: a.unlocked ? 2 : 1,
+                          borderColor: a.unlocked ? colors.primary : colors.border,
+                          borderRadius: 12,
+                          paddingVertical: spacing.xs,
+                        },
+                      ]}
                       accessible
                       accessibilityLabel={`${a.name}. ${a.unlocked ? 'Conseguido' : 'Todavía sin conseguir'}`}
+                      testID={`logro-${a.code}`}
                     >
-                      <AppText style={{ fontSize: 24 }}>{a.icon}</AppText>
+                      <AppText style={{ fontSize: 24 }}>{a.unlocked ? a.icon : '🔒'}</AppText>
                       <AppText variant="caption" align="center" numberOfLines={1}>{a.name}</AppText>
+                      <AppText
+                        variant="caption"
+                        align="center"
+                        color={a.unlocked ? colors.primary : colors.textMuted}
+                      >
+                        {a.unlocked ? 'Conseguido' : 'Pendiente'}
+                      </AppText>
                     </View>
                   ))}
                 </View>

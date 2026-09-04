@@ -111,4 +111,19 @@ describe('AccountsScreen', () => {
     fireEvent(getByTestId('cuenta-1'), 'longPress');
     expect(mockNavigation.navigate).toHaveBeenCalledWith('Reconcile', expect.anything());
   });
+
+  it('CONCILIAR TAMBIEN SE VE, no solo se adivina', async () => {
+    /* Estaba unicamente detras del gesto largo de arriba, y una accion que
+       hay que adivinar es una accion que no existe: nadie mantiene pulsada
+       una tarjeta a ver que pasa. El gesto se conserva para quien ya lo
+       conocia; el boton es para todos los demas. */
+    const { getByTestId, getAllByText } = pintar();
+    await waitFor(() => expect(getByTestId('conciliar-1')).toBeTruthy());
+    /* Una por cuenta: el fixture tiene mas de una, y ese es el punto —el
+       boton vive en la tarjeta, no en una nota al pie de la lista. */
+    expect(getAllByText('Conciliar con el banco').length).toBeGreaterThan(0);
+
+    fireEvent.press(getByTestId('conciliar-1'));
+    expect(mockNavigation.navigate).toHaveBeenCalledWith('Reconcile', expect.anything());
+  });
 });

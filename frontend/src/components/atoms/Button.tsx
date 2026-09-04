@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { useTheme } from '../../contexts/ThemeContext';
 import { fontSize, fontWeight, spacing } from '../../theme';
+import { textoLegibleSobre } from '../../theme/contraste';
 
 type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'danger';
 type ButtonSize = 'small' | 'medium' | 'large';
@@ -62,9 +63,17 @@ const Button: React.FC<ButtonProps> = ({
     }
   };
 
+  /**
+   * El color del texto NO es una constante.
+   *
+   * Antes siempre era blanco, y en el tema oscuro el boton principal tiene el
+   * fondo ambar claro: 2.08:1, ilegible. El mismo componente se leia bien en
+   * un tema y mal en el otro sin que nada fallara. Ahora se elige el que mas
+   * contrasta con el fondo que este boton tenga.
+   */
   const getTextColor = (): string => {
     if (variant === 'outline') return colors.primary;
-    return '#FFFFFF';
+    return textoLegibleSobre(getBackgroundColor());
   };
 
   const getPadding = (): number => {

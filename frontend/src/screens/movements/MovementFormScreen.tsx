@@ -652,7 +652,9 @@ const styles = StyleSheet.create({
   amountLabel: {
     marginBottom: spacing.xs,
     letterSpacing: 2,
-    fontSize: 11,
+    /* Era 11: el rotulo del campo mas usado de la app, en el tamano mas
+       pequeno que habia. */
+    fontSize: 14,
   },
   amountRow: {
     flexDirection: 'row',
@@ -684,6 +686,9 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     gap: 8,
   },
+  /* NO ES TEXTO: es un punto de color de 8x8 pintado con un componente de
+     texto vacio. El fontSize: 1 esta para que la altura de linea no lo
+     deforme. Queda escrito porque a simple vista parece un texto diminuto. */
   statusDot: {
     width: 8,
     height: 8,

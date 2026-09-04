@@ -134,7 +134,7 @@ const AccountsScreen: React.FC<Props> = ({ navigation }) => {
                   /* Lo de mantener pulsado para conciliar solo se cuenta en una
                      linea de texto al final de la lista, que quien va elemento
                      por elemento oye media pantalla despues. */
-                  accessibilityHint="Ábrela para editarla, o manténla pulsada para conciliarla con tu banco"
+                  accessibilityHint="Ábrela para editarla. Debajo tienes el botón de conciliar"
                 >
                   <Card style={styles.cuenta}>
                     <View style={styles.filaCuenta}>
@@ -158,14 +158,31 @@ const AccountsScreen: React.FC<Props> = ({ navigation }) => {
                         )}
                       </View>
                     </View>
+
+                    {/*
+                      * CONCILIAR DEJA DE SER UN SECRETO.
+                      *
+                      * Estaba solo detras de un gesto largo, y una accion que
+                      * hay que adivinar es una accion que no existe: nadie
+                      * mantiene pulsada una tarjeta a ver que pasa. El gesto
+                      * se conserva —quien ya lo conocia lo sigue teniendo—
+                      * pero ahora hay un boton que se ve.
+                      */}
+                    <TouchableOpacity
+                      onPress={() => navigation.navigate('Reconcile', { account: cuenta })}
+                      style={[styles.conciliar, { borderColor: colors.border }]}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Conciliar ${cuenta.name} con tu banco`}
+                      testID={`conciliar-${cuenta.id}`}
+                    >
+                      <AppText variant="caption" color={colors.primary}>
+                        Conciliar con el banco
+                      </AppText>
+                    </TouchableOpacity>
                   </Card>
                 </TouchableOpacity>
               );
             })}
-
-            <AppText variant="caption" color={colors.textMuted} style={styles.pista}>
-              Manten pulsada una cuenta para conciliarla con tu banco.
-            </AppText>
           </>
         )}
       </ScrollView>
@@ -194,6 +211,13 @@ const styles = StyleSheet.create({
   filaCuenta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   datosCuenta: { flex: 1, marginRight: spacing.sm },
   saldos: { alignItems: 'flex-end' },
+  conciliar: {
+    marginTop: spacing.sm,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    minHeight: 44,
+    justifyContent: 'center',
+  },
   pista: { marginTop: spacing.md, textAlign: 'center' },
   fab: {
     position: 'absolute',

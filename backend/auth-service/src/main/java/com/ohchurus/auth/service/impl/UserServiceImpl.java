@@ -143,8 +143,14 @@ public class UserServiceImpl implements UserService {
     @Transactional(readOnly = true)
     public ResultDTO getById(Long id) {
         /* Solo tu propia cuenta. Antes cualquier autenticado leia la ficha de
-           cualquiera probando ids consecutivos: nombre y correo de todos. */
-        if (!com.ohchurus.auth.util.SecurityUtils.getAuthenticatedUserId().equals(id) && !esYo(id)) {
+           cualquiera probando ids consecutivos: nombre y correo de todos.
+           La comprobacion era correcta pero se hacia dos veces, y la primera
+           llamaba a equals() sobre el resultado de getAuthenticatedUserId(),
+           que devuelve null cuando no hay sesion: un NullPointerException
+           esperando a que alguien llegase aqui sin token. esYo() ya trata el
+           null como "no", que es lo que hay que hacer con la ausencia de dato.
+           Un administrador que quiera ver la ficha de otro usa /v1/admin. */
+        if (!esYo(id)) {
             return new ResultDTO(false, "User not found", 103);
         }
         Optional<User> user = userRepository.findByIdAndActiveTrue(id);

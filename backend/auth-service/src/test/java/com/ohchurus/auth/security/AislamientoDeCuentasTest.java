@@ -160,4 +160,74 @@ class AislamientoDeCuentasTest {
         atacar("/v1/users/delete/" + idDeBruno, null);
         assertThat(usuarios.findById(idDeBruno).orElseThrow().getActive()).isFalse();
     }
+
+    // ========================================================================
+    // ADMINISTRACION — la segunda pregunta
+    //
+    // Lo de arriba comprueba QUIEN eres: Bruno no llega a los datos de Ana.
+    // Lo de abajo comprueba QUE PUEDES HACER: Bruno tiene un token
+    // perfectamente valido y no lleva el rol ADMIN, asi que la puerta de
+    // administracion no se le abre. Y no basta con que no pueda: la respuesta
+    // tiene que ser un 403, no un 200 con la lista vacia, porque un 200
+    // significa que la ruta se ejecuto y solo no encontro nada.
+    // ========================================================================
+
+    private int estadoAtacando(String ruta, String cuerpo) throws Exception {
+        return mvc.perform(post(ruta).header("Authorization", tokenDeBruno())
+                        .contentType(MediaType.APPLICATION_JSON).content(cuerpo == null ? "{}" : cuerpo))
+                .andReturn().getResponse().getStatus();
+    }
+
+    @Test
+    @DisplayName("sin el rol ADMIN, la administracion de usuarios esta cerrada entera")
+    void administracionDeUsuariosCerrada() throws Exception {
+        assertThat(estadoAtacando("/v1/admin/users/all", "{\"page\":0,\"size\":50}"))
+                .as("Bruno listo a todos los usuarios por la puerta de administracion")
+                .isEqualTo(403);
+        assertThat(estadoAtacando("/v1/admin/users/get/" + idDeAna, null)).isEqualTo(403);
+        assertThat(estadoAtacando("/v1/admin/users/save",
+                "{\"name\":\"Colado\",\"email\":\"colado@ohchurus.com\",\"password\":\"Clave123\"}"))
+                .as("Bruno se creo una cuenta desde administracion")
+                .isEqualTo(403);
+        assertThat(estadoAtacando("/v1/admin/users/" + idDeBruno + "/roles",
+                "{\"roles\":[\"ADMIN\"]}"))
+                .as("Bruno se ascendio a si mismo a administrador")
+                .isEqualTo(403);
+        assertThat(estadoAtacando("/v1/admin/users/" + idDeAna + "/deactivate", null)).isEqualTo(403);
+        assertThat(estadoAtacando("/v1/admin/users/" + idDeAna + "/activate", null)).isEqualTo(403);
+    }
+
+    @Test
+    @DisplayName("sin el rol ADMIN, tampoco se tocan los roles")
+    void administracionDeRolesCerrada() throws Exception {
+        assertThat(estadoAtacando("/v1/admin/roles/all", null)).isEqualTo(403);
+        assertThat(estadoAtacando("/v1/admin/roles/save",
+                "{\"name\":\"SUPER\",\"description\":\"todo\"}")).isEqualTo(403);
+        assertThat(estadoAtacando("/v1/admin/roles/delete/1", null)).isEqualTo(403);
+    }
+
+    @Test
+    @DisplayName("y el ascenso no se consigue escribiendolo en el token")
+    void elRolNoSeFalsifica() throws Exception {
+        /* El claim "roles" va DENTRO del token firmado. Bruno puede escribir
+           lo que quiera en el suyo, pero al cambiarlo la firma deja de
+           cuadrar y el filtro responde 401 antes de mirar el rol.
+           Esta prueba es la que da valor a las dos de arriba: sin ella,
+           "hace falta el rol ADMIN" solo significaria "hace falta decir que
+           lo tienes". */
+        String tokenFalsificado = "Bearer " + JWT.create().withSubject("bruno@ohchurus.com")
+                .withClaim("userId", idDeBruno)
+                .withArrayClaim("roles", new String[]{"ADMIN"})
+                .withExpiresAt(new Date(System.currentTimeMillis() + 3_600_000))
+                .sign(Algorithm.HMAC256("otro-secreto-distinto-del-servidor"));
+
+        int estado = mvc.perform(post("/v1/admin/users/all")
+                        .header("Authorization", tokenFalsificado)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"page\":0,\"size\":10}"))
+                .andReturn().getResponse().getStatus();
+
+        assertThat(estado)
+                .as("un token firmado con otra clave abrio la administracion")
+                .isEqualTo(401);
+    }
 }

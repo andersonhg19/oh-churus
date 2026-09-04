@@ -14,6 +14,12 @@ public class Message {
         userSavedSuccessfully,
         userUpdatedSuccessfully,
         userDeletedSuccessfully,
-        userListRetrieved
+        userListRetrieved,
+        roleNotFound,
+        roleAlreadyExists,
+        roleInUse,
+        systemRoleCannotChange,
+        lastAdminCannotLoseRole,
+        cannotDeactivateSelf
     }
 }

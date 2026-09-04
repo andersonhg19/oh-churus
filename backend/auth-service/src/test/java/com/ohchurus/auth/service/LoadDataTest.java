@@ -23,6 +23,9 @@ class LoadDataTest {
     private UserRepository userRepository;
 
     @Mock
+    private com.ohchurus.auth.repository.RoleRepository roleRepository;
+
+    @Mock
     private PasswordEncoder passwordEncoder;
 
     @InjectMocks
@@ -39,10 +42,34 @@ class LoadDataTest {
         when(userRepository.count()).thenReturn(0L);
         when(passwordEncoder.encode(anyString())).thenReturn("encoded");
         when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
+        when(roleRepository.findByNameAndActiveTrue(anyString()))
+                .thenReturn(java.util.Optional.of(
+                        com.ohchurus.auth.entity.Role.builder().id(1L).name("USER").active(true).build()));
 
         loadData.run();
 
         verify(userRepository, atLeast(2)).save(any(User.class));
+    }
+
+    @Test
+    @DisplayName("si la migracion no dejo los roles, la semilla sigue en vez de tumbar el arranque")
+    void sinRolesLaSemillaNoRompe() {
+        /* Un servicio que no arranca no se arregla desde ninguna pantalla; una
+           cuenta sin rol si. Por eso la ausencia del rol es un aviso en el log
+           y no una excepcion. */
+        ReflectionTestUtils.setField(loadData, "seedDataEnabled", true);
+        ReflectionTestUtils.setField(loadData, "adminPassword", "Admin123!");
+        ReflectionTestUtils.setField(loadData, "demoPassword", "Demo123!");
+        ReflectionTestUtils.setField(loadData, "andersonPassword", "Admin123!");
+        ReflectionTestUtils.setField(loadData, "samyPassword", "Samy123!");
+        when(userRepository.count()).thenReturn(0L);
+        when(passwordEncoder.encode(anyString())).thenReturn("encoded");
+        when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
+        when(roleRepository.findByNameAndActiveTrue(anyString())).thenReturn(java.util.Optional.empty());
+
+        loadData.run();
+
+        verify(userRepository, atLeast(4)).save(any(User.class));
     }
 
     @Test

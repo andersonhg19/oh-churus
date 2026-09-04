@@ -4,6 +4,7 @@ import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.ohchurus.auth.dto.input.AuthenticationRequest;
 import com.ohchurus.auth.dto.input.AuthenticationResponse;
+import com.ohchurus.auth.entity.Role;
 import com.ohchurus.auth.entity.User;
 import com.ohchurus.auth.repository.UserRepository;
 import com.ohchurus.auth.security.SecParams;
@@ -15,6 +16,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
+import java.util.List;
 
 @Slf4j
 @Service
@@ -42,13 +44,26 @@ public class AuthenticationServiceImpl implements AuthenticationService {
             throw new BadCredentialsException("Invalid email or password");
         }
 
-        User user = userRepository.findByEmailAndActiveTrue(request.getEmail())
+        User user = userRepository.findByEmailAndActiveTrueWithRoles(request.getEmail())
                 .orElseThrow(() -> new BadCredentialsException("User not found"));
+
+        /* Los roles viajan EN el token, junto al userId que ya iba desde la ola
+           2. Asi el servicio que autoriza no tiene que preguntarle a este en
+           cada peticion: lo que decide si pasas o no llega firmado.
+           Solo los activos: retirar un rol es desactivarlo, y si un rol
+           desactivado siguiera firmandose, retirarlo no serviria de nada hasta
+           que caducara el ultimo token emitido. */
+        List<String> roles = user.getRoles().stream()
+                .filter(rol -> Boolean.TRUE.equals(rol.getActive()))
+                .map(Role::getName)
+                .sorted()
+                .toList();
 
         String jwt = JWT.create()
                 .withSubject(user.getEmail())
                 .withClaim("userId", user.getId())
                 .withClaim("name", user.getName())
+                .withArrayClaim("roles", roles.toArray(new String[0]))
                 .withExpiresAt(new Date(System.currentTimeMillis() + secParams.getExpiredTime()))
                 .sign(Algorithm.HMAC256(secParams.getSecret()));
 
@@ -59,6 +74,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         response.setEmail(user.getEmail());
         response.setName(user.getName());
         response.setUserId(user.getId());
+        response.setRoles(roles);
         return response;
     }
 }

@@ -1,6 +1,20 @@
 {
   "components" : {
     "schemas" : {
+      "AsignarRolesDTO" : {
+        "properties" : {
+          "roles" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          }
+        },
+        "required" : [
+          "roles"
+        ],
+        "type" : "object"
+      },
       "AuthenticationRequest" : {
         "properties" : {
           "email" : {
@@ -32,6 +46,32 @@
             "type" : "object"
           }
         },
+        "type" : "object"
+      },
+      "RoleSaveDTO" : {
+        "properties" : {
+          "active" : {
+            "type" : "boolean"
+          },
+          "description" : {
+            "maxLength" : 200,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "name" : {
+            "maxLength" : 50,
+            "minLength" : 0,
+            "pattern" : "^[A-Z][A-Z0-9_]*$",
+            "type" : "string"
+          }
+        },
+        "required" : [
+          "name"
+        ],
         "type" : "object"
       },
       "UserFilterDTO" : {
@@ -141,6 +181,290 @@
   },
   "openapi" : "3.0.1",
   "paths" : {
+    "/v1/admin/roles/all" : {
+      "post" : {
+        "operationId" : "getAll_2",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "summary" : "Roles existentes, con cuantas cuentas activas lleva cada uno",
+        "tags" : [
+          "Administracion de roles"
+        ]
+      }
+    },
+    "/v1/admin/roles/delete/{id}" : {
+      "post" : {
+        "operationId" : "desactivar_1",
+        "parameters" : [
+          {
+            "in" : "path",
+            "name" : "id",
+            "required" : true,
+            "schema" : {
+              "format" : "int64",
+              "type" : "integer"
+            }
+          }
+        ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "summary" : "Desactiva un rol que no use nadie",
+        "tags" : [
+          "Administracion de roles"
+        ]
+      }
+    },
+    "/v1/admin/roles/save" : {
+      "post" : {
+        "operationId" : "save_1",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/RoleSaveDTO"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "summary" : "Crea o actualiza un rol",
+        "tags" : [
+          "Administracion de roles"
+        ]
+      }
+    },
+    "/v1/admin/users/all" : {
+      "post" : {
+        "operationId" : "getAll_1",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UserFilterDTO"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "summary" : "Listado de cuentas, incluidas las desactivadas",
+        "tags" : [
+          "Administracion de usuarios"
+        ]
+      }
+    },
+    "/v1/admin/users/get/{id}" : {
+      "post" : {
+        "operationId" : "getById_1",
+        "parameters" : [
+          {
+            "in" : "path",
+            "name" : "id",
+            "required" : true,
+            "schema" : {
+              "format" : "int64",
+              "type" : "integer"
+            }
+          }
+        ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "summary" : "Ficha de una cuenta con sus roles",
+        "tags" : [
+          "Administracion de usuarios"
+        ]
+      }
+    },
+    "/v1/admin/users/save" : {
+      "post" : {
+        "operationId" : "crear",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UserSaveDTO"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "summary" : "Alta de una cuenta desde administracion",
+        "tags" : [
+          "Administracion de usuarios"
+        ]
+      }
+    },
+    "/v1/admin/users/{id}/activate" : {
+      "post" : {
+        "operationId" : "activar",
+        "parameters" : [
+          {
+            "in" : "path",
+            "name" : "id",
+            "required" : true,
+            "schema" : {
+              "format" : "int64",
+              "type" : "integer"
+            }
+          }
+        ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "summary" : "Reactiva una cuenta desactivada",
+        "tags" : [
+          "Administracion de usuarios"
+        ]
+      }
+    },
+    "/v1/admin/users/{id}/deactivate" : {
+      "post" : {
+        "operationId" : "desactivar",
+        "parameters" : [
+          {
+            "in" : "path",
+            "name" : "id",
+            "required" : true,
+            "schema" : {
+              "format" : "int64",
+              "type" : "integer"
+            }
+          }
+        ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "summary" : "Desactiva una cuenta",
+        "tags" : [
+          "Administracion de usuarios"
+        ]
+      }
+    },
+    "/v1/admin/users/{id}/roles" : {
+      "post" : {
+        "operationId" : "asignarRoles",
+        "parameters" : [
+          {
+            "in" : "path",
+            "name" : "id",
+            "required" : true,
+            "schema" : {
+              "format" : "int64",
+              "type" : "integer"
+            }
+          }
+        ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AsignarRolesDTO"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "summary" : "Fija los roles de una cuenta (lista completa, no incremental)",
+        "tags" : [
+          "Administracion de usuarios"
+        ]
+      }
+    },
     "/v1/auth/login" : {
       "post" : {
         "operationId" : "login",
@@ -327,6 +651,16 @@
   "security" : [
     {
       "bearerAuth" : [ ]
+    }
+  ],
+  "tags" : [
+    {
+      "description" : "Requiere rol ADMIN",
+      "name" : "Administracion de roles"
+    },
+    {
+      "description" : "Requiere rol ADMIN",
+      "name" : "Administracion de usuarios"
     }
   ]
 }

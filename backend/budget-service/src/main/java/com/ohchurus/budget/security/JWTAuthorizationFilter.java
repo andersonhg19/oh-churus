@@ -10,12 +10,16 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 
 @Component
 public class JWTAuthorizationFilter extends OncePerRequestFilter {
@@ -23,6 +27,7 @@ public class JWTAuthorizationFilter extends OncePerRequestFilter {
     private static final String BEARER = "Bearer ";
     private static final String AUTHORIZATION = "Authorization";
     private static final String CLAIM_USER_ID = "userId";
+    private static final String CLAIM_ROLES = "roles";
 
     private final SecParams secParams;
 
@@ -46,8 +51,21 @@ public class JWTAuthorizationFilter extends OncePerRequestFilter {
             DecodedJWT decodedJWT = verifier.verify(token);
 
             String email = decodedJWT.getSubject();
+
+            /* Las autoridades salen del claim "roles", que firma auth-service al
+               dar el token. Un token viejo de antes de la ola 4 no trae el
+               claim: en ese caso la lista queda vacia y el usuario entra como
+               autenticado pero sin permisos de administracion. Es lo correcto
+               —no se le niega la aplicacion a quien tenia sesion abierta, pero
+               tampoco se le regala un rol que su token no dice que tenga. */
+            Collection<GrantedAuthority> autoridades = new ArrayList<>();
+            List<String> roles = decodedJWT.getClaim(CLAIM_ROLES).asList(String.class);
+            if (roles != null) {
+                roles.forEach(rol -> autoridades.add(new SimpleGrantedAuthority(rol)));
+            }
+
             UsernamePasswordAuthenticationToken authentication =
-                    new UsernamePasswordAuthenticationToken(email, null, Collections.emptyList());
+                    new UsernamePasswordAuthenticationToken(email, null, autoridades);
 
             /* El token SIEMPRE trajo el id del usuario (AuthenticationServiceImpl
                lo firma como claim "userId"), pero nadie lo leia: la identidad

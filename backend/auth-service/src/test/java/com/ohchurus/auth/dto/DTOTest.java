@@ -51,7 +51,7 @@ class DTOTest {
     @Test
     @DisplayName("AuthenticationResponse getters/setters")
     void testAuthResponse() {
-        AuthenticationResponse res = new AuthenticationResponse("tok", "a@b.com", "Name", 1L);
+        AuthenticationResponse res = new AuthenticationResponse("tok", "a@b.com", "Name", 1L, java.util.List.of("USER"));
         assertEquals("tok", res.getToken());
         assertEquals("a@b.com", res.getEmail());
         assertEquals("Name", res.getName());
@@ -110,7 +110,7 @@ class DTOTest {
         assertNotNull(noArgs.getUpdatedAt());
 
         // AllArgs constructor
-        User allArgs = new User(3L, "All", "a@a.com", "p", 1, true, null, null);
+        User allArgs = new User(3L, "All", "a@a.com", "p", 1, true, new java.util.HashSet<>(), null, null);
         assertEquals(3L, allArgs.getId());
         assertEquals("All", allArgs.getName());
     }

@@ -123,4 +123,69 @@ class JWTAuthorizationFilterTest {
         verify(filterChain, never()).doFilter(request, response);
         assertNull(SecurityContextHolder.getContext().getAuthentication());
     }
+
+    @Test
+    @DisplayName("las autoridades salen del claim roles del token")
+    void rolesDelToken() throws Exception {
+        String secret = "test-secret-key";
+        String token = JWT.create()
+                .withSubject("jefe@ohchurus.com")
+                .withClaim("userId", 3L)
+                .withArrayClaim("roles", new String[]{"ADMIN", "USER"})
+                .withExpiresAt(new Date(System.currentTimeMillis() + 3600000))
+                .sign(Algorithm.HMAC256(secret));
+
+        when(request.getHeader("Authorization")).thenReturn("Bearer " + token);
+        when(secParams.getSecret()).thenReturn(secret);
+
+        filter.doFilterInternal(request, response, filterChain);
+
+        assertEquals(2, SecurityContextHolder.getContext().getAuthentication()
+                .getAuthorities().size());
+        assertTrue(SecurityContextHolder.getContext().getAuthentication().getAuthorities()
+                .stream().anyMatch(a -> "ADMIN".equals(a.getAuthority())));
+    }
+
+    @Test
+    @DisplayName("un token de antes de la ola 4 no trae roles y entra sin permisos, no se rechaza")
+    void tokenAntiguoSinClaimDeRoles() throws Exception {
+        /* Al desplegar, las sesiones abiertas llevan tokens sin el claim. Si
+           eso fuera un rechazo, todo el mundo se quedaria fuera de golpe; si
+           fuera un rol por defecto, se regalarian permisos que el token no
+           dice. Se entra autenticado y sin autoridades. */
+        String secret = "test-secret-key";
+        String token = JWT.create()
+                .withSubject("viejo@ohchurus.com")
+                .withClaim("userId", 4L)
+                .withExpiresAt(new Date(System.currentTimeMillis() + 3600000))
+                .sign(Algorithm.HMAC256(secret));
+
+        when(request.getHeader("Authorization")).thenReturn("Bearer " + token);
+        when(secParams.getSecret()).thenReturn(secret);
+
+        filter.doFilterInternal(request, response, filterChain);
+
+        verify(filterChain).doFilter(request, response);
+        assertNotNull(SecurityContextHolder.getContext().getAuthentication());
+        assertTrue(SecurityContextHolder.getContext().getAuthentication()
+                .getAuthorities().isEmpty());
+    }
+
+    @Test
+    @DisplayName("el id del usuario viaja en los detalles de la autenticacion")
+    void elIdViajaEnLosDetalles() throws Exception {
+        String secret = "test-secret-key";
+        String token = JWT.create()
+                .withSubject("test@ohchurus.com")
+                .withClaim("userId", 77L)
+                .withExpiresAt(new Date(System.currentTimeMillis() + 3600000))
+                .sign(Algorithm.HMAC256(secret));
+
+        when(request.getHeader("Authorization")).thenReturn("Bearer " + token);
+        when(secParams.getSecret()).thenReturn(secret);
+
+        filter.doFilterInternal(request, response, filterChain);
+
+        assertEquals(77L, SecurityContextHolder.getContext().getAuthentication().getDetails());
+    }
 }

@@ -66,7 +66,7 @@ class AuthenticationServiceImplTest {
     void shouldAuthenticateSuccessfully() {
         when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
                 .thenReturn(new UsernamePasswordAuthenticationToken("test@ohchurus.com", null));
-        when(userRepository.findByEmailAndActiveTrue("test@ohchurus.com")).thenReturn(Optional.of(testUser));
+        when(userRepository.findByEmailAndActiveTrueWithRoles("test@ohchurus.com")).thenReturn(Optional.of(testUser));
         when(secParams.getSecret()).thenReturn("test-secret-key");
         when(secParams.getExpiredTime()).thenReturn(3600000L);
 
@@ -94,7 +94,7 @@ class AuthenticationServiceImplTest {
     void shouldThrowWhenUserNotFoundAfterAuth() {
         when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
                 .thenReturn(new UsernamePasswordAuthenticationToken("test@ohchurus.com", null));
-        when(userRepository.findByEmailAndActiveTrue("test@ohchurus.com")).thenReturn(Optional.empty());
+        when(userRepository.findByEmailAndActiveTrueWithRoles("test@ohchurus.com")).thenReturn(Optional.empty());
 
         assertThrows(BadCredentialsException.class,
                 () -> authenticationService.authenticate(request));
@@ -104,7 +104,7 @@ class AuthenticationServiceImplTest {
     @DisplayName("Should include userId and name in JWT claims")
     void shouldIncludeClaimsInJWT() {
         when(authenticationManager.authenticate(any())).thenReturn(null);
-        when(userRepository.findByEmailAndActiveTrue("test@ohchurus.com")).thenReturn(Optional.of(testUser));
+        when(userRepository.findByEmailAndActiveTrueWithRoles("test@ohchurus.com")).thenReturn(Optional.of(testUser));
         when(secParams.getSecret()).thenReturn("test-secret-key");
         when(secParams.getExpiredTime()).thenReturn(3600000L);
 
@@ -133,7 +133,7 @@ class AuthenticationServiceImplTest {
         @DisplayName("Should generate JWT with correct subject (email) and claims (userId, name)")
         void shouldGenerateJwtWithCorrectClaims() {
             when(authenticationManager.authenticate(any())).thenReturn(null);
-            when(userRepository.findByEmailAndActiveTrue("test@ohchurus.com")).thenReturn(Optional.of(testUser));
+            when(userRepository.findByEmailAndActiveTrueWithRoles("test@ohchurus.com")).thenReturn(Optional.of(testUser));
             when(secParams.getSecret()).thenReturn("test-secret-key");
             when(secParams.getExpiredTime()).thenReturn(3600000L);
 

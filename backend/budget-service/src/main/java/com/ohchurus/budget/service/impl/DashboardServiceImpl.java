@@ -378,7 +378,11 @@ public class DashboardServiceImpl implements DashboardService {
                                 dto.setCategoryType(cat.getType() != null ? cat.getType().name() : null);
                                 dto.setCategoryIcon(cat.getIcon());
                                 dto.setCategoryColor(cat.getColor());
+                                dto.setShared(cat.getHouseholdId() != null);
                             }
+                            /* El pendiente esta a nombre de quien lo paga (ver
+                               crearPendiente), asi que su dueno ES el responsable. */
+                            dto.setPayerName(householdService.apodoDe(m.getUserId()));
                         }
                         return dto;
                     })

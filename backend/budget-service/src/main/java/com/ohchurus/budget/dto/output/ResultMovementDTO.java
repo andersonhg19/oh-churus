@@ -49,4 +49,9 @@ public class ResultMovementDTO {
      * elegir cual, y acabaria eligiendo distinto en cada sitio.
      */
     private java.math.BigDecimal myShare;
+    /* Ola 5: si la categoria es del hogar (la ven todos) o privada, y quien lo
+       paga con su apodo. Sin esto el panel no podia separar "lo que pago yo" de
+       "lo que paga el otro" ni lo comun de lo personal: ensenaba todo junto. */
+    private Boolean shared;
+    private String payerName;
 }

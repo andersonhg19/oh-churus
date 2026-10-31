@@ -417,6 +417,8 @@ export interface Movement {
   /** Quien lo paga (ola 5). Nulo en los movimientos de antes: los paga su dueno. */
   payerUserId?: number;
   payerName?: string;
+  /** La categoria es del hogar (true) o privada de su dueno (false). */
+  shared?: boolean;
   accountId?: string;
   accountName?: string;
   isOpening?: boolean;

@@ -48,7 +48,9 @@ describe('DashboardScreen', () => {
     (dashboardService.getPending as jest.Mock).mockResolvedValue({
       correct: true,
       object: [
-        { id: 'p1', description: 'Arriendo', amount: 1500000, date: '2026-03-01', categoryName: 'Vivienda', categoryType: 'EXPENSE' },
+        { id: 'p1', userId: '1', description: 'Arriendo', amount: 1500000, date: '2026-03-01', categoryName: 'Vivienda', categoryType: 'EXPENSE', shared: true, payerName: 'Andy' },
+        { id: 'p2', userId: '2', description: 'Gym', amount: 160000, date: '2026-03-01', categoryName: 'Salud', categoryType: 'EXPENSE', shared: true, payerName: 'Samy' },
+        { id: 'p3', userId: '1', description: 'Gasto mio', amount: 50000, date: '2026-03-02', categoryName: 'Personal Andy', categoryType: 'EXPENSE', shared: false, payerName: 'Andy' },
       ],
     });
     (dashboardService.getSplitSummary as jest.Mock).mockResolvedValue({
@@ -89,6 +91,25 @@ describe('DashboardScreen', () => {
     });
   });
 
+  it('por defecto solo muestra lo que pago yo; "Todo el hogar" muestra lo del otro', async () => {
+    const { getByText, queryByText, getByTestId } = render(<DashboardScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(getByText('Arriendo')).toBeTruthy());
+    expect(queryByText('Gym')).toBeNull();
+    expect(getByText('Por confirmar (2)')).toBeTruthy();
+    fireEvent.press(getByTestId('pendientes-hogar'));
+    await waitFor(() => expect(getByText('Gym')).toBeTruthy());
+    expect(getByText('Por confirmar (3)')).toBeTruthy();
+  });
+
+  it('en Personal solo salen los pendientes de categorias privadas', async () => {
+    const { getByText, queryByText, getByLabelText } = render(<DashboardScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(getByText('Arriendo')).toBeTruthy());
+    fireEvent.press(getByLabelText('Ver solo lo mío'));
+    await waitFor(() => expect(queryByText('Arriendo')).toBeNull());
+    expect(getByText('Gasto mio')).toBeTruthy();
+    expect(getByText('Por confirmar (1)')).toBeTruthy();
+  });
+
   it('shows empty state when no pending', async () => {
     (dashboardService.getPending as jest.Mock).mockResolvedValue({ correct: true, object: [] });
     const { getByText } = render(<DashboardScreen />, { wrapper: Wrapper });
@@ -101,7 +122,7 @@ describe('DashboardScreen', () => {
     (movementService.confirm as jest.Mock).mockResolvedValue({ correct: true });
     const { getByText, getAllByText } = render(<DashboardScreen />, { wrapper: Wrapper });
     await waitFor(() => expect(getAllByText('Confirmar').length).toBeGreaterThan(0));
-    // Press the inline confirm button -> opens the confirm modal
+    // Press the inline confirm button of the last visible pending (p3) -> opens the confirm modal
     const inline = getAllByText('Confirmar');
     fireEvent(inline[inline.length - 1], 'press', { stopPropagation: jest.fn() });
     expect(getByText('Confirmar movimiento')).toBeTruthy();
@@ -109,7 +130,7 @@ describe('DashboardScreen', () => {
     const all = getAllByText('Confirmar');
     fireEvent.press(all[all.length - 1]);
     await waitFor(() => expect(movementService.confirm).toHaveBeenCalled());
-    expect((movementService.confirm as jest.Mock).mock.calls[0][0]).toBe('p1');
+    expect((movementService.confirm as jest.Mock).mock.calls[0][0]).toBe('p3');
   });
 
   it('muestra el mensaje del backend cuando correct es false, no un balance en cero', async () => {

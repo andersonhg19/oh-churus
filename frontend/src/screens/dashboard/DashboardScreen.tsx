@@ -31,6 +31,10 @@ const DashboardScreen: React.FC = () => {
   const [splitSummary, setSplitSummary] = useState<any>(null);
   const [pending, setPending] = useState<Movement[]>([]);
   const [viewMode, setViewMode] = useState<'total' | 'shared' | 'personal'>('total');
+  /* Por defecto, solo lo que me toca pagar a mi. "Todo el hogar" sigue a mano
+     para ver o confirmar lo del otro, pero la lista de tareas de cada uno es la
+     suya: antes Samy veia los 27 pendientes del hogar en cualquier pestana. */
+  const [soloMios, setSoloMios] = useState(true);
 
   // Confirm modal state
   const [confirmItem, setConfirmItem] = useState<Movement | null>(null);
@@ -104,6 +108,13 @@ const DashboardScreen: React.FC = () => {
     return p;
   })();
   const canGoNext = periodStart < limiteFuturo;
+
+  const pendientesVisibles = pending.filter((m) => {
+    if (viewMode === 'personal' && m.shared !== false) return false;
+    if (viewMode === 'shared' && m.shared === false) return false;
+    if (soloMios && String(m.userId) !== String(user?.userId)) return false;
+    return true;
+  });
 
   if (cargando) return <Spinner fullScreen />;
 
@@ -185,13 +196,15 @@ const DashboardScreen: React.FC = () => {
           const income = viewMode === 'personal' ? s?.personalIncome : viewMode === 'shared' ? s?.sharedIncome : summary?.totalIncome ?? 0;
           const expense = viewMode === 'personal' ? s?.personalExpense : viewMode === 'shared' ? s?.sharedExpense : summary?.totalExpense ?? 0;
           const bal = viewMode === 'personal' ? s?.personalBalance : viewMode === 'shared' ? s?.sharedBalance : summary?.balance ?? 0;
-          const pCount = viewMode === 'personal' ? s?.personalPendingCount : viewMode === 'shared' ? s?.sharedPendingCount : summary?.pendingCount ?? 0;
+          const pCount = pendientesVisibles.length;
           /* El presupuesto de cada ambito sale de las asignaciones. Antes en
              Conjunto y Personal se mostraba el GASTO con la etiqueta
              "Presupuesto", y con el mes recien empezado salia en cero. */
           const presupuesto = viewMode === 'personal' ? s?.personalBudget : viewMode === 'shared' ? s?.sharedBudget : summary?.budgetTotal;
-          const porPagar = viewMode === 'personal' ? s?.personalPendingExpense : viewMode === 'shared' ? s?.sharedPendingExpense : summary?.pendingExpenseAmount;
-          const porCobrar = viewMode === 'personal' ? s?.personalPendingIncome : viewMode === 'shared' ? s?.sharedPendingIncome : summary?.pendingIncomeAmount;
+          /* Lo pendiente sale de la MISMA lista que se ve abajo, para que la
+             tarjeta y la lista nunca digan cifras distintas. */
+          const porPagar = pendientesVisibles.filter((m) => m.categoryType !== 'INCOME').reduce((t, m) => t + (m.amount || 0), 0);
+          const porCobrar = pendientesVisibles.filter((m) => m.categoryType === 'INCOME').reduce((t, m) => t + (m.amount || 0), 0);
           const bColor = (bal ?? 0) >= 0 ? colors.income : colors.expense;
 
           return (
@@ -252,9 +265,31 @@ const DashboardScreen: React.FC = () => {
         {pending.length > 0 && (
           <>
             <AppText variant="subtitle" style={styles.sectionTitle}>
-              Por confirmar ({pending.length})
+              Por confirmar ({pendientesVisibles.length})
             </AppText>
-            {pending.map((item) => (
+            <View style={styles.toggleRow}>
+              {([true, false] as const).map((v) => (
+                <TouchableOpacity
+                  key={String(v)}
+                  testID={v ? 'pendientes-mios' : 'pendientes-hogar'}
+                  style={[styles.toggleBtn, soloMios === v && { backgroundColor: colors.primary }]}
+                  onPress={() => setSoloMios(v)}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: soloMios === v }}
+                  accessibilityLabel={v ? 'Ver solo lo que pago yo' : 'Ver lo de todo el hogar'}
+                >
+                  <AppText variant="caption" style={{ color: soloMios === v ? '#FFF' : colors.textSecondary, fontWeight: soloMios === v ? '700' : '400' }}>
+                    {v ? 'Lo que pago yo' : 'Todo el hogar'}
+                  </AppText>
+                </TouchableOpacity>
+              ))}
+            </View>
+            {pendientesVisibles.length === 0 && (
+              <AppText variant="caption" color={colors.textSecondary}>
+                {soloMios ? 'No tienes nada pendiente en esta vista.' : 'No hay pendientes en esta vista.'}
+              </AppText>
+            )}
+            {pendientesVisibles.map((item) => (
               <View key={item.id} style={styles.pendingRow}>
                 <View style={{ flex: 1 }}>
                   <MovementItem

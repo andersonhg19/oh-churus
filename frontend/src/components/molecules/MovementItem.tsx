@@ -97,6 +97,7 @@ const MovementItem: React.FC<MovementItemProps> = ({ movement, onPress, onConfir
             <AppText variant="caption">
               {formatDate(movement.date)}
               {movement.categoryName ? ` - ${movement.categoryName}` : ''}
+              {movement.payerName ? ` - paga ${movement.payerName}` : ''}
             </AppText>
           </View>
           <View style={styles.right}>

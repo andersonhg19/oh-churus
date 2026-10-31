@@ -25,4 +25,7 @@ public class MiembroHogarDTO {
 
     @NotNull(message = "es obligatorio")
     private Long userId;
+    /* Solo lo usa /display-name: el apodo con el que el hogar lo llama. */
+    @jakarta.validation.constraints.Size(max = 50, message = "no puede superar los 50 caracteres")
+    private String displayName;
 }

@@ -111,6 +111,47 @@ export const formatCurrency = (amount: number): string => {
   return `${valor < 0 ? '-' : ''}${simbolo}${formatted}`;
 };
 
+/**
+ * Lee un importe tal como lo escribe una persona en Colombia: "1.500.000",
+ * "$ 1.500.000", "50.000,50" o "1500000".
+ *
+ * Existe porque los formularios hacian parseFloat del texto tal cual, y
+ * parseFloat("1.500.000") es 1.5: quien escribia el arriendo con sus puntos
+ * guardaba un arriendo de un peso y medio, sin ningun aviso. Otros hacian
+ * Number(...) y ahi el mismo texto daba NaN y un "no es un numero" que nadie
+ * entendia, porque SI era un numero.
+ *
+ * La regla, en orden:
+ *  - Si aparecen punto y coma, el que va de ULTIMO es el decimal.
+ *  - Si solo aparece uno de los dos y todos sus grupos tienen tres cifras
+ *    ("1.500", "2.300.000"), es separador de miles. Un "1.5" es decimal.
+ *  - Devuelve NaN si no queda ningun numero, para que el formulario avise.
+ */
+export const parseMonto = (texto: string | number | null | undefined): number => {
+  if (typeof texto === 'number') return texto;
+  const limpio = String(texto ?? '').replace(/[^0-9.,-]/g, '');
+  if (!/[0-9]/.test(limpio)) return NaN;
+  const negativo = limpio.trim().startsWith('-');
+  const cuerpo = limpio.replace(/-/g, '');
+  const ultimoPunto = cuerpo.lastIndexOf('.');
+  const ultimaComa = cuerpo.lastIndexOf(',');
+  let normal: string;
+  if (ultimoPunto >= 0 && ultimaComa >= 0) {
+    const decimal = ultimoPunto > ultimaComa ? '.' : ',';
+    const miles = decimal === '.' ? ',' : '.';
+    normal = cuerpo.split(miles).join('').replace(decimal, '.');
+  } else if (ultimoPunto >= 0 || ultimaComa >= 0) {
+    const sep = ultimoPunto >= 0 ? '.' : ',';
+    const grupos = cuerpo.split(sep);
+    const sonMiles = grupos.length > 1 && grupos.slice(1).every((g) => g.length === 3) && grupos[0].length > 0;
+    normal = sonMiles ? grupos.join('') : grupos.slice(0, -1).join('') + '.' + grupos[grupos.length - 1];
+  } else {
+    normal = cuerpo;
+  }
+  const n = Number(normal);
+  return Number.isNaN(n) ? NaN : negativo ? -n : n;
+};
+
 export const formatDate = (date: string): string => {
   const d = desdeISO(date);
   const day = d.getDate();

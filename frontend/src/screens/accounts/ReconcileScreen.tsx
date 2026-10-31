@@ -10,7 +10,7 @@ import { spacing } from '../../theme';
 import { useAccionUnica } from '../../hooks/useAccionUnica';
 import { accountService } from '../../services/accountService';
 import { Account, Reconciliation } from '../../types';
-import { formatCurrency } from '../../utils/format';
+import { formatCurrency, parseMonto } from '../../utils/format';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 type AccountsStackParamList = {
@@ -42,9 +42,8 @@ const ReconcileScreen: React.FC<Props> = ({ navigation, route }) => {
   const [comparacion, setComparacion] = useState<Reconciliation | null>(null);
 
   const importeValido = (): number | null => {
-    const limpio = loQueDiceElBanco.trim().replace(/[^0-9.-]/g, '');
-    if (!limpio) return null;
-    const numero = Number(limpio);
+    if (!loQueDiceElBanco.trim()) return null;
+    const numero = parseMonto(loQueDiceElBanco);
     return Number.isNaN(numero) ? null : numero;
   };
 

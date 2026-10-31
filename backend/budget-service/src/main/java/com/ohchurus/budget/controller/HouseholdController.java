@@ -56,6 +56,14 @@ public class HouseholdController {
         return ResponseEntity.ok(householdService.removeMember(body.getHouseholdId(), body.getUserId()));
     }
 
+    /* El apodo de un miembro ("Samy"). Lo puede poner el OWNER o el propio
+       miembro; ver HouseholdServiceImpl.ponerApodo. */
+    @PostMapping(value = "/display-name", produces = "application/json")
+    public ResponseEntity<ResultDTO> displayName(@Valid @RequestBody MiembroHogarDTO body) {
+        return ResponseEntity.ok(householdService.ponerApodo(body.getHouseholdId(), body.getUserId(),
+                body.getDisplayName()));
+    }
+
     @PostMapping(value = "/by-user", produces = "application/json")
     public ResponseEntity<ResultDTO> getByUser(@Valid @RequestBody HogarPorUsuarioDTO body) {
         Long userId = com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId();

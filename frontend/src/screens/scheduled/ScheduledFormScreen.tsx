@@ -1,4 +1,4 @@
-import { fechaLocalISO } from '../../utils/format';
+import { fechaLocalISO, parseMonto } from '../../utils/format';
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -13,7 +13,8 @@ import { useAccionUnica } from '../../hooks/useAccionUnica';
 import { scheduledService } from '../../services/scheduledService';
 import { categoryService } from '../../services/categoryService';
 import { validateRequired, validateAmount, validateDate, validateCategory, validateDayOfMonth, validateDuration, validateAll } from '../../utils/validators';
-import { ScheduledMovement, Frequency, Category, CategoryType, WeekendPolicy } from '../../types';
+import { ScheduledMovement, Frequency, Category, CategoryType, WeekendPolicy, ScheduledKind } from '../../types';
+import { householdService } from '../../services/householdService';
 import { getIconEmoji } from '../../utils/iconMap';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
@@ -32,7 +33,9 @@ const FREQUENCIES: Frequency[] = [
 const FREQUENCY_LABELS: Record<Frequency, string> = {
   DAILY: 'Diario',
   WEEKLY: 'Semanal',
-  BIWEEKLY: 'Quincenal',
+  /* Era "Quincenal", y no lo es: cada 14 dias se va corriendo y en un ano
+     son 26 pagos, no 24. Para el 1 y el 15 se crean dos mensuales. */
+  BIWEEKLY: 'Cada 14 días',
   MONTHLY: 'Mensual',
   BIMONTHLY: 'Bimestral',
   QUARTERLY: 'Trimestral',
@@ -70,6 +73,24 @@ const POLITICAS_FIN_DE_SEMANA: Array<{ valor: WeekendPolicy; etiqueta: string; s
   { valor: 'NEXT_BUSINESS_DAY', etiqueta: 'Lunes despues', seOye: 'Aplazarla al lunes siguiente' },
 ];
 
+/* Las cuatro clases de salida de plata (ver la V10 del backend). Lo que
+   cambia de verdad es la provision: no genera pendiente, porque separar plata
+   para el mercado no es comprar el mercado. */
+const CLASES: Array<{ valor: ScheduledKind; etiqueta: string; ayuda: string }> = [
+  { valor: 'PAYMENT', etiqueta: 'Pago', ayuda: 'Un pago con fecha: arriendo, cuota, servicio. Genera su pendiente.' },
+  { valor: 'DEDUCTION', etiqueta: 'Descuento de nómina', ayuda: 'Te lo descuentan del sueldo: resta del ingreso y no se paga aparte.' },
+  { valor: 'SAVING', etiqueta: 'Ahorro', ayuda: 'Sale de la cuenta pero no es consumo: se muestra aparte.' },
+  { valor: 'PROVISION', etiqueta: 'Provisión', ayuda: 'Plata que se separa (mercado, mascotas). No genera pendiente: anota la compra real cuando ocurra.' },
+];
+
+/** Cuantas veces cae un programado en N meses, para decirlo en cuotas. */
+const cuotasEn = (frecuencia: Frequency, meses: number): number | null => {
+  if (!meses || meses <= 0) return null;
+  const cada: Partial<Record<Frequency, number>> = { MONTHLY: 1, BIMONTHLY: 2, QUARTERLY: 3, SEMIANNUAL: 6, ANNUAL: 12 };
+  const paso = cada[frecuencia];
+  return paso ? Math.ceil(meses / paso) : null;
+};
+
 const ScheduledFormScreen: React.FC<Props> = ({ navigation, route }) => {
   const { colors } = useTheme();
   const { showToast } = useToast();
@@ -92,6 +113,36 @@ const ScheduledFormScreen: React.FC<Props> = ({ navigation, route }) => {
   const [weekOfMonth, setWeekOfMonth] = useState<number | null>(existing?.weekOfMonth ?? null);
   const [dayOfWeek, setDayOfWeek] = useState<number | null>(existing?.dayOfWeek ?? null);
   const [weekendPolicy, setWeekendPolicy] = useState<WeekendPolicy>(existing?.weekendPolicy || 'KEEP');
+  const [kind, setKind] = useState<ScheduledKind>(existing?.kind || 'PAYMENT');
+  const [payer, setPayer] = useState<number | null>(
+    existing?.effectivePayerUserId ?? existing?.payerUserId ?? (user?.userId ? Number(user.userId) : null));
+  const [notes, setNotes] = useState(existing?.notes || '');
+  const [miembros, setMiembros] = useState<Array<{ userId: number; displayName?: string }>>([]);
+
+  /* Quien paga solo tiene sentido si hay hogar. Si no carga, el selector no
+     aparece y el programado lo paga quien lo crea, como siempre. */
+  useEffect(() => {
+    if (!user) return;
+    householdService.getByUser(user.userId).then((res) => {
+      const lista = res.correct && res.object ? res.object.flatMap((h) => h.members) : [];
+      const unicos = lista.filter((m, i) => lista.findIndex((x) => x.userId === m.userId) === i);
+      setMiembros(unicos);
+    }).catch(() => undefined);
+  }, [user]);
+
+  /* Una categoria privada solo la paga su dueno: el backend lo exige, y aqui
+     se evita ofrecer lo que va a rechazar. */
+  const esPrivada = !!selectedCategory && !(selectedCategory as any).householdId && !(selectedCategory as any).shared;
+  const nombreDe = (id: number) =>
+    miembros.find((m) => m.userId === id)?.displayName || (String(id) === String(user?.userId) ? 'Yo' : `Persona ${id}`);
+  const meses = durationMonths ? parseInt(durationMonths, 10) : 0;
+  const cuotas = cuotasEn(frequency, meses);
+  const terminaEl = (() => {
+    if (!meses || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) return null;
+    const [y, m, d] = startDate.split('-').map(Number);
+    const fin = new Date(y, m - 1 + meses, d - 1);
+    return fechaLocalISO(fin);
+  })();
 
   useEffect(() => {
     const loadCategories = async () => {
@@ -164,7 +215,7 @@ const ScheduledFormScreen: React.FC<Props> = ({ navigation, route }) => {
         userId: user?.userId,
         categoryId: selectedCategory!.id,
         name: name.trim(),
-        amount: parseFloat(amount),
+        amount: parseMonto(amount),
         frequency,
         startDate,
         durationMonths: durationMonths ? parseInt(durationMonths, 10) : undefined,
@@ -172,6 +223,9 @@ const ScheduledFormScreen: React.FC<Props> = ({ navigation, route }) => {
         weekOfMonth: weekOfMonth ?? undefined,
         dayOfWeek: dayOfWeek ?? undefined,
         weekendPolicy,
+        kind,
+        notes: notes.trim(),
+        ...(payer !== null && miembros.length > 1 && !esPrivada && { payerUserId: payer }),
       };
       const res = await scheduledService.save(data);
       if (res.correct) {
@@ -183,7 +237,8 @@ const ScheduledFormScreen: React.FC<Props> = ({ navigation, route }) => {
       showToast('error', 'Error', err.message || 'No se pudo guardar');
     }
   }, [name, selectedCategory, amount, frequency, startDate, durationMonths, dayOfMonth,
-      weekOfMonth, dayOfWeek, weekendPolicy, isEdit, existing, user, navigation, showToast]);
+      weekOfMonth, dayOfWeek, weekendPolicy, kind, notes, payer, miembros, esPrivada,
+      isEdit, existing, user, navigation, showToast]);
 
   const { ejecutando: guardando, ejecutar: handleSave } = useAccionUnica(guardarProgramado);
 
@@ -271,7 +326,52 @@ const ScheduledFormScreen: React.FC<Props> = ({ navigation, route }) => {
         </ScrollView>
       )}
 
-      <Input label="Monto" value={amount} onChangeText={setAmount} placeholder="0" keyboardType="numeric" />
+      <Input label="Monto" value={amount} onChangeText={setAmount} placeholder="Ej: 1.500.000" keyboardType="numeric" />
+
+      {movementType === 'EXPENSE' && (
+        <>
+          <AppText variant="label" style={styles.freqLabel}>Clase</AppText>
+          <View style={styles.freqGrid}>
+            {CLASES.map((c) => (
+              <TouchableOpacity
+                key={c.valor}
+                testID={`clase-${c.valor}`}
+                style={[styles.freqBtn, { backgroundColor: kind === c.valor ? colors.secondary : colors.surface, borderColor: colors.border }]}
+                onPress={() => setKind(c.valor)}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: kind === c.valor }}
+                accessibilityLabel={`${c.etiqueta}. ${c.ayuda}`}
+              >
+                <AppText variant="caption" color={kind === c.valor ? '#FFFFFF' : colors.text}>{c.etiqueta}</AppText>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <AppText variant="caption" color={colors.textSecondary} style={styles.ayuda}>
+            {CLASES.find((c) => c.valor === kind)?.ayuda}
+          </AppText>
+        </>
+      )}
+
+      {miembros.length > 1 && !esPrivada && (
+        <>
+          <AppText variant="label" style={styles.freqLabel}>¿Quién lo paga?</AppText>
+          <View style={styles.freqGrid}>
+            {miembros.map((m) => (
+              <TouchableOpacity
+                key={m.userId}
+                testID={`pagador-${m.userId}`}
+                style={[styles.freqBtn, { backgroundColor: payer === m.userId ? colors.secondary : colors.surface, borderColor: colors.border }]}
+                onPress={() => setPayer(m.userId)}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: payer === m.userId }}
+                accessibilityLabel={`Lo paga ${nombreDe(m.userId)}`}
+              >
+                <AppText variant="caption" color={payer === m.userId ? '#FFFFFF' : colors.text}>{nombreDe(m.userId)}</AppText>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </>
+      )}
 
       <AppText variant="label" style={styles.freqLabel}>Frecuencia</AppText>
       <View style={styles.freqGrid}>
@@ -298,7 +398,20 @@ const ScheduledFormScreen: React.FC<Props> = ({ navigation, route }) => {
       </View>
 
       <Input label="Fecha inicio" value={startDate} onChangeText={setStartDate} placeholder="YYYY-MM-DD" />
-      <Input label="Duracion (meses)" value={durationMonths} onChangeText={setDurationMonths} placeholder="Opcional" keyboardType="numeric" />
+      <Input label="Duración (meses)" value={durationMonths} onChangeText={setDurationMonths} placeholder="Vacío = sin fin" keyboardType="numeric" />
+      {/* "Meses" no es "cuotas": un bimestral a 4 meses son 2 pagos. Se dice
+          con la cuenta hecha para que nadie tenga que adivinarla. */}
+      {terminaEl && (
+        <AppText variant="caption" color={colors.textSecondary} style={styles.ayuda} testID="resumen-cuotas">
+          {cuotas ? `${cuotas} cuota(s). ` : ''}Termina el {terminaEl}.
+          {isEdit && existing?.remainingOccurrences != null ? ` Quedan ${existing.remainingOccurrences}.` : ''}
+        </AppText>
+      )}
+      {frequency === 'BIWEEKLY' && (
+        <AppText variant="caption" color={colors.textSecondary} style={styles.ayuda}>
+          Cada 14 días se va corriendo. Para cobrar el 1 y el 15, crea dos programados mensuales.
+        </AppText>
+      )}
       <Input label="Dia del mes" value={dayOfMonth} onChangeText={setDayOfMonth} placeholder="1-31 (opcional)" keyboardType="numeric" />
 
       {/* "El tercer viernes" es como se paga la nomina, y no hay dia del mes

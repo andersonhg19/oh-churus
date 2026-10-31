@@ -208,7 +208,7 @@ class DTOTest {
         LocalDate now = LocalDate.now();
         ScheduledMovementSaveDTO dto = new ScheduledMovementSaveDTO(1L, 2L, 3L, "Rent",
                 new BigDecimal("500"), Frequency.MONTHLY, 12, now, 15, 3, 5,
-                com.ohchurus.budget.enums.WeekendPolicy.PREVIOUS_BUSINESS_DAY);
+                com.ohchurus.budget.enums.WeekendPolicy.PREVIOUS_BUSINESS_DAY, null, null, null);
         assertEquals(1L, dto.getId());
         assertEquals(2L, dto.getUserId());
         assertEquals(3L, dto.getCategoryId());
@@ -329,7 +329,7 @@ class DTOTest {
         // Test all-args
         DashboardSummaryDTO dto3 = new DashboardSummaryDTO(
                 new BigDecimal("3000"), new BigDecimal("1500"), new BigDecimal("1500"),
-                new BigDecimal("2000"), 2, new BigDecimal("100"), start, end);
+                new BigDecimal("2000"), null, 2, new BigDecimal("100"), null, null, start, end);
         assertEquals(new BigDecimal("3000"), dto3.getTotalIncome());
     }
 
@@ -422,7 +422,7 @@ class DTOTest {
                 new BigDecimal("100"), new BigDecimal("50"), new BigDecimal("50"),
                 new BigDecimal("200"), new BigDecimal("100"), new BigDecimal("100"),
                 new BigDecimal("300"), new BigDecimal("150"), new BigDecimal("150"),
-                1, 2, start, end);
+                1, 2, null, null, null, null, null, null, start, end);
         assertEquals(new BigDecimal("100"), ss3.getPersonalIncome());
     }
 
@@ -812,7 +812,7 @@ class DTOTest {
         // AllArgs
         ScheduledMovement sm3 = new ScheduledMovement(1L, 2L, 3L, "N", new BigDecimal("50"),
                 Frequency.ANNUAL, 12, date, endDate, 1, 3, 5,
-                com.ohchurus.budget.enums.WeekendPolicy.KEEP, true, now, now);
+                com.ohchurus.budget.enums.WeekendPolicy.KEEP, null, null, null, true, now, now);
         assertEquals("N", sm3.getName());
     }
 

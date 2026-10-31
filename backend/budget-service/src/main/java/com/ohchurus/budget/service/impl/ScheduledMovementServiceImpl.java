@@ -11,6 +11,7 @@ import com.ohchurus.budget.dto.output.ResultScheduledMovementDTO;
 import com.ohchurus.budget.entity.Movement;
 import com.ohchurus.budget.entity.ScheduledMovement;
 import com.ohchurus.budget.enums.Frequency;
+import com.ohchurus.budget.enums.ScheduledKind;
 import com.ohchurus.budget.enums.WeekendPolicy;
 import com.ohchurus.budget.mapper.MovementMapper;
 import com.ohchurus.budget.mapper.ScheduledMovementMapper;
@@ -92,6 +93,27 @@ public class ScheduledMovementServiceImpl implements ScheduledMovementService {
         return acceso.puedeVer(p.getUserId(), p.getCategoryId());
     }
 
+    /** Quien paga de verdad: el responsable, o quien lo creo si no hay. */
+    static Long pagadorDe(ScheduledMovement p) {
+        return p.getPayerUserId() != null ? p.getPayerUserId() : p.getUserId();
+    }
+
+    /**
+     * El responsable tiene que ser alguien de mi hogar. Y si la categoria es
+     * PRIVADA, solo puede ser su dueno: el gasto de una categoria que el otro
+     * no ve no puede caer en la cuenta del otro, que tampoco lo veria.
+     */
+    private String pagadorInvalido(Long pagador, Long categoryId, Long yo) {
+        if (pagador == null) return null;
+        if (!householdService.companerosDeHogar(yo).contains(pagador)) {
+            return "Quien paga tiene que ser alguien de tu hogar";
+        }
+        return categoryRepository.findByIdAndActiveTrue(categoryId)
+                .filter(c -> c.getHouseholdId() == null && !pagador.equals(c.getUserId()))
+                .map(c -> "Una categoria privada solo la puede pagar su dueno")
+                .orElse(null);
+    }
+
     @Override
     public ResultDTO saveAndUpdate(ScheduledMovementSaveDTO dto) {
         try {
@@ -119,13 +141,22 @@ public class ScheduledMovementServiceImpl implements ScheduledMovementService {
     }
 
     private ResultDTO createScheduled(ScheduledMovementSaveDTO dto) {
-        if (!categoryRepository.findByIdAndActiveTrue(dto.getCategoryId()).isPresent()) {
+        /* Que la categoria exista no basta: tiene que ser una que yo vea. Si
+           no, bastaba un id ajeno para meterle un cobro mensual a otra casa. */
+        if (categoryRepository.findByIdAndActiveTrue(dto.getCategoryId())
+                .filter(acceso::puedeVerCategoria).isEmpty()) {
             return new ResultDTO(false, "Category not found", 404);
         }
 
         String patronIncompleto = patronSemanalIncompleto(dto);
         if (patronIncompleto != null) {
             return new ResultDTO(false, patronIncompleto, 400);
+        }
+
+        String pagadorInvalido = pagadorInvalido(dto.getPayerUserId(), dto.getCategoryId(),
+                com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId());
+        if (pagadorInvalido != null) {
+            return new ResultDTO(false, pagadorInvalido, 400);
         }
 
         LocalDate endDate = calculateEndDate(dto.getStartDate(), dto.getDurationMonths());
@@ -148,6 +179,9 @@ public class ScheduledMovementServiceImpl implements ScheduledMovementService {
                 .weekOfMonth(dto.getWeekOfMonth())
                 .dayOfWeek(dto.getDayOfWeek())
                 .weekendPolicy(dto.getWeekendPolicy() != null ? dto.getWeekendPolicy() : WeekendPolicy.KEEP)
+                .payerUserId(dto.getPayerUserId())
+                .kind(ScheduledKind.de(dto.getKind()))
+                .notes(dto.getNotes() != null && !dto.getNotes().isBlank() ? dto.getNotes().trim() : null)
                 .active(true)
                 .build();
 
@@ -158,11 +192,14 @@ public class ScheduledMovementServiceImpl implements ScheduledMovementService {
 
     private ResultDTO updateScheduled(ScheduledMovementSaveDTO dto) {
         Optional<ScheduledMovement> existing = scheduledMovementRepository.findByIdAndActiveTrue(dto.getId());
-        if (existing.isEmpty()) {
+        /* Leer y borrar ya miraban puedoTocar; editar no, y con el id de un
+           programado ajeno se le podia cambiar el importe a otro. */
+        if (existing.isEmpty() || !puedoTocar(existing.get())) {
             return new ResultDTO(false, "Scheduled movement not found", 404);
         }
 
-        if (!categoryRepository.findByIdAndActiveTrue(dto.getCategoryId()).isPresent()) {
+        if (categoryRepository.findByIdAndActiveTrue(dto.getCategoryId())
+                .filter(acceso::puedeVerCategoria).isEmpty()) {
             return new ResultDTO(false, "Category not found", 404);
         }
 
@@ -186,6 +223,24 @@ public class ScheduledMovementServiceImpl implements ScheduledMovementService {
         scheduled.setWeekOfMonth(dto.getWeekOfMonth());
         scheduled.setDayOfWeek(dto.getDayOfWeek());
         scheduled.setWeekendPolicy(dto.getWeekendPolicy() != null ? dto.getWeekendPolicy() : WeekendPolicy.KEEP);
+        /* Responsable, clase y notas: nulo es "no lo mandaste", no "borralo".
+           Un cliente que aun no conoce estos campos no puede, al guardar,
+           devolverle el gimnasio de Samy a quien lo creo. Para vaciar las notas
+           se manda un texto vacio. */
+        if (dto.getPayerUserId() != null) {
+            String pagadorInvalido = pagadorInvalido(dto.getPayerUserId(), dto.getCategoryId(),
+                    com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId());
+            if (pagadorInvalido != null) {
+                return new ResultDTO(false, pagadorInvalido, 400);
+            }
+            scheduled.setPayerUserId(dto.getPayerUserId());
+        }
+        if (dto.getKind() != null) {
+            scheduled.setKind(dto.getKind());
+        }
+        if (dto.getNotes() != null) {
+            scheduled.setNotes(dto.getNotes().isBlank() ? null : dto.getNotes().trim());
+        }
 
         ScheduledMovement saved = scheduledMovementRepository.save(scheduled);
         log.info("Scheduled movement updated: id={}", saved.getId());
@@ -204,6 +259,41 @@ public class ScheduledMovementServiceImpl implements ScheduledMovementService {
         return startDate.plusMonths(durationMonths).minusDays(1);
     }
 
+    /**
+     * Lo que la lista necesita y la fila no guarda: la categoria, quien paga
+     * con su apodo, y para los que tienen fin, las cuotas que faltan.
+     *
+     * Las cuotas se CUENTAN con el mismo calendario que genera los pendientes,
+     * no se restan a mano: un bimestral "a 4 meses" son dos cuotas, no cuatro,
+     * y la unica forma de no equivocarse es preguntarle al calendario.
+     */
+    private void enriquecer(ResultScheduledMovementDTO dto, ScheduledMovement s) {
+        categoryRepository.findByIdAndActiveTrue(s.getCategoryId()).ifPresent(cat -> {
+            dto.setCategoryName(cat.getName());
+            dto.setCategoryType(cat.getType() != null ? cat.getType().name() : null);
+            dto.setCategoryIcon(cat.getIcon());
+            dto.setCategoryColor(cat.getColor());
+            dto.setCategoryHouseholdId(cat.getHouseholdId());
+        });
+        Long pagador = pagadorDe(s);
+        dto.setEffectivePayerUserId(pagador);
+        dto.setPayerName(householdService.apodoDe(pagador));
+        if (dto.getKind() == null) dto.setKind(ScheduledKind.PAYMENT);
+
+        LocalDate hoy = LocalDate.now();
+        LocalDate hasta = s.getEndDate() != null ? s.getEndDate() : hoy.plusDays(400);
+        List<Ocurrencia> futuras = CalendarioDeRecurrencias.ocurrenciasHasta(s, hasta).stream()
+                .filter(o -> !o.fecha().isBefore(hoy))
+                .collect(Collectors.toList());
+        if (!futuras.isEmpty()) dto.setNextDate(futuras.get(0).fecha());
+        if (s.getEndDate() != null) {
+            dto.setRemainingOccurrences(futuras.size());
+            dto.setRemainingTotal(s.getAmount() != null
+                    ? s.getAmount().multiply(BigDecimal.valueOf(futuras.size()))
+                    : null);
+        }
+    }
+
     @Override
     @Transactional(readOnly = true)
     public ResultDTO getById(Long id) {
@@ -212,10 +302,7 @@ public class ScheduledMovementServiceImpl implements ScheduledMovementService {
             return new ResultDTO(false, "Scheduled movement not found", 404);
         }
         ResultScheduledMovementDTO dto = scheduledMovementMapper.toResultDTO(scheduled.get());
-        categoryRepository.findByIdAndActiveTrue(scheduled.get().getCategoryId()).ifPresent(cat -> {
-            dto.setCategoryName(cat.getName());
-            dto.setCategoryType(cat.getType() != null ? cat.getType().name() : null);
-        });
+        enriquecer(dto, scheduled.get());
         return new ResultDTO(dto);
     }
 
@@ -238,10 +325,7 @@ public class ScheduledMovementServiceImpl implements ScheduledMovementService {
                 .map(s -> {
                     ResultScheduledMovementDTO dto = scheduledMovementMapper.toResultDTO(s);
                     if (dto != null) {
-                        categoryRepository.findByIdAndActiveTrue(s.getCategoryId()).ifPresent(cat -> {
-                            dto.setCategoryName(cat.getName());
-                            dto.setCategoryType(cat.getType() != null ? cat.getType().name() : null);
-                        });
+                        enriquecer(dto, s);
                     }
                     return dto;
                 })
@@ -323,6 +407,12 @@ public class ScheduledMovementServiceImpl implements ScheduledMovementService {
             int totalPropuesto = 0;
 
             for (ScheduledMovement programado : scheduledList) {
+                /* Una provision no es un pago: separar plata para el mercado
+                   no es comprar el mercado. Si generara pendiente, al anotar
+                   la compra real el gasto contaria dos veces. */
+                if (ScheduledKind.de(programado.getKind()) == ScheduledKind.PROVISION) {
+                    continue;
+                }
                 /* Un programado que TERMINO antes del periodo actual no tiene
                    nada que decir. No se le proponen sus ocurrencias viejas: un
                    credito que se acabo hace dos anos y nunca se genero es
@@ -428,6 +518,10 @@ public class ScheduledMovementServiceImpl implements ScheduledMovementService {
                 }
 
                 ScheduledMovement programado = encontrado.get();
+                if (ScheduledKind.de(programado.getKind()) == ScheduledKind.PROVISION) {
+                    return new ResultDTO(false,
+                            "Una provision no genera movimientos: anota la compra real cuando ocurra", 400);
+                }
                 Ocurrencia ocurrencia = CalendarioDeRecurrencias.buscarPorClave(
                         programado, referencia.getPeriodStart());
                 if (ocurrencia == null) {
@@ -522,11 +616,14 @@ public class ScheduledMovementServiceImpl implements ScheduledMovementService {
                 /* El pendiente es del DUENO del programado, no de quien
                    refresca el panel. En un hogar el arriendo de uno acababa a
                    nombre del otro solo porque abrio la app primero. */
-                .userId(programado.getUserId())
+                /* Ola 5: y si el programado tiene responsable, es de el. El
+                   gimnasio de Samy que dio de alta Anderson tiene que salir de
+                   la cuenta de Samy. */
+                .userId(pagadorDe(programado))
                 /* Y su cuenta es la del dueno, por lo mismo: un pendiente sin
                    cuenta no saldria en ningun saldo pero si contaria en el
                    presupuesto. */
-                .accountId(cuentas.porDefecto(programado.getUserId()).getId())
+                .accountId(cuentas.porDefecto(pagadorDe(programado)).getId())
                 .categoryId(programado.getCategoryId())
                 .date(ocurrencia.fecha())
                 .amount(programado.getAmount() != null ? programado.getAmount() : BigDecimal.ZERO)

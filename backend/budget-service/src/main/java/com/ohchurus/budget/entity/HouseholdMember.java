@@ -32,6 +32,12 @@ public class HouseholdMember {
     @Builder.Default
     private String role = "MEMBER"; // OWNER, MEMBER
 
+    /* Como llama el hogar a esta persona ("Samy"). Ver V10: budget-service no
+       puede leer el nombre de la cuenta del otro, y sin esto no habia forma de
+       decir en pantalla quien paga que. */
+    @Column(length = 50)
+    private String displayName;
+
     @Column(nullable = false)
     @Builder.Default
     private Boolean active = true;

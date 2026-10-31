@@ -27,7 +27,15 @@ const PeriodConfigScreen: React.FC = () => {
     const day = parseInt(budgetStartDay, 10);
     setSaving(true);
     try {
-      const res = await authService.updateUser({ id: user?.userId, budgetStartDay: day });
+      /* El servidor exige nombre y correo en cada guardado del usuario: sin
+         ellos rechazaba la peticion y el dia de corte no cambiaba nunca, por
+         mucho que se pulsara Guardar. Moneda ya lo hacia asi. */
+      const res = await authService.updateUser({
+        id: user?.userId,
+        name: user?.name,
+        email: user?.email,
+        budgetStartDay: day,
+      } as any);
       if (res.correct) {
         await updateUser({ budgetStartDay: day });
         showToast('success', 'Listo', 'Dia de inicio actualizado a ' + day);

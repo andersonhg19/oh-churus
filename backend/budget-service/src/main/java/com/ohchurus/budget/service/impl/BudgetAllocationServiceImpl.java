@@ -8,6 +8,7 @@ import com.ohchurus.budget.enums.CategoryType;
 import com.ohchurus.budget.repository.BudgetAllocationRepository;
 import com.ohchurus.budget.repository.CategoryRepository;
 import com.ohchurus.budget.repository.MovementRepository;
+import com.ohchurus.budget.util.Computables;
 import com.ohchurus.budget.util.PeriodUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -150,6 +151,63 @@ public class BudgetAllocationServiceImpl {
 
     // ===== BUDGET VS ACTUAL (VARIANZA) =====
 
+    /**
+     * El presupuesto no se repetia solo: cada mes habia que volver a escribir
+     * las doce categorias. Esto copia las del periodo anterior a este, pero
+     * SOLO donde este periodo no tiene nada: si ya subiste Mercado a 1.300.000,
+     * copiar no te lo devuelve a 1.200.000.
+     *
+     * Se copia cada asignacion con su dueno original. Las compartidas las
+     * puede copiar cualquiera del hogar; las privadas de otro ni se leen.
+     */
+    @Transactional
+    public ResultDTO copiarDelAnterior(Long userId, Integer budgetStartDay, LocalDate referenceDate) {
+        try {
+            int dia = budgetStartDay != null ? budgetStartDay : 1;
+            LocalDate ref = referenceDate != null ? referenceDate : LocalDate.now();
+            LocalDate periodStart = PeriodUtils.getStartOfPeriod(dia, ref);
+            LocalDate periodEnd = PeriodUtils.getEndOfPeriod(dia, periodStart);
+            LocalDate anteriorStart = PeriodUtils.getStartOfPeriod(dia, periodStart.minusDays(1));
+
+            List<Long> hIds = householdService.getHouseholdIds(userId);
+            List<BudgetAllocation> anteriores = !hIds.isEmpty()
+                    ? allocationRepository.findAllForUserAndHousehold(userId, hIds, anteriorStart)
+                    : allocationRepository.findByUserIdAndPeriodStartAndActiveTrue(userId, anteriorStart);
+            List<BudgetAllocation> actuales = !hIds.isEmpty()
+                    ? allocationRepository.findAllForUserAndHousehold(userId, hIds, periodStart)
+                    : allocationRepository.findByUserIdAndPeriodStartAndActiveTrue(userId, periodStart);
+            java.util.Set<Long> yaTienen = actuales.stream().map(BudgetAllocation::getCategoryId)
+                    .collect(Collectors.toSet());
+
+            int copiadas = 0;
+            for (BudgetAllocation a : anteriores) {
+                if (yaTienen.contains(a.getCategoryId())) continue;
+                if (categoryRepository.findByIdAndActiveTrue(a.getCategoryId()).isEmpty()) continue;
+                allocationRepository.save(BudgetAllocation.builder()
+                        .userId(a.getUserId())
+                        .categoryId(a.getCategoryId())
+                        .householdId(a.getHouseholdId())
+                        .periodStart(periodStart)
+                        .periodEnd(periodEnd)
+                        .allocatedAmount(a.getAllocatedAmount())
+                        .notes(a.getNotes())
+                        .active(true)
+                        .build());
+                yaTienen.add(a.getCategoryId());
+                copiadas++;
+            }
+            Map<String, Object> r = new LinkedHashMap<>();
+            r.put("periodStart", periodStart.toString());
+            r.put("copied", copiadas);
+            r.put("fromPeriodStart", anteriorStart.toString());
+            log.info("Allocations copied: {} into {} for user {}", copiadas, periodStart, userId);
+            return new ResultDTO(r);
+        } catch (Exception e) {
+            log.error("Error copying allocations: {}", e.getMessage(), e);
+            return new ResultDTO(false, "Error copying allocations", 500);
+        }
+    }
+
     @Transactional(readOnly = true)
     public ResultDTO summary(Long userId, Integer budgetStartDay, LocalDate referenceDate) {
         try {
@@ -173,14 +231,34 @@ public class BudgetAllocationServiceImpl {
             Map<Long, BigDecimal> actualByCategory = new HashMap<>();
             for (Movement m : confirmed) {
                 if (Boolean.TRUE.equals(m.getIsTransfer())) continue;
+                /* La regla de toda la app (Computables): sin esto los
+                   sub-gastos se contaban junto con su padre y el real de la
+                   categoria salia doble. */
+                if (!Computables.suma(m)) continue;
                 Category cat = categoryRepository.findByIdAndActiveTrue(m.getCategoryId()).orElse(null);
                 if (cat != null && cat.getType() == CategoryType.EXPENSE) {
-                    actualByCategory.merge(m.getCategoryId(), m.getAmount(), BigDecimal::add);
+                    actualByCategory.merge(m.getCategoryId(), Computables.importe(m), BigDecimal::add);
                 }
+            }
+
+            /* Ola 5: lo COMPROMETIDO. Un pendiente programado (el arriendo que
+               vence el 1) todavia no es gasto, pero esa plata ya no esta libre.
+               Antes "Casa" decia 3.023.000 disponibles con 2.708.000 ya
+               programados para pagar. */
+            List<Movement> pendientes = !hIds.isEmpty()
+                    ? movementRepository.findHouseholdPending(userId, hIds, periodStart, periodEnd)
+                    : movementRepository.findByUserIdAndDateBetweenAndConfirmedFalseAndActiveTrue(userId, periodStart, periodEnd);
+            Map<Long, BigDecimal> committedByCategory = new HashMap<>();
+            for (Movement m : pendientes) {
+                if (Boolean.TRUE.equals(m.getIsTransfer()) || !Computables.suma(m)) continue;
+                committedByCategory.merge(m.getCategoryId(), Computables.importe(m), BigDecimal::add);
             }
 
             BigDecimal totalBudgeted = BigDecimal.ZERO;
             BigDecimal totalActual = BigDecimal.ZERO;
+            BigDecimal totalCommitted = BigDecimal.ZERO;
+            BigDecimal sharedBudgeted = BigDecimal.ZERO;
+            BigDecimal personalBudgeted = BigDecimal.ZERO;
 
             List<Map<String, Object>> items = new ArrayList<>();
             for (BudgetAllocation a : allocations) {
@@ -191,16 +269,24 @@ public class BudgetAllocationServiceImpl {
                         ? actual.multiply(new BigDecimal("100")).divide(budgeted, 1, RoundingMode.HALF_UP).doubleValue()
                         : 0;
 
+                BigDecimal committed = committedByCategory.getOrDefault(a.getCategoryId(), BigDecimal.ZERO);
                 totalBudgeted = totalBudgeted.add(budgeted);
                 totalActual = totalActual.add(actual);
+                totalCommitted = totalCommitted.add(committed);
+                if (a.getHouseholdId() != null) sharedBudgeted = sharedBudgeted.add(budgeted);
+                else personalBudgeted = personalBudgeted.add(budgeted);
 
                 Map<String, Object> item = new LinkedHashMap<>();
                 item.put("categoryId", a.getCategoryId());
                 item.put("allocatedAmount", budgeted);
                 item.put("actualAmount", actual);
+                item.put("committedAmount", committed);
+                /* Lo que queda de verdad: ni gastado ni ya comprometido. */
+                item.put("availableAmount", variance.subtract(committed));
                 item.put("variance", variance);
                 item.put("executionPct", executionPct);
                 item.put("favorable", variance.compareTo(BigDecimal.ZERO) >= 0);
+                item.put("shared", a.getHouseholdId() != null);
 
                 categoryRepository.findByIdAndActiveTrue(a.getCategoryId()).ifPresent(cat -> {
                     item.put("categoryName", cat.getName());
@@ -216,6 +302,10 @@ public class BudgetAllocationServiceImpl {
             result.put("totalBudgeted", totalBudgeted);
             result.put("totalActual", totalActual);
             result.put("totalVariance", totalBudgeted.subtract(totalActual));
+            result.put("totalCommitted", totalCommitted);
+            result.put("totalAvailable", totalBudgeted.subtract(totalActual).subtract(totalCommitted));
+            result.put("sharedBudgeted", sharedBudgeted);
+            result.put("personalBudgeted", personalBudgeted);
             result.put("categories", items);
 
             return new ResultDTO(result);

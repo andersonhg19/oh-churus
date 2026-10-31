@@ -13,7 +13,7 @@ import Spinner from '../../components/atoms/Spinner';
 import { spacing } from '../../theme';
 import { envelopeService } from '../../services/envelopeService';
 import { Envelope } from '../../types';
-import { formatCurrency } from '../../utils/format';
+import { formatCurrency, parseMonto } from '../../utils/format';
 import { useCarga, exigir } from '../../hooks/useCarga';
 import { useAccionUnica } from '../../hooks/useAccionUnica';
 import { useFocusEffect } from '@react-navigation/native';
@@ -64,7 +64,7 @@ const EnvelopesScreen: React.FC = () => {
 
   const mover = useCallback(async () => {
     if (!moviendoDesde || !haciaCategoria) return;
-    const importe = Number((cuanto || '').replace(/[^0-9.]/g, ''));
+    const importe = parseMonto(cuanto || '');
     if (!importe || Number.isNaN(importe)) {
       showToast('warning', 'Validacion', 'Escribe cuanto quieres mover');
       return;

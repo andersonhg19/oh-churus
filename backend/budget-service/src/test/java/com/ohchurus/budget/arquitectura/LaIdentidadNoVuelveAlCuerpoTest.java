@@ -73,9 +73,10 @@ class LaIdentidadNoVuelveAlCuerpoTest {
      */
     private static final Map<String, Permiso> CONTROLLERS_EXENTOS = new LinkedHashMap<>();
     static {
-        CONTROLLERS_EXENTOS.put("HouseholdController.java", new Permiso(2,
-                "add-member y remove-member: el userId del cuerpo es el miembro objetivo. "
-                        + "Quien llama sale del token y el servicio exige que sea el OWNER"));
+        CONTROLLERS_EXENTOS.put("HouseholdController.java", new Permiso(3,
+                "add-member, remove-member y display-name: el userId del cuerpo es el miembro "
+                        + "objetivo. Quien llama sale del token y el servicio exige que sea el OWNER "
+                        + "(o el propio miembro, para su apodo)"));
     }
 
     private static final String COMO_ARREGLARLO =

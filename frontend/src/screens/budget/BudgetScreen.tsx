@@ -22,8 +22,9 @@ import { budgetAllocationService } from '../../services/budgetAllocationService'
 import { categoryService } from '../../services/categoryService';
 import { movementService } from '../../services/movementService';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import { formatCurrency } from '../../utils/format';
+import { formatCurrency, parseMonto } from '../../utils/format';
 import { confirmarBorrado } from '../../utils/confirmar';
+import { getIconEmoji } from '../../utils/iconMap';
 import { getStartOfPeriod, getEndOfPeriod, navigatePeriod } from '../../utils/periodUtils';
 import { CategoryTree } from '../../types';
 
@@ -142,7 +143,7 @@ const BudgetScreen: React.FC = () => {
 
   const handleSaveAllocation = async () => {
     if (!user || !selectedCategoryId || !newAmount) return;
-    const amount = parseFloat(newAmount);
+    const amount = parseMonto(newAmount);
     if (isNaN(amount) || amount <= 0) {
       showToast('error', 'Error', 'Ingresa un monto valido');
       return;
@@ -195,7 +196,7 @@ const BudgetScreen: React.FC = () => {
 
   const handleTransfer = async () => {
     if (!user || !transferFromId || !transferToId || !transferAmount) return;
-    const amount = parseFloat(transferAmount);
+    const amount = parseMonto(transferAmount);
     if (isNaN(amount) || amount <= 0) {
       showToast('error', 'Error', 'Ingresa un monto valido');
       return;
@@ -299,7 +300,7 @@ const BudgetScreen: React.FC = () => {
                       <View style={[styles.colorDot, { backgroundColor: alloc.categoryColor }]} />
                     )}
                     {alloc.categoryIcon ? (
-                      <AppText variant="body" style={styles.categoryIcon}>{alloc.categoryIcon}</AppText>
+                      <AppText variant="body" style={styles.categoryIcon}>{getIconEmoji(alloc.categoryIcon)}</AppText>
                     ) : null}
                     <AppText variant="body" style={styles.categoryName}>{alloc.categoryName}</AppText>
                   </View>
@@ -463,7 +464,7 @@ const BudgetScreen: React.FC = () => {
                   >
                     <View style={styles.categoryOptionRow}>
                       {cat.color && <View style={[styles.colorDot, { backgroundColor: cat.color }]} />}
-                      {cat.icon ? <AppText variant="body" style={styles.categoryIcon}>{cat.icon}</AppText> : null}
+                      {cat.icon ? <AppText variant="body" style={styles.categoryIcon}>{getIconEmoji(cat.icon)}</AppText> : null}
                       <AppText variant="body">{cat.name}</AppText>
                     </View>
                     {selectedCategoryId === Number(cat.id) && (

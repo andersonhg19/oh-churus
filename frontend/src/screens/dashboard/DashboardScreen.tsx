@@ -19,7 +19,7 @@ import { movementService } from '../../services/movementService';
 import { DashboardSummary, Movement } from '../../types';
 import { useCarga, exigir } from '../../hooks/useCarga';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import { formatCurrency } from '../../utils/format';
+import { formatCurrency, parseMonto } from '../../utils/format';
 import { getStartOfPeriod, getEndOfPeriod, navigatePeriod } from '../../utils/periodUtils';
 
 const DashboardScreen: React.FC = () => {
@@ -71,9 +71,16 @@ const DashboardScreen: React.FC = () => {
     if (!confirmItem) return;
     try {
       const originalAmount = confirmItem.amount || 0;
-      const newAmount = parseFloat(confirmAmount) || originalAmount;
+      const newAmount = parseMonto(confirmAmount) || originalAmount;
       const adjustedAmount = newAmount !== originalAmount ? newAmount : undefined;
-      await movementService.confirm(String(confirmItem.id), adjustedAmount);
+      /* El servidor contesta 200 tambien cuando se niega (correct:false), y
+         sin mirarlo la pantalla decia "Confirmado" de algo que seguia
+         pendiente. */
+      const res = await movementService.confirm(String(confirmItem.id), adjustedAmount);
+      if (!res.correct) {
+        showToast('error', 'No se pudo confirmar', res.message);
+        return;
+      }
       showToast('success', 'Confirmado', confirmItem.description || 'Movimiento confirmado');
       setConfirmItem(null);
       cargar();
@@ -224,7 +231,8 @@ const DashboardScreen: React.FC = () => {
                     onConfirm={() => openConfirmModal(item)}
                     onSwipeConfirm={async () => {
                       try {
-                        await movementService.confirm(String(item.id));
+                        const res = await movementService.confirm(String(item.id));
+                        if (!res.correct) { showToast('error', 'No se pudo confirmar', res.message); return; }
                         showToast('success', 'Confirmado', item.description || 'Movimiento confirmado');
                         cargar();
                       } catch { showToast('error', 'Error', 'No se pudo confirmar'); }

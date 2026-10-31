@@ -361,6 +361,11 @@
       },
       "MiembroHogarDTO" : {
         "properties" : {
+          "displayName" : {
+            "maxLength" : 50,
+            "minLength" : 0,
+            "type" : "string"
+          },
           "householdId" : {
             "format" : "int64",
             "type" : "integer"
@@ -544,6 +549,35 @@
         ],
         "type" : "object"
       },
+      "PlanRequestDTO" : {
+        "properties" : {
+          "budgetStartDay" : {
+            "format" : "int32",
+            "maximum" : 31,
+            "minimum" : 1,
+            "type" : "integer"
+          },
+          "from" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "periods" : {
+            "format" : "int32",
+            "maximum" : 12,
+            "minimum" : 1,
+            "type" : "integer"
+          },
+          "referenceDate" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "to" : {
+            "format" : "date",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "ReconcileDTO" : {
         "properties" : {
           "accountId" : {
@@ -666,10 +700,28 @@
             "format" : "int64",
             "type" : "integer"
           },
+          "kind" : {
+            "enum" : [
+              "PAYMENT",
+              "DEDUCTION",
+              "SAVING",
+              "PROVISION"
+            ],
+            "type" : "string"
+          },
           "name" : {
             "maxLength" : 100,
             "minLength" : 0,
             "type" : "string"
+          },
+          "notes" : {
+            "maxLength" : 255,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "payerUserId" : {
+            "format" : "int64",
+            "type" : "integer"
           },
           "startDate" : {
             "format" : "date",
@@ -946,6 +998,36 @@
         },
         "tags" : [
           "account-controller"
+        ]
+      }
+    },
+    "/v1/budget-allocation/copy-previous" : {
+      "post" : {
+        "operationId" : "copyPrevious",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AsignacionPeriodoDTO"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [
+          "budget-allocation-controller"
         ]
       }
     },
@@ -1606,6 +1688,36 @@
         ]
       }
     },
+    "/v1/household/display-name" : {
+      "post" : {
+        "operationId" : "displayName",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/MiembroHogarDTO"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [
+          "household-controller"
+        ]
+      }
+    },
     "/v1/household/invite" : {
       "post" : {
         "operationId" : "invite",
@@ -1987,6 +2099,126 @@
         },
         "tags" : [
           "movement-controller"
+        ]
+      }
+    },
+    "/v1/plan/calendar" : {
+      "post" : {
+        "operationId" : "calendar",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PlanRequestDTO"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [
+          "plan-controller"
+        ]
+      }
+    },
+    "/v1/plan/projection" : {
+      "post" : {
+        "operationId" : "projection",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PlanRequestDTO"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [
+          "plan-controller"
+        ]
+      }
+    },
+    "/v1/plan/quincena" : {
+      "post" : {
+        "operationId" : "quincena",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PlanRequestDTO"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [
+          "plan-controller"
+        ]
+      }
+    },
+    "/v1/plan/responsibilities" : {
+      "post" : {
+        "operationId" : "responsibilities",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PlanRequestDTO"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [
+          "plan-controller"
         ]
       }
     },

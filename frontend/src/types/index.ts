@@ -412,6 +412,11 @@ export interface Movement {
   categoryId: string;
   categoryName?: string;
   categoryType?: CategoryType;
+  categoryIcon?: string;
+  categoryColor?: string;
+  /** Quien lo paga (ola 5). Nulo en los movimientos de antes: los paga su dueno. */
+  payerUserId?: number;
+  payerName?: string;
   accountId?: string;
   accountName?: string;
   isOpening?: boolean;
@@ -459,7 +464,24 @@ export interface ScheduledMovement {
   dayOfWeek?: number;
   weekendPolicy?: WeekendPolicy;
   active?: boolean;
+  /** Ola 5: quien lo paga (nulo = quien lo creo) y que clase de salida es. */
+  payerUserId?: number;
+  kind?: ScheduledKind;
+  notes?: string;
+  effectivePayerUserId?: number;
+  payerName?: string;
+  remainingOccurrences?: number;
+  nextDate?: string;
+  remainingTotal?: number;
+  categoryIcon?: string;
+  categoryHouseholdId?: number;
 }
+
+/**
+ * PAYMENT: pago con fecha. DEDUCTION: descuento de nomina (resta del ingreso).
+ * SAVING: ahorro. PROVISION: plata que se separa; no genera pendiente.
+ */
+export type ScheduledKind = 'PAYMENT' | 'DEDUCTION' | 'SAVING' | 'PROVISION';
 
 // Una ocurrencia que tocaba y NO se creo: hay demasiadas atrasadas y el backend
 // no las materializa en silencio. Se aceptan con scheduledService.materialize.
@@ -501,8 +523,11 @@ export interface DashboardSummary {
   totalExpense: number;
   balance: number;
   budgetTotal: number;
+  scheduledExpenseTotal?: number;
   pendingCount: number;
   pendingAmount: number;
+  pendingIncomeAmount?: number;
+  pendingExpenseAmount?: number;
   periodStart: string;
   periodEnd: string;
 }

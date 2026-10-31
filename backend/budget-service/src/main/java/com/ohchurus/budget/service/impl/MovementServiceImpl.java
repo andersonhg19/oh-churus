@@ -198,7 +198,13 @@ public class MovementServiceImpl implements MovementService {
         movement.setDate(dto.getDate());
         movement.setAmount(dto.getAmount());
         movement.setDescription(dto.getDescription());
-        movement.setScheduledMovementId(dto.getScheduledMovementId());
+        /* El formulario no reenvia de que programado salio el pendiente, y
+           pisarlo con null lo desenganchaba: el siguiente "generar" ya no lo
+           encontraba y volvia a crear la misma ocurrencia. Solo se cambia si
+           llega un valor. */
+        if (dto.getScheduledMovementId() != null) {
+            movement.setScheduledMovementId(dto.getScheduledMovementId());
+        }
         if (dto.getConfirmed() != null) {
             movement.setConfirmed(dto.getConfirmed());
         }
@@ -214,7 +220,15 @@ public class MovementServiceImpl implements MovementService {
             movement.setAccountId(cuentas.porDefecto(movement.getUserId()).getId());
         }
 
-        ResultDTO repartoInvalido = repartos.aplicar(movement, dto.getSplitMode(), dto.getSplits());
+        /* Si el cuerpo no dice NADA del reparto (ni modo ni partes), el reparto
+           se queda como estaba. El formulario no lo recarga al editar, y antes
+           cualquier edicion de un gasto repartido —corregir la fecha, la
+           descripcion— lo borraba en silencio. Para quitarlo a proposito se
+           manda splits vacio. */
+        boolean tocaReparto = dto.getSplitMode() != null || dto.getSplits() != null;
+        ResultDTO repartoInvalido = tocaReparto
+                ? repartos.aplicar(movement, dto.getSplitMode(), dto.getSplits())
+                : null;
         if (repartoInvalido != null) return repartoInvalido;
 
         Movement saved = movementRepository.save(movement);

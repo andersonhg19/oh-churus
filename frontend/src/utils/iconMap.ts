@@ -22,7 +22,10 @@ const ICON_MAP: Record<string, string> = {
   party: '🎉', sports: '⚽', gym: '🏋️',
   // Otros
   gift: '🎁', pet: '🐾', baby: '👶', clothes: '👕', scissors: '✂️',
-  star: '⭐', shield: '🛡️', squirrel: '🐿️',
+  star: '⭐', shield: '🛡️', squirrel: '🐿️', user: '👤', users: '👥', nails: '💅',
+  // Las que pone el propio sistema (cuentas por defecto, ajustes, aperturas):
+  // sin estas salian como una carpeta generica y parecian un error.
+  tune: '🎛️', 'swap-horizontal': '🔁', 'help-circle-outline': '❔',
 };
 
 export const getIconEmoji = (iconKey?: string, fallback?: string): string => {

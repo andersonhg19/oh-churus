@@ -1,6 +1,7 @@
 package com.ohchurus.budget.entity;
 
 import com.ohchurus.budget.enums.Frequency;
+import com.ohchurus.budget.enums.ScheduledKind;
 import com.ohchurus.budget.enums.WeekendPolicy;
 import jakarta.persistence.*;
 import lombok.*;
@@ -73,6 +74,19 @@ public class ScheduledMovement {
     @Column(length = 30)
     @Builder.Default
     private WeekendPolicy weekendPolicy = WeekendPolicy.KEEP;
+
+    /* Quien lo paga. Nulo: quien lo creo (ver V10). El pendiente que genera
+       va a nombre y a la cuenta de esta persona. */
+    private Long payerUserId;
+
+    /* Que clase de salida de plata es. Nulo se lee como PAYMENT. */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private ScheduledKind kind;
+
+    /* Supuestos sin confirmar ("7 % sobre el bruto"): que no se pierdan. */
+    @Column(length = 255)
+    private String notes;
 
     @Column(nullable = false)
     @Builder.Default

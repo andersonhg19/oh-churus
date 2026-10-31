@@ -13,7 +13,7 @@ import { accountService } from '../../services/accountService';
 import { householdService } from '../../services/householdService';
 import { categoryService } from '../../services/categoryService';
 import { Movement, Category, CategoryType, Account, SplitMode, SplitInput } from '../../types';
-import { formatCurrency, fechaLocalISO } from '../../utils/format';
+import { formatCurrency, fechaLocalISO, parseMonto } from '../../utils/format';
 import { confirmarBorrado } from '../../utils/confirmar';
 import { useAccionUnica } from '../../hooks/useAccionUnica';
 import { getIconEmoji } from '../../utils/iconMap';
@@ -168,7 +168,7 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
   const valorDe = (quien: number): number | undefined => {
     if (modoReparto === 'EQUAL') return undefined;
     const escrito = valores[quien];
-    const numero = Number((escrito || '').replace(/[^0-9.]/g, ''));
+    const numero = parseMonto(escrito || '');
     return Number.isNaN(numero) ? 0 : numero;
   };
 
@@ -195,7 +195,7 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
           userId: user!.userId,
           fromCategoryId: Number(selectedCategory!.id),
           toCategoryId: personalCategoryId,
-          amount: parseFloat(amount),
+          amount: parseMonto(amount),
           description: description.trim() || 'Disponibilizar',
         });
         if (res.correct) {
@@ -210,7 +210,7 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
           ...(isEdit && { id: existing.id }),
           userId: user?.userId,
           categoryId: selectedCategory!.id,
-          amount: parseFloat(amount),
+          amount: parseMonto(amount),
           description: description.trim() || undefined,
           date,
           confirmed,

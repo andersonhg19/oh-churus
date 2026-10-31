@@ -23,6 +23,14 @@ export const budgetAllocationService = {
     return res.data;
   },
 
+  /** Trae lo del periodo anterior a las categorias que aun no tienen nada. */
+  copyPrevious: async (budgetStartDay: number, referenceDate?: string) => {
+    const res = await api.post<ResultDTO<{ copied: number }>>(`${BASE}/copy-previous`, {
+      budgetStartDay, referenceDate: referenceDate || undefined,
+    });
+    return res.data;
+  },
+
   delete: async (id: number) => {
     const res = await api.post<ResultDTO<any>>(`${BASE}/delete/${id}`);
     return res.data;

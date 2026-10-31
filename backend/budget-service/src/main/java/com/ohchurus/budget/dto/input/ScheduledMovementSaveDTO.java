@@ -61,4 +61,10 @@ public class ScheduledMovementSaveDTO {
     /* Nulo se guarda como KEEP: no mover una fecha es lo unico que no inventa
        nada. El porque completo esta en el enum. */
     private WeekendPolicy weekendPolicy;
+    /* Ola 5. Los tres opcionales: un cliente viejo que no los manda deja el
+       programado como era (lo paga quien lo crea, es un pago). */
+    private Long payerUserId;
+    private com.ohchurus.budget.enums.ScheduledKind kind;
+    @Size(max = 255, message = "no puede superar los 255 caracteres")
+    private String notes;
 }

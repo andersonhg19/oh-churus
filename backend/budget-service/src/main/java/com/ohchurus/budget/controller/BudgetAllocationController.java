@@ -64,6 +64,17 @@ public class BudgetAllocationController {
                 body.getAmount(), body.getBudgetStartDay(), body.getReferenceDate()));
     }
 
+    /**
+     * Copia al periodo pedido lo presupuestado en el anterior, solo en las
+     * categorias que aun no tienen asignacion. Lo que ya se habia fijado a
+     * mano en este periodo no se toca.
+     */
+    @PostMapping(value = "/copy-previous", produces = "application/json")
+    public ResponseEntity<ResultDTO> copyPrevious(@Valid @RequestBody AsignacionPeriodoDTO body) {
+        Long userId = com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId();
+        return ResponseEntity.ok(service.copiarDelAnterior(userId, body.getBudgetStartDay(), body.getReferenceDate()));
+    }
+
     @PostMapping(value = "/delete/{id}", produces = "application/json")
     public ResponseEntity<ResultDTO> delete(@PathVariable Long id) {
         return ResponseEntity.ok(service.delete(id));

@@ -29,7 +29,22 @@ public class ResultScheduledMovementDTO {
     private WeekendPolicy weekendPolicy;
     private Boolean active;
 
+    private Long payerUserId;
+    private com.ohchurus.budget.enums.ScheduledKind kind;
+    private String notes;
     // Enrichment fields
+    /* Quien lo paga ya resuelto (el creador si payerUserId es nulo) y su
+       apodo en el hogar. */
+    private Long effectivePayerUserId;
+    private String payerName;
+    /* Cuotas: cuantas quedan desde hoy, cuando es la proxima, cuanto falta
+       en total. Nulos si el programado no tiene fin. */
+    private Integer remainingOccurrences;
+    private LocalDate nextDate;
+    private BigDecimal remainingTotal;
+    private String categoryIcon;
+    private String categoryColor;
+    private Long categoryHouseholdId;
     private String categoryName;
     private String categoryType;
 }

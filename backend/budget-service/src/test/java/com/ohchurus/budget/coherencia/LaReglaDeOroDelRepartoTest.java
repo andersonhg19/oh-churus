@@ -338,7 +338,10 @@ class LaReglaDeOroDelRepartoTest {
             pedir(ANA, "/v1/movements/save",
                     "{\"id\":" + id + ",\"categoryId\":" + catCena + ",\"accountId\":" + cuentaDeAna
                             + ",\"date\":\"" + LocalDate.now() + "\",\"amount\":" + CENA
-                            + ",\"description\":\"Cena\"}");
+                            /* Ola 5: quitarlo se pide EXPLICITAMENTE con splits vacio.
+                               Un cuerpo que no dice nada del reparto lo deja como
+                               estaba: si no, corregir la fecha lo borraba. */
+                            + ",\"description\":\"Cena\",\"splits\":[]}");
 
             JsonNode panel = pedir(ANA, "/v1/dashboard/summary", "{}").path("object");
             assertThat(new BigDecimal(panel.path("totalExpense").asText()))

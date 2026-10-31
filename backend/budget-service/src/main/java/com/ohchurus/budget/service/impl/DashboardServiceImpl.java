@@ -40,6 +40,7 @@ public class DashboardServiceImpl implements DashboardService {
     private final ScheduledMovementService scheduledMovementService;
     private final HouseholdServiceImpl householdService;
     private final RepartoDeGastos reparto;
+    private final com.ohchurus.budget.repository.BudgetAllocationRepository asignaciones;
 
     public DashboardServiceImpl(MovementRepository movementRepository,
                                  ScheduledMovementRepository scheduledMovementRepository,
@@ -47,7 +48,8 @@ public class DashboardServiceImpl implements DashboardService {
                                  MovementMapper movementMapper,
                                  @org.springframework.context.annotation.Lazy ScheduledMovementService scheduledMovementService,
                                  HouseholdServiceImpl householdService,
-                                 RepartoDeGastos reparto) {
+                                 RepartoDeGastos reparto,
+                                 com.ohchurus.budget.repository.BudgetAllocationRepository asignaciones) {
         this.movementRepository = movementRepository;
         this.scheduledMovementRepository = scheduledMovementRepository;
         this.categoryRepository = categoryRepository;
@@ -55,6 +57,26 @@ public class DashboardServiceImpl implements DashboardService {
         this.scheduledMovementService = scheduledMovementService;
         this.householdService = householdService;
         this.reparto = reparto;
+        this.asignaciones = asignaciones;
+    }
+
+    /**
+     * Las asignaciones del periodo que me tocan: las mias y las de mi hogar.
+     * Las privadas del otro no entran (la consulta filtra por dueno). Admite
+     * el repositorio nulo porque hay pruebas que construyen el servicio sin el.
+     */
+    private List<com.ohchurus.budget.entity.BudgetAllocation> asignacionesDe(
+            Long userId, List<Long> hIds, LocalDate periodStart) {
+        if (asignaciones == null) return new ArrayList<>();
+        List<com.ohchurus.budget.entity.BudgetAllocation> l = !hIds.isEmpty()
+                ? asignaciones.findAllForUserAndHousehold(userId, hIds, periodStart)
+                : asignaciones.findByUserIdAndPeriodStartAndActiveTrue(userId, periodStart);
+        return l != null ? l : new ArrayList<>();
+    }
+
+    private static BigDecimal sumaAsignada(java.util.Collection<com.ohchurus.budget.entity.BudgetAllocation> l) {
+        return l.stream().map(com.ohchurus.budget.entity.BudgetAllocation::getAllocatedAmount)
+                .filter(java.util.Objects::nonNull).reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     /**
@@ -174,14 +196,24 @@ public class DashboardServiceImpl implements DashboardService {
             duePending.addAll(oldPending);
 
             BigDecimal pendingAmount = Computables.total(duePending);
+            BigDecimal pendingIncome = Computables.total(duePending.stream()
+                    .filter(m -> getCategoryType(m.getCategoryId(), categoryCache) == CategoryType.INCOME)
+                    .collect(Collectors.toList()));
+
+            List<com.ohchurus.budget.entity.BudgetAllocation> delPeriodo =
+                    asignacionesDe(userId, householdIds, periodStart);
+            BigDecimal asignado = sumaAsignada(delPeriodo);
 
             DashboardSummaryDTO summary = DashboardSummaryDTO.builder()
                     .totalIncome(totalIncome)
                     .totalExpense(totalExpense)
                     .balance(totalIncome.subtract(totalExpense))
-                    .budgetTotal(budgetTotal)
+                    .budgetTotal(delPeriodo.isEmpty() ? budgetTotal : asignado)
+                    .scheduledExpenseTotal(budgetTotal)
                     .pendingCount(duePending.size())
                     .pendingAmount(pendingAmount)
+                    .pendingIncomeAmount(pendingIncome)
+                    .pendingExpenseAmount(pendingAmount.subtract(pendingIncome))
                     .periodStart(periodStart)
                     .periodEnd(periodEnd)
                     .build();
@@ -417,12 +449,28 @@ public class DashboardServiceImpl implements DashboardService {
 
             // Split pending count
             int persPending = 0, sharedPending = 0;
+            BigDecimal sPendE = BigDecimal.ZERO, pPendE = BigDecimal.ZERO;
+            BigDecimal sPendI = BigDecimal.ZERO, pPendI = BigDecimal.ZERO;
             for (Movement m : allPending) {
                 Category cat = cache.computeIfAbsent(m.getCategoryId(),
                         id -> categoryRepository.findByIdAndActiveTrue(id).orElse(null));
-                if (cat != null && cat.getHouseholdId() != null) sharedPending++;
+                boolean compartida = cat != null && cat.getHouseholdId() != null;
+                if (compartida) sharedPending++;
                 else persPending++;
+                if (!Computables.suma(m)) continue;
+                BigDecimal amt = Computables.importe(m);
+                boolean ingreso = cat != null && cat.getType() == CategoryType.INCOME;
+                if (compartida && ingreso) sPendI = sPendI.add(amt);
+                else if (compartida) sPendE = sPendE.add(amt);
+                else if (ingreso) pPendI = pPendI.add(amt);
+                else pPendE = pPendE.add(amt);
             }
+
+            List<com.ohchurus.budget.entity.BudgetAllocation> delPeriodo = asignacionesDe(userId, hIds, periodStart);
+            BigDecimal presupuestoComun = sumaAsignada(delPeriodo.stream()
+                    .filter(a -> a.getHouseholdId() != null).collect(Collectors.toList()));
+            BigDecimal presupuestoPersonal = sumaAsignada(delPeriodo.stream()
+                    .filter(a -> a.getHouseholdId() == null).collect(Collectors.toList()));
 
             // Total: exclude transfers (they cancel out)
             BigDecimal totalIncome = sharedIncome.add(persIncome).subtract(transferIn);
@@ -436,6 +484,9 @@ public class DashboardServiceImpl implements DashboardService {
                     .totalIncome(totalIncome).totalExpense(totalExpense)
                     .totalBalance(totalIncome.subtract(totalExpense))
                     .personalPendingCount(persPending).sharedPendingCount(sharedPending)
+                    .sharedBudget(presupuestoComun).personalBudget(presupuestoPersonal)
+                    .sharedPendingExpense(sPendE).personalPendingExpense(pPendE)
+                    .sharedPendingIncome(sPendI).personalPendingIncome(pPendI)
                     .periodStart(periodStart).periodEnd(periodEnd)
                     .build();
 

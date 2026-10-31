@@ -8,7 +8,7 @@ export interface HouseholdInfo {
   name: string;
   role: string;
   memberCount: number;
-  members: { userId: number; role: string }[];
+  members: { userId: number; role: string; displayName?: string }[];
 }
 
 export const householdService = {
@@ -32,6 +32,12 @@ export const householdService = {
 
   removeMember: async (householdId: number, userId: number) => {
     const response = await api.post<ResultDTO<any>>(`${BASE}/remove-member`, { householdId, userId });
+    return response.data;
+  },
+
+  /** El apodo con el que el hogar llama a un miembro ("Samy"). */
+  setDisplayName: async (householdId: number, userId: number, displayName: string) => {
+    const response = await api.post<ResultDTO<any>>(`${BASE}/display-name`, { householdId, userId, displayName });
     return response.data;
   },
 

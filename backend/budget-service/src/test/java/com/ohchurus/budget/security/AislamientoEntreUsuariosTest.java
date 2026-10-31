@@ -420,6 +420,17 @@ class AislamientoEntreUsuariosTest {
         }
 
         @Test
+        @DisplayName("no puede ponerle apodo a Ana en el hogar de Ana")
+        void apodoEnHogarAjeno() throws Exception {
+            atacar("/v1/household/display-name",
+                    "{\"householdId\":" + hogarDeAna + ",\"userId\":" + ANA + ",\"displayName\":\"Hackeada\"}");
+            assertThat(miembros.findByHouseholdIdAndUserIdAndActiveTrue(hogarDeAna, ANA)
+                    .map(m -> m.getDisplayName()).orElse(null))
+                    .as("Bruno le cambio el apodo a Ana en un hogar que no es suyo")
+                    .isNotEqualTo("Hackeada");
+        }
+
+        @Test
         @DisplayName("no puede expulsar a Ana de su propio hogar")
         void expulsarAlDueno() throws Exception {
             atacar("/v1/household/remove-member",

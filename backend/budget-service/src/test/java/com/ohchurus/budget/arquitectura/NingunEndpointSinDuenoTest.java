@@ -99,6 +99,24 @@ class NingunEndpointSinDuenoTest {
         EXENTAS.put("/v1/dashboard/consolidated", new Exencion(
                 "no recibe ningun id: el userId sale del token y el del cuerpo se ignora",
                 "/v1/dashboard/summary"));
+        // --- Ola 5: el plan y la copia del presupuesto. Ninguno recibe un id:
+        //     de quien es lo dice el token, igual que el panel. ---
+        EXENTAS.put("/v1/plan/quincena", new Exencion(
+                "no recibe ningun id: el plan es de quien pide y solo lee lo suyo y lo compartido",
+                "/v1/dashboard/summary"));
+        EXENTAS.put("/v1/plan/calendar", new Exencion(
+                "no recibe ningun id: fechas de lo propio y lo compartido de quien pide",
+                "/v1/dashboard/summary"));
+        EXENTAS.put("/v1/plan/responsibilities", new Exencion(
+                "no recibe ningun id: de los demas solo suma lo de categorias compartidas",
+                "/v1/dashboard/summary"));
+        EXENTAS.put("/v1/plan/projection", new Exencion(
+                "no recibe ningun id: proyecta lo que paga quien pide",
+                "/v1/dashboard/summary"));
+        EXENTAS.put("/v1/budget-allocation/copy-previous", new Exencion(
+                "no recibe ningun id: copia las asignaciones visibles de quien pide",
+                "/v1/dashboard/summary"));
+
         EXENTAS.put("/v1/export/excel", new Exencion(
                 "mismo cuerpo y misma identidad que el panel: exporta el periodo de quien pide",
                 "/v1/dashboard/summary"));

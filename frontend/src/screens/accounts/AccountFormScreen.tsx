@@ -11,7 +11,7 @@ import { useAccionUnica } from '../../hooks/useAccionUnica';
 import { validateRequired } from '../../utils/validators';
 import { accountService } from '../../services/accountService';
 import { Account, AccountKind } from '../../types';
-import { fechaLocalISO } from '../../utils/format';
+import { fechaLocalISO, parseMonto } from '../../utils/format';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 type AccountsStackParamList = {
@@ -60,7 +60,7 @@ const AccountFormScreen: React.FC<Props> = ({ navigation, route }) => {
       return;
     }
 
-    const inicial = saldoInicial.trim() ? Number(saldoInicial.replace(/[^0-9.-]/g, '')) : 0;
+    const inicial = saldoInicial.trim() ? parseMonto(saldoInicial) : 0;
     if (saldoInicial.trim() && Number.isNaN(inicial)) {
       showToast('warning', 'Validacion', 'El saldo inicial tiene que ser un numero');
       return;

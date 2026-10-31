@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Optional;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -221,6 +222,7 @@ public class HouseholdServiceImpl {
                     Map<String, Object> memMap = new HashMap<>();
                     memMap.put("userId", mem.getUserId());
                     memMap.put("role", mem.getRole());
+                    memMap.put("displayName", mem.getDisplayName());
                     return memMap;
                 }).collect(Collectors.toList()));
                 return map;
@@ -229,6 +231,55 @@ public class HouseholdServiceImpl {
         } catch (Exception e) {
             return new ResultDTO(false, "Error getting households", 500);
         }
+    }
+
+    /**
+     * Pone el apodo de un miembro. Puede hacerlo el OWNER del hogar o el
+     * propio miembro; nadie de fuera, y nadie sobre un hogar ajeno.
+     */
+    @Transactional
+    public ResultDTO ponerApodo(Long householdId, Long userId, String apodo) {
+        try {
+            Long yo = com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId();
+            Optional<HouseholdMember> quien = yo == null ? Optional.empty()
+                    : memberRepository.findByHouseholdIdAndUserIdAndActiveTrue(householdId, yo);
+            Optional<HouseholdMember> objetivo = memberRepository.findByHouseholdIdAndUserIdAndActiveTrue(householdId, userId);
+            boolean puede = quien.isPresent() && objetivo.isPresent()
+                    && ("OWNER".equals(quien.get().getRole()) || yo.equals(userId));
+            if (!puede) return new ResultDTO(false, "Household not found", 404);
+            HouseholdMember m = objetivo.get();
+            m.setDisplayName(apodo != null && !apodo.isBlank() ? apodo.trim() : null);
+            memberRepository.save(m);
+            return new ResultDTO(true, "OK", 0);
+        } catch (Exception e) {
+            log.error("Error setting display name: {}", e.getMessage(), e);
+            return new ResultDTO(false, "Error setting display name", 500);
+        }
+    }
+
+    /**
+     * El apodo con el que el hogar llama a esta persona, o null. Si esta en
+     * varios hogares se usa el primero que tenga apodo: en la practica es uno.
+     */
+    @Transactional(readOnly = true)
+    public String apodoDe(Long userId) {
+        if (userId == null) return null;
+        return memberRepository.findByUserIdAndActiveTrue(userId).stream()
+                .map(HouseholdMember::getDisplayName)
+                .filter(n -> n != null && !n.isBlank())
+                .findFirst().orElse(null);
+    }
+
+    /** Los ids de las personas con las que comparto algun hogar (yo incluido). */
+    @Transactional(readOnly = true)
+    public java.util.Set<Long> companerosDeHogar(Long userId) {
+        java.util.Set<Long> ids = new java.util.LinkedHashSet<>();
+        if (userId == null) return ids;
+        ids.add(userId);
+        for (Long h : getHouseholdIds(userId)) {
+            memberRepository.findByHouseholdIdAndActiveTrue(h).forEach(m -> ids.add(m.getUserId()));
+        }
+        return ids;
     }
 
     @Transactional(readOnly = true)

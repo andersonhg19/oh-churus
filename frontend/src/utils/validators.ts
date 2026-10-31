@@ -1,3 +1,4 @@
+import { parseMonto } from './format';
 /**
  * Validadores centralizados con mensajes claros en español.
  * Retorna null si es valido, o el mensaje de error si no.
@@ -38,7 +39,7 @@ export const validateAmount = (value: string): string | null => {
   if (!value || !value.trim()) {
     return 'El monto es obligatorio';
   }
-  const parsed = parseFloat(value);
+  const parsed = parseMonto(value);
   if (isNaN(parsed)) {
     return 'El monto debe ser un numero valido (ej: 150000)';
   }

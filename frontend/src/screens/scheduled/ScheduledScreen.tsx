@@ -13,10 +13,15 @@ import { spacing } from '../../theme';
 import { scheduledService } from '../../services/scheduledService';
 import { ScheduledMovement, ProposedOccurrence } from '../../types';
 import { useCarga, exigir } from '../../hooks/useCarga';
-import { formatCurrency, formatDateShort } from '../../utils/format';
+import { formatCurrency, formatDateShort, formatDate } from '../../utils/format';
+import { getIconEmoji } from '../../utils/iconMap';
 import { getFrequencyLabel } from '../../utils/labels';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+
+const CLASE_CORTA: Record<string, string> = {
+  DEDUCTION: 'Descuento de nómina', SAVING: 'Ahorro', PROVISION: 'Provisión (no genera pendiente)', PAYMENT: 'Pago',
+};
 
 type ScheduledStackParamList = {
   ScheduledList: undefined;
@@ -188,9 +193,24 @@ const ScheduledScreen: React.FC<Props> = ({ navigation }) => {
           >
             <View style={styles.itemRow}>
               <View style={styles.itemInfo}>
-                <AppText variant="body" numberOfLines={1}>{item.name}</AppText>
+                <AppText variant="body" numberOfLines={1}>
+                  {item.categoryIcon ? `${getIconEmoji(item.categoryIcon)} ` : ''}{item.name}
+                </AppText>
                 <AppText variant="caption">
                   {getFrequencyLabel(item.frequency)} - {item.categoryName || 'Sin categoria'}
+                  {item.dayOfMonth ? ` - día ${item.dayOfMonth}` : ''}
+                </AppText>
+                {/* Quien paga, que clase es y, si tiene fin, cuantas cuotas
+                    quedan: lo que antes habia que abrir el programado para
+                    saber, y en el caso de las cuotas ni abriendolo. */}
+                <AppText variant="caption" color={colors.textSecondary}>
+                  {[
+                    item.payerName ? `Paga ${item.payerName}` : null,
+                    item.kind && item.kind !== 'PAYMENT' ? CLASE_CORTA[item.kind] : null,
+                    item.remainingOccurrences != null
+                      ? `${item.remainingOccurrences} cuota(s) restantes - termina ${item.endDate ? formatDate(item.endDate) : ''}`
+                      : null,
+                  ].filter(Boolean).join(' · ')}
                 </AppText>
               </View>
               <AppText

@@ -149,7 +149,7 @@ describe('ScheduledFormScreen', () => {
     fireEvent.changeText(getByPlaceholderText('Nombre del movimiento'), 'Nomina');
     fireEvent.press(getByText(/Seleccionar categoría/));
     fireEvent.press(getByText(/Arriendo/));
-    fireEvent.changeText(getByPlaceholderText('0'), '3000000');
+    fireEvent.changeText(getByPlaceholderText('Ej: 1.500.000'), '3000000');
 
     fireEvent.press(getByText('3a'));
     fireEvent.press(getByText('Guardar'));
@@ -170,7 +170,7 @@ describe('ScheduledFormScreen', () => {
     fireEvent.changeText(getByPlaceholderText('Nombre del movimiento'), 'Nomina');
     fireEvent.press(getByText(/Seleccionar categoría/));
     fireEvent.press(getByText(/Arriendo/));
-    fireEvent.changeText(getByPlaceholderText('0'), '3000000');
+    fireEvent.changeText(getByPlaceholderText('Ej: 1.500.000'), '3000000');
 
     fireEvent.press(getByText('3a'));
     fireEvent.press(getByText('Vie'));

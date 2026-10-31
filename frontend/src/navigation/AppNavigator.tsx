@@ -47,6 +47,7 @@ import AdminAuditScreen from '../screens/admin/AdminAuditScreen';
 
 // Budget & Consolidated screens
 import BudgetScreen from '../screens/budget/BudgetScreen';
+import PlanScreen from '../screens/plan/PlanScreen';
 import ConsolidatedScreen from '../screens/consolidated/ConsolidatedScreen';
 
 // Fasting screens
@@ -70,6 +71,7 @@ type RootStackParamList = {
 type DashboardStackParamList = {
   DashboardMain: undefined;
   MovementsList: undefined;
+  Plan: undefined;
 };
 
 type SummaryStackParamList = {
@@ -86,6 +88,7 @@ type BudgetStackParamList = {
   Envelopes: undefined;
   BudgetMain: undefined;
   Consolidated: undefined;
+  PlanFromBudget: undefined;
 };
 
 type SettingsStackParamList = {
@@ -142,6 +145,7 @@ const DashboardNavigator = () => {
     }}>
       <DashboardStack.Screen name="DashboardMain" component={DashboardScreen} options={{ headerShown: false }} />
       <DashboardStack.Screen name="MovementsList" component={MovementsListScreen} options={{ title: 'Movimientos' }} />
+      <DashboardStack.Screen name="Plan" component={PlanScreen} options={{ title: 'Mi quincena' }} />
     </DashboardStack.Navigator>
   );
 };
@@ -225,6 +229,7 @@ const BudgetNavigator = () => {
     >
       <BudgetStack.Screen name="BudgetMain" component={BudgetScreen} options={{ title: 'Presupuesto' }} />
       <BudgetStack.Screen name="Envelopes" component={EnvelopesScreen} options={{ title: 'Sobres' }} />
+      <BudgetStack.Screen name="PlanFromBudget" component={PlanScreen} options={{ title: 'Plan' }} />
       <BudgetStack.Screen name="Consolidated" component={ConsolidatedScreen} options={{ title: 'Consolidado' }} />
     </BudgetStack.Navigator>
   );

@@ -143,6 +143,14 @@ const AccountsScreen: React.FC<Props> = ({ navigation }) => {
                         <AppText variant="caption" color={colors.textSecondary}>
                           {cuenta.kind === 'LIABILITY' ? 'Pasivo (deuda)' : 'Cuenta propia'}
                         </AppText>
+                        {/* La cuenta por defecto la crea la app sola la primera vez
+                            que hace falta (al generar los pendientes), y nadie sabia
+                            de donde salia ni para que era. */}
+                        {cuenta.isDefault && (
+                          <AppText variant="caption" color={colors.textMuted}>
+                            La creó la app: aquí caen los movimientos que no dicen de qué cuenta salen. Renómbrala con el nombre de tu banco.
+                          </AppText>
+                        )}
                       </View>
                       <View style={styles.saldos}>
                         <AppText variant="caption" color={colors.textSecondary}>
@@ -153,7 +161,7 @@ const AccountsScreen: React.FC<Props> = ({ navigation }) => {
                         </AppText>
                         {hayPendiente && (
                           <AppText variant="caption" color={colors.pending}>
-                            Con lo pendiente: {formatCurrency(cuenta.projectedBalance)}
+                            Si se paga y se cobra todo lo programado: {formatCurrency(cuenta.projectedBalance)}
                           </AppText>
                         )}
                       </View>

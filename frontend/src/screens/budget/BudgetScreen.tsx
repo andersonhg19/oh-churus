@@ -38,6 +38,9 @@ interface AllocationItem {
   actualSpent: number;
   percentage: number;
   variance: number;
+  committed: number;
+  available: number;
+  shared: boolean;
 }
 
 const BudgetScreen: React.FC = () => {
@@ -80,8 +83,27 @@ const BudgetScreen: React.FC = () => {
         budgetAllocationService.summary(user.userId, budgetDay, refDate),
         categoryService.getTree(user.userId),
       ]);
+      /* /list trae el id (para borrar) y /summary las cifras. Antes la lista
+         se pintaba sola leyendo `amount` y `actualSpent`, que el servidor
+         nunca mando (manda allocatedAmount): cada categoria salia "$0 de $0"
+         aunque tuviera presupuesto. */
       if (listRes.correct) {
-        setAllocations(listRes.object || []);
+        const cifras: Record<number, any> = {};
+        (summaryRes.correct ? summaryRes.object?.categories || [] : []).forEach((c: any) => { cifras[c.categoryId] = c; });
+        setAllocations((listRes.object || []).map((a: any) => {
+          const c = cifras[a.categoryId] || {};
+          const amount = Number(c.allocatedAmount ?? a.allocatedAmount ?? 0);
+          const actual = Number(c.actualAmount ?? 0);
+          const committed = Number(c.committedAmount ?? 0);
+          return {
+            id: a.id, categoryId: a.categoryId, categoryName: a.categoryName,
+            categoryIcon: a.categoryIcon, categoryColor: a.categoryColor,
+            amount, actualSpent: actual, percentage: amount > 0 ? (actual / amount) * 100 : 0,
+            variance: amount - actual, committed,
+            available: Number(c.availableAmount ?? amount - actual - committed),
+            shared: !!a.shared,
+          };
+        }));
       }
       if (summaryRes.correct) {
         setSummaryData(summaryRes.object);
@@ -115,8 +137,26 @@ const BudgetScreen: React.FC = () => {
     setPeriodEnd(end);
   };
 
-  const currentPeriodStart = getStartOfPeriod(budgetDay, new Date());
-  const canGoNext = periodStart < currentPeriodStart;
+  /* Hasta tres periodos hacia adelante, para dejar listo el mes que viene. */
+  const limiteFuturo = (() => {
+    let p = getStartOfPeriod(budgetDay, new Date());
+    for (let i = 0; i < 3; i++) p = navigatePeriod(p, budgetDay, 'next').start;
+    return p;
+  })();
+  const canGoNext = periodStart < limiteFuturo;
+
+  const copiarAnterior = async () => {
+    try {
+      const res = await budgetAllocationService.copyPrevious(budgetDay, periodStart);
+      if (!res.correct) { showToast('error', 'No se pudo copiar', res.message); return; }
+      const n = res.object?.copied ?? 0;
+      showToast('success', n > 0 ? `Copiadas ${n} categorías` : 'Nada que copiar',
+        n > 0 ? 'Del periodo anterior; lo que ya tenía este periodo no se tocó' : 'Este periodo ya tiene todo lo del anterior');
+      fetchData(periodStart);
+    } catch {
+      showToast('error', 'Error', 'No se pudo copiar el presupuesto');
+    }
+  };
 
   // Flatten all expense categories (parents + children) for allocation
   const flattenCategories = (trees: CategoryTree[]): CategoryTree[] => {
@@ -279,6 +319,27 @@ const BudgetScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
 
+        {summaryData && allocations.length > 0 && (
+          <Card style={styles.allocationCard}>
+            <AppText variant="caption" color={colors.textSecondary}>
+              Presupuestado {formatCurrency(summaryData.totalBudgeted ?? 0)}
+              {summaryData.sharedBudgeted != null ? ` · común ${formatCurrency(summaryData.sharedBudgeted)} · personal ${formatCurrency(summaryData.personalBudgeted ?? 0)}` : ''}
+            </AppText>
+            <AppText variant="caption" color={colors.textSecondary}>
+              Gastado {formatCurrency(summaryData.totalActual ?? 0)} · comprometido {formatCurrency(summaryData.totalCommitted ?? 0)}
+            </AppText>
+            <AppText variant="body" color={(summaryData.totalAvailable ?? 0) >= 0 ? colors.income : colors.expense}>
+              Libre de verdad: {formatCurrency(summaryData.totalAvailable ?? 0)}
+            </AppText>
+          </Card>
+        )}
+
+        <Card style={styles.allocationCard} onPress={copiarAnterior}
+          accessibilityLabel="Copiar el presupuesto del periodo anterior a las categorías que no tienen">
+          <AppText variant="body">📋 Copiar del periodo anterior</AppText>
+          <AppText variant="caption" color={colors.textSecondary}>Solo llena las categorías vacías; no cambia lo que ya fijaste.</AppText>
+        </Card>
+
         {allocations.length === 0 ? (
           <EmptyState
             title="Sin presupuestos"
@@ -354,6 +415,16 @@ const BudgetScreen: React.FC = () => {
                   {variance >= 0
                     ? `+${formatCurrency(variance)} favorable`
                     : `-${formatCurrency(Math.abs(variance))} excedido`}
+                </AppText>
+                {/* Lo comprometido es lo programado que aun no se paga: no es
+                    gasto, pero esa plata ya no esta libre. */}
+                {alloc.committed > 0 && (
+                  <AppText variant="caption" color={colors.pending}>
+                    Comprometido (programado sin pagar): {formatCurrency(alloc.committed)} · libre {formatCurrency(alloc.available)}
+                  </AppText>
+                )}
+                <AppText variant="caption" color={colors.textMuted}>
+                  {alloc.shared ? 'Común' : 'Personal (solo tú)'}
                 </AppText>
                 </View>
               </Card>

@@ -512,6 +512,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: spacing.xl },
   title: { marginBottom: spacing.lg },
+  ayuda: { marginTop: -spacing.xs, marginBottom: spacing.md, marginLeft: 4 },
   pickerLabel: { marginBottom: spacing.xs, marginLeft: spacing.xs },
   pickerButton: {
     padding: spacing.md,

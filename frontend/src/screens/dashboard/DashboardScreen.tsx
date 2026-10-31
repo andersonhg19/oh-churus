@@ -95,8 +95,15 @@ const DashboardScreen: React.FC = () => {
     setPeriodEnd(end);
   };
 
-  const currentPeriodStart = getStartOfPeriod(budgetDay, new Date());
-  const canGoNext = periodStart < currentPeriodStart;
+  /* Se puede mirar hasta tres periodos hacia adelante: planear noviembre a
+     finales de octubre era imposible porque la flecha se apagaba en el
+     periodo actual. */
+  const limiteFuturo = (() => {
+    let p = getStartOfPeriod(budgetDay, new Date());
+    for (let i = 0; i < 3; i++) p = navigatePeriod(p, budgetDay, 'next').start;
+    return p;
+  })();
+  const canGoNext = periodStart < limiteFuturo;
 
   if (cargando) return <Spinner fullScreen />;
 
@@ -128,6 +135,21 @@ const DashboardScreen: React.FC = () => {
           onNext={() => handlePeriodChange('next')}
           canGoNext={canGoNext}
         />
+
+        {/* El plan de la quincena: la pregunta que se hace al recibir un pago.
+            Va arriba de todo porque es lo que hay que mirar primero. */}
+        <Card style={styles.allMovementsCard} onPress={() => rootNavigation.navigate('Plan')}
+          accessibilityLabel="Mi quincena: qué pagar, qué separar y cuánto queda">
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <View style={{ flex: 1 }}>
+              <AppText variant="body">🗓️ Mi quincena</AppText>
+              <AppText variant="caption" color={colors.textSecondary}>
+                Qué pagar, qué separar, cuánto ahorrar y cuánto queda · calendario · quién paga qué
+              </AppText>
+            </View>
+            <AppText variant="body" color={colors.textMuted}>›</AppText>
+          </View>
+        </Card>
 
         {/* View mode toggle */}
         {splitSummary && (
@@ -164,6 +186,12 @@ const DashboardScreen: React.FC = () => {
           const expense = viewMode === 'personal' ? s?.personalExpense : viewMode === 'shared' ? s?.sharedExpense : summary?.totalExpense ?? 0;
           const bal = viewMode === 'personal' ? s?.personalBalance : viewMode === 'shared' ? s?.sharedBalance : summary?.balance ?? 0;
           const pCount = viewMode === 'personal' ? s?.personalPendingCount : viewMode === 'shared' ? s?.sharedPendingCount : summary?.pendingCount ?? 0;
+          /* El presupuesto de cada ambito sale de las asignaciones. Antes en
+             Conjunto y Personal se mostraba el GASTO con la etiqueta
+             "Presupuesto", y con el mes recien empezado salia en cero. */
+          const presupuesto = viewMode === 'personal' ? s?.personalBudget : viewMode === 'shared' ? s?.sharedBudget : summary?.budgetTotal;
+          const porPagar = viewMode === 'personal' ? s?.personalPendingExpense : viewMode === 'shared' ? s?.sharedPendingExpense : summary?.pendingExpenseAmount;
+          const porCobrar = viewMode === 'personal' ? s?.personalPendingIncome : viewMode === 'shared' ? s?.sharedPendingIncome : summary?.pendingIncomeAmount;
           const bColor = (bal ?? 0) >= 0 ? colors.income : colors.expense;
 
           return (
@@ -193,7 +221,8 @@ const DashboardScreen: React.FC = () => {
               </View>
               <View style={styles.statsRow}>
                 <View style={styles.statHalf}>
-                  <StatCard title="Presupuesto" value={viewMode === 'total' ? (summary?.budgetTotal ?? 0) : (expense ?? 0)} icon="📊" color={colors.primary} />
+                  <StatCard title="Presupuesto" value={presupuesto ?? 0} icon="📊" color={colors.primary}
+                    subtitle={(presupuesto ?? 0) > 0 ? `Gastado ${Math.round(((expense ?? 0) / (presupuesto as number)) * 100)}%` : undefined} />
                 </View>
                 <View style={styles.statHalf}>
                   <StatCard
@@ -202,7 +231,10 @@ const DashboardScreen: React.FC = () => {
                     icon="⏳"
                     color={colors.pending}
                     isCurrency={false}
-                    subtitle={summary?.pendingAmount ? formatCurrency(summary.pendingAmount) : undefined}
+                    subtitle={[
+                      porPagar ? `Por pagar ${formatCurrency(porPagar)}` : null,
+                      porCobrar ? `Por recibir ${formatCurrency(porCobrar)}` : null,
+                    ].filter(Boolean).join(' · ') || undefined}
                   />
                 </View>
               </View>

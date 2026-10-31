@@ -6,7 +6,7 @@ export const CATEGORY_TYPE_LABELS: Record<string, string> = {
 export const FREQUENCY_LABELS: Record<string, string> = {
   DAILY: 'Diario',
   WEEKLY: 'Semanal',
-  BIWEEKLY: 'Quincenal',
+  BIWEEKLY: 'Cada 14 días',
   MONTHLY: 'Mensual',
   BIMONTHLY: 'Bimestral',
   QUARTERLY: 'Trimestral',

@@ -81,7 +81,7 @@ describe('AccountsScreen', () => {
     /* La tarjeta tiene los dos saldos iguales: anadirle una linea de "con lo
        pendiente" repitiendo la misma cifra es ruido que entrena a no leer. */
     const { queryAllByText } = pintar();
-    await waitFor(() => expect(queryAllByText(/Con lo pendiente/).length).toBe(1));
+    await waitFor(() => expect(queryAllByText(/Si se paga y se cobra todo lo programado/).length).toBe(1));
   });
 
   it('cuando no hay cuentas explica para que sirven, no solo que no hay', async () => {

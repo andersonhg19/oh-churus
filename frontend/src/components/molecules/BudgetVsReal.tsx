@@ -14,7 +14,11 @@ interface BudgetVsRealProps {
 const BudgetVsReal: React.FC<BudgetVsRealProps> = ({ categories, budgetByCategory }) => {
   const { colors } = useTheme();
 
-  const expenseCategories = categories.filter(c => c.categoryType === 'EXPENSE' && c.total > 0);
+  /* Tambien las presupuestadas que aun no tienen gasto: el mes recien empieza
+     y es justo cuando mas sirve ver cuanto queda de cada una. Antes, con cero
+     movimientos confirmados, el componente entero desaparecia. */
+  const expenseCategories = categories.filter(
+    c => c.categoryType === 'EXPENSE' && (c.total > 0 || (budgetByCategory[String(c.categoryId)] || 0) > 0));
   if (expenseCategories.length === 0) return null;
 
   const maxValue = Math.max(

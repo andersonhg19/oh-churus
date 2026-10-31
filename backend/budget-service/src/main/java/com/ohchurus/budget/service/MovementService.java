@@ -18,6 +18,9 @@ public interface MovementService {
 
     ResultDTO confirm(Long id);
 
+    /** Cambia quien paga un pendiente de categoria compartida. */
+    ResultDTO reasignarPagador(Long id, Long nuevoPagador);
+
     ResultDTO confirmWithAmount(Long id, java.math.BigDecimal newAmount);
 
     ResultDTO getByPeriod(Long userId, LocalDate startDate, LocalDate endDate);

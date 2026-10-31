@@ -34,6 +34,12 @@ export const movementService = {
     return response.data;
   },
 
+  /** Cambia quien paga UN pendiente comun ("este mes lo pago yo"). */
+  reassign: async (id: string, payerUserId: number) => {
+    const response = await api.post<ResultDTO<Movement>>(`${BASE}/reassign/${id}`, { payerUserId });
+    return response.data;
+  },
+
   confirm: async (id: string, newAmount?: number) => {
     const response = await api.post<ResultDTO<Movement>>(
       `${BASE}/confirm/${id}`,

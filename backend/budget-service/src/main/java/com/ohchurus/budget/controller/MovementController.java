@@ -64,6 +64,22 @@ public class MovementController {
         return ResponseEntity.ok(movementService.confirm(id));
     }
 
+    /**
+     * Cambia quien paga UN pendiente (esta vez lo paga el otro). El cambio
+     * permanente se hace en el programado; esto es para la eventualidad.
+     * payerUserId no es la identidad de quien llama: es el miembro del hogar
+     * que pasa a ser responsable, y el servicio lo valida.
+     */
+    @PostMapping(value = "/reassign/{id}", produces = "application/json")
+    public ResponseEntity<ResultDTO> reassign(@PathVariable Long id,
+            @RequestBody java.util.Map<String, Object> body) {
+        Object quien = body != null ? body.get("payerUserId") : null;
+        if (quien == null) {
+            return ResponseEntity.ok(new ResultDTO(false, "payerUserId es obligatorio", 400));
+        }
+        return ResponseEntity.ok(movementService.reasignarPagador(id, Long.valueOf(quien.toString())));
+    }
+
     @PostMapping(value = "/by-period", produces = "application/json")
     public ResponseEntity<ResultDTO> getByPeriod(@Valid @RequestBody PeriodRequestDTO dto) {
         return ResponseEntity.ok(movementService.getByPeriod(com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId(), dto.getStartDate(), dto.getEndDate()));

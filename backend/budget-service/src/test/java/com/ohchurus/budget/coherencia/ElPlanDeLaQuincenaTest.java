@@ -228,6 +228,37 @@ class ElPlanDeLaQuincenaTest {
     }
 
     @Test
+    @DisplayName("un pendiente comun se puede pasar al otro; uno privado o ya confirmado, no")
+    void cambiarQuienPagaUnPendiente() throws Exception {
+        Long gym = programados.findAll().stream().filter(p -> p.getName().equals("Gym")).findFirst().get().getId();
+        JsonNode r = pedir(SAMY, "/v1/scheduled/materialize",
+                "{\"occurrences\":[{\"scheduledMovementId\":" + gym + ",\"periodStart\":\"2026-11-01\"}]}");
+        assertThat(r.path("correct").asBoolean()).as(r.toString()).isTrue();
+        Long pendiente = movimientos.findByScheduledMovementId(gym).get(0).getId();
+        assertThat(movimientos.findById(pendiente).get().getUserId()).isEqualTo(SAMY);
+
+        JsonNode c = pedir(SAMY, "/v1/movements/reassign/" + pendiente, "{\"payerUserId\":" + ANDY + "}");
+        assertThat(c.path("correct").asBoolean()).as(c.toString()).isTrue();
+        assertThat(movimientos.findById(pendiente).get().getUserId())
+                .as("este mes el gimnasio lo paga Andy: tiene que salir en SU lista")
+                .isEqualTo(ANDY);
+        assertThat(movimientos.findById(pendiente).get().getAccountId())
+                .as("y en su cuenta, no en la de Samy")
+                .isEqualTo(cuentas.findByUserIdAndIsDefaultTrueAndActiveTrue(ANDY).get().getId());
+
+        Long secreto = programados.findAll().stream().filter(p -> p.getName().equals("Gasto secreto")).findFirst().get().getId();
+        pedir(ANDY, "/v1/scheduled/materialize",
+                "{\"occurrences\":[{\"scheduledMovementId\":" + secreto + ",\"periodStart\":\"2026-11-01\"}]}");
+        Long privado = movimientos.findByScheduledMovementId(secreto).get(0).getId();
+        assertThat(pedir(ANDY, "/v1/movements/reassign/" + privado, "{\"payerUserId\":" + SAMY + "}")
+                .path("correct").asBoolean()).as("lo privado no se le carga al otro").isFalse();
+
+        pedir(ANDY, "/v1/movements/confirm/" + pendiente, "{}");
+        assertThat(pedir(ANDY, "/v1/movements/reassign/" + pendiente, "{\"payerUserId\":" + SAMY + "}")
+                .path("correct").asBoolean()).as("lo confirmado ya salio de una cuenta").isFalse();
+    }
+
+    @Test
     @DisplayName("copiar el presupuesto del mes anterior no pisa lo ya fijado y no duplica")
     void copiarDelAnterior() throws Exception {
         pedir(ANDY, "/v1/budget-allocation/save",

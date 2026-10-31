@@ -20,6 +20,7 @@ import { DashboardSummary, Movement } from '../../types';
 import { useCarga, exigir } from '../../hooks/useCarga';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { formatCurrency, parseMonto } from '../../utils/format';
+import { householdService } from '../../services/householdService';
 import { getStartOfPeriod, getEndOfPeriod, navigatePeriod } from '../../utils/periodUtils';
 
 const DashboardScreen: React.FC = () => {
@@ -35,6 +36,10 @@ const DashboardScreen: React.FC = () => {
      para ver o confirmar lo del otro, pero la lista de tareas de cada uno es la
      suya: antes Samy veia los 27 pendientes del hogar en cualquier pestana. */
   const [soloMios, setSoloMios] = useState(true);
+  /* Los del hogar, con su apodo, para poder decir "esto lo paga Samy" y
+     cambiarlo cuando haga falta. Si no cargan, el boton no aparece. */
+  const [miembros, setMiembros] = useState<Array<{ userId: number; displayName?: string }>>([]);
+  const [cambiandoPagador, setCambiandoPagador] = useState<string | null>(null);
 
   // Confirm modal state
   const [confirmItem, setConfirmItem] = useState<Movement | null>(null);
@@ -56,7 +61,25 @@ const DashboardScreen: React.FC = () => {
     setSummary(exigir(summaryRes) || null);
     setPending(exigir(pendingRes) || []);
     setSplitSummary(exigir(splitRes) || null);
+    try {
+      const h = await householdService.getByUser(user.userId);
+      const lista = h.correct && h.object ? h.object.flatMap((x) => x.members) : [];
+      setMiembros(lista.filter((m, i) => lista.findIndex((x) => x.userId === m.userId) === i));
+    } catch { setMiembros([]); }
   }, [user, budgetDay, periodStart]);
+
+  const cambiarPagador = async (item: Movement, quien: number) => {
+    try {
+      const res = await movementService.reassign(String(item.id), quien);
+      if (!res.correct) { showToast('error', 'No se pudo cambiar', res.message); return; }
+      const nombre = miembros.find((m) => m.userId === quien)?.displayName || 'la otra persona';
+      showToast('success', 'Responsable cambiado', `${item.description || 'El pendiente'} ahora lo paga ${nombre}`);
+      setCambiandoPagador(null);
+      cargar();
+    } catch {
+      showToast('error', 'Error', 'No se pudo cambiar quién paga');
+    }
+  };
 
   const { cargando, refrescando, error, cargar, refrescar } = useCarga(traerPanel);
 
@@ -290,7 +313,8 @@ const DashboardScreen: React.FC = () => {
               </AppText>
             )}
             {pendientesVisibles.map((item) => (
-              <View key={item.id} style={styles.pendingRow}>
+              <React.Fragment key={item.id}>
+              <View style={styles.pendingRow}>
                 <View style={{ flex: 1 }}>
                   <MovementItem
                     movement={item}
@@ -317,7 +341,43 @@ const DashboardScreen: React.FC = () => {
                 >
                   <AppText variant="caption" color={colors.primary} style={{ fontWeight: '700' }}>+</AppText>
                 </TouchableOpacity>
+                {/* Cambiar quien paga ESTE pendiente (la eventualidad). Solo en
+                    lo comun: un gasto privado no se le puede cargar al otro. El
+                    cambio permanente se hace en el programado. */}
+                {item.shared && miembros.length > 1 && (
+                  <TouchableOpacity
+                    testID={`cambiar-pagador-${item.id}`}
+                    style={[styles.subGastoBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                    onPress={() => setCambiandoPagador(cambiandoPagador === String(item.id) ? null : String(item.id))}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Cambiar quién paga ${item.description || 'este pendiente'}`}
+                  >
+                    <AppText variant="caption">👤</AppText>
+                  </TouchableOpacity>
+                )}
               </View>
+              {cambiandoPagador === String(item.id) && (
+                <View style={styles.toggleRow}>
+                  <AppText variant="caption" color={colors.textSecondary} style={{ alignSelf: 'center', marginRight: 8 }}>
+                    ¿Quién lo paga esta vez?
+                  </AppText>
+                  {miembros.map((m) => (
+                    <TouchableOpacity
+                      key={m.userId}
+                      testID={`pagador-${item.id}-${m.userId}`}
+                      style={[styles.toggleBtn, String(m.userId) === String(item.userId) && { backgroundColor: colors.primary }]}
+                      onPress={() => cambiarPagador(item, m.userId)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Que lo pague ${m.displayName || `persona ${m.userId}`}`}
+                    >
+                      <AppText variant="caption" style={{ color: String(m.userId) === String(item.userId) ? '#FFF' : colors.text }}>
+                        {m.displayName || `Persona ${m.userId}`}
+                      </AppText>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+              </React.Fragment>
             ))}
           </>
         )}

@@ -321,6 +321,41 @@ public class MovementServiceImpl implements MovementService {
         return confirmWithAmount(id, null);
     }
 
+    /**
+     * "Este mes el gimnasio lo paga Andy." El pendiente pasa a nombre y a la
+     * cuenta del nuevo responsable, que es lo que lo pone en SU lista de cosas
+     * por pagar y lo saca de la del otro.
+     *
+     * Solo pendientes (lo confirmado ya salio de una cuenta concreta: cambiarlo
+     * descuadraria el saldo de las dos) y solo de categorias COMPARTIDAS: un
+     * gasto privado no puede caer en la cuenta de alguien que no lo ve.
+     */
+    @Override
+    @Transactional
+    public ResultDTO reasignarPagador(Long id, Long nuevoPagador) {
+        Optional<Movement> encontrado = movementRepository.findByIdAndActiveTrue(id);
+        if (encontrado.isEmpty() || !puedoTocar(encontrado.get())) {
+            return new ResultDTO(false, "Movement not found", 404);
+        }
+        Movement m = encontrado.get();
+        if (Boolean.TRUE.equals(m.getConfirmed())) {
+            return new ResultDTO(false, "Ya esta confirmado: solo se cambia quien paga lo pendiente", 400);
+        }
+        Category cat = categoryRepository.findByIdAndActiveTrue(m.getCategoryId()).orElse(null);
+        if (cat == null || cat.getHouseholdId() == null) {
+            return new ResultDTO(false, "Solo se puede cambiar quien paga en categorias compartidas", 400);
+        }
+        Long yo = acceso.usuarioActual();
+        if (!householdService.companerosDeHogar(yo).contains(nuevoPagador)) {
+            return new ResultDTO(false, "Quien paga tiene que ser alguien de tu hogar", 400);
+        }
+        m.setUserId(nuevoPagador);
+        m.setAccountId(cuentas.porDefecto(nuevoPagador).getId());
+        Movement guardado = movementRepository.save(m);
+        log.info("Movement {} reassigned to payer {} by {}", id, nuevoPagador, yo);
+        return new ResultDTO(movementMapper.toResultDTO(guardado));
+    }
+
     @Override
     public ResultDTO confirmWithAmount(Long id, java.math.BigDecimal newAmount) {
         categoryCacheTL.remove();

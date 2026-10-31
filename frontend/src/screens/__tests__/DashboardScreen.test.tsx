@@ -25,6 +25,14 @@ jest.mock('../../services/dashboardService', () => ({
 jest.mock('../../services/movementService', () => ({
   movementService: {
     confirm: jest.fn(),
+    reassign: jest.fn(),
+  },
+}));
+
+jest.mock('../../services/householdService', () => ({
+  householdService: {
+    getByUser: jest.fn().mockResolvedValue({ correct: true, object: [{ householdId: 1, name: 'Familia', role: 'OWNER', memberCount: 2,
+      members: [{ userId: 1, role: 'OWNER', displayName: 'Andy' }, { userId: 2, role: 'MEMBER', displayName: 'Samy' }] }] }),
   },
 }));
 
@@ -108,6 +116,22 @@ describe('DashboardScreen', () => {
     await waitFor(() => expect(queryByText('Arriendo')).toBeNull());
     expect(getByText('Gasto mio')).toBeTruthy();
     expect(getByText('Por confirmar (1)')).toBeTruthy();
+  });
+
+  it('se puede cambiar quien paga un pendiente comun', async () => {
+    (movementService.reassign as jest.Mock).mockResolvedValue({ correct: true });
+    const { getByText, getByTestId } = render(<DashboardScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(getByText('Arriendo')).toBeTruthy());
+    await waitFor(() => expect(getByTestId('cambiar-pagador-p1')).toBeTruthy());
+    fireEvent.press(getByTestId('cambiar-pagador-p1'));
+    fireEvent.press(getByTestId('pagador-p1-2'));
+    await waitFor(() => expect(movementService.reassign).toHaveBeenCalledWith('p1', 2));
+  });
+
+  it('un pendiente privado no ofrece cambiar quien paga', async () => {
+    const { getByText, queryByTestId } = render(<DashboardScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(getByText('Gasto mio')).toBeTruthy());
+    expect(queryByTestId('cambiar-pagador-p3')).toBeNull();
   });
 
   it('shows empty state when no pending', async () => {

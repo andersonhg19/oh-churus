@@ -289,6 +289,15 @@ class AislamientoEntreUsuariosTest {
         }
 
         @Test
+        @DisplayName("no puede pasarle a su nombre (ni a nadie) un pendiente de Ana")
+        void reasignarPagadorAjeno() throws Exception {
+            atacar("/v1/movements/reassign/" + movimientoDeAna, "{\"payerUserId\":" + BRUNO + "}");
+            assertThat(movimientos.findById(movimientoDeAna))
+                    .as("Bruno se quedo con un movimiento de Ana cambiando quien lo paga")
+                    .get().extracting(Movement::getUserId).isEqualTo(ANA);
+        }
+
+        @Test
         @DisplayName("no puede robarse un movimiento de Ana mandando su id en save")
         void reasignarMovimiento() throws Exception {
             atacar("/v1/movements/save",

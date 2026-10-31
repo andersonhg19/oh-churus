@@ -14,6 +14,7 @@ import { spacing } from '../../theme';
 import { dashboardService } from '../../services/dashboardService';
 import { movementService } from '../../services/movementService';
 import { budgetAllocationService } from '../../services/budgetAllocationService';
+import { planService, PlanItem } from '../../services/planService';
 import { CategorySummary, DashboardSummary, Movement } from '../../types';
 import { useCarga, exigir } from '../../hooks/useCarga';
 import { getStartOfPeriod, getEndOfPeriod, navigatePeriod } from '../../utils/periodUtils';
@@ -52,6 +53,7 @@ const SummaryScreen: React.FC<Props> = ({ navigation }) => {
      Asi el mes recien empezado no abre en una dona vacia. */
   const [fuenteElegida, setFuente] = useState<Fuente | null>(null);
   const [asignado, setAsignado] = useState<any[]>([]);
+  const [ingresosDelPlan, setIngresosDelPlan] = useState<PlanItem[]>([]);
 
   const periodEnd = getEndOfPeriod(budgetDay, periodStart);
 
@@ -76,6 +78,14 @@ const SummaryScreen: React.FC<Props> = ({ navigation }) => {
       const b = await budgetAllocationService.summary(user.userId, budgetDay, periodStart);
       setAsignado(b.correct ? b.object?.categories || [] : []);
     } catch { setAsignado([]); }
+    /* Los ingresos del plan salen del calendario: todos los programados de
+       ingreso del hogar en ESTE periodo. Antes se sacaban de los movimientos
+       propios con new Date("2026-10-28"), que en Colombia es el 27 a las 7 pm:
+       se pedia el periodo anterior y los ingresos salian en cero. */
+    try {
+      const c = await planService.calendar(periodStart, getEndOfPeriod(budgetDay, periodStart));
+      setIngresosDelPlan(c.correct ? (c.object?.items || []).filter((i) => i.income) : []);
+    } catch { setIngresosDelPlan([]); }
   }, [user, budgetDay, periodStart]);
 
   const { cargando, refrescando, error, cargar, refrescar } = useCarga(traerResumen);
@@ -105,11 +115,13 @@ const SummaryScreen: React.FC<Props> = ({ navigation }) => {
   /* Ingresos del plan: confirmados mas pendientes de categorias de ingreso. */
   const ingresosPlan = (() => {
     const porCat: Record<string, { label: string; value: number; color?: string }> = {};
-    allMovements.forEach((m) => {
-      if (m.categoryType !== 'INCOME') return;
-      const k = String(m.categoryId);
-      porCat[k] = porCat[k] || { label: m.categoryName || 'Ingreso', value: 0, color: m.categoryColor };
-      porCat[k].value += m.amount || 0;
+    /* Por persona y no por categoria: en el hogar todos los sueldos van a
+       "Salario", y una dona de una sola porcion no dice nada. */
+    ingresosDelPlan.forEach((i) => {
+      const k = `${i.categoryId}-${i.payerUserId}`;
+      const etiqueta = i.payerName ? `${i.categoryName} ${i.payerName}` : i.categoryName;
+      porCat[k] = porCat[k] || { label: etiqueta, value: 0 };
+      porCat[k].value += Number(i.amount) || 0;
     });
     return porCat;
   })();
@@ -235,7 +247,7 @@ const SummaryScreen: React.FC<Props> = ({ navigation }) => {
             centerLines: fuente === 'PLAN' ? [
               { label: 'Ingresos ', value: totalIngresosPlan, color: colors.income },
               { label: 'Presup. ', value: totalPresupuestado, color: colors.expense },
-              { label: 'Queda ', value: totalIngresosPlan - totalPresupuestado, color: colors.primary, bold: true },
+              { label: 'Sin asignar ', value: totalIngresosPlan - totalPresupuestado, color: colors.primary, bold: true },
             ] : [
               { label: 'Ingresos ', value: summary?.totalIncome ?? 0, color: colors.income },
               { label: 'Gastos ', value: summary?.totalExpense ?? 0, color: colors.expense },

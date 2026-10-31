@@ -57,9 +57,18 @@ import java.util.Optional;
 @Transactional
 public class ImportacionServiceImpl {
 
-    /** Los formatos con los que exportan los bancos de por aqui. */
+    /**
+     * Los formatos con los que exportan los bancos de por aqui.
+     *
+     * "d/M/yyyy" y "d-M-yyyy" van justo despues de sus versiones con ceros:
+     * "dd" exige dos digitos, asi que "5/10/2026" no casaba con ninguno y la
+     * fila se saltaba en silencio como si fuera un pie de pagina. Van antes
+     * de "MM/dd/yyyy" para que el dia siga leyendose primero, como en el
+     * resto de la lista.
+     */
     private static final List<String> FORMATOS_DE_FECHA = List.of(
-            "yyyy-MM-dd", "dd/MM/yyyy", "dd-MM-yyyy", "yyyy/MM/dd", "dd/MM/yy", "MM/dd/yyyy");
+            "yyyy-MM-dd", "dd/MM/yyyy", "d/M/yyyy", "dd-MM-yyyy", "d-M-yyyy",
+            "yyyy/MM/dd", "dd/MM/yy", "MM/dd/yyyy");
 
     private final MovementRepository movimientos;
     private final CategoryRepository categorias;
@@ -155,6 +164,17 @@ public class ImportacionServiceImpl {
             Map<Integer, CotejadorDeImportacion.Fila> porNumero = new LinkedHashMap<>();
             filas.forEach(f -> porNumero.put(f.numero(), f));
 
+            /* Y se vuelve a cotejar, por la misma razon. Entre la vista previa
+               y este momento puede haber pasado otra confirmacion —el doble
+               clic, la pestana repetida, el reintento tras un timeout—, y sin
+               cotejar de nuevo esas filas entrarian otra vez como nuevas. Lo
+               que HOY ya esta se salta. Las que confirman un pendiente no:
+               esas van por su propio camino, que no crea nada. */
+            java.util.Set<Integer> yaEstan = new java.util.HashSet<>();
+            CotejadorDeImportacion.cotejar(filas, movimientos.findByUserIdAndActiveTrue(yo)).stream()
+                    .filter(c -> c.veredicto() == CotejadorDeImportacion.Veredicto.DUPLICADO)
+                    .forEach(c -> yaEstan.add(c.fila().numero()));
+
             Long cuenta = cuentaElegida(dto.getAccountId(), yo);
 
             int creados = 0;
@@ -174,6 +194,11 @@ public class ImportacionServiceImpl {
                     } else {
                         omitidas.add("fila " + peticion.getRow() + ": el pendiente ya no existe");
                     }
+                    continue;
+                }
+
+                if (yaEstan.contains(peticion.getRow())) {
+                    omitidas.add("fila " + peticion.getRow() + ": ya estaba importada");
                     continue;
                 }
 

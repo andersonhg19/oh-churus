@@ -166,6 +166,18 @@ class ImportacionServiceImplTest {
         }
 
         @Test
+        @DisplayName("acepta el dia y el mes sin cero delante: 5/10/2026")
+        void fechaSinCeros() {
+            /* Antes "dd/MM/yyyy" exigia dos digitos y la fila se saltaba en
+               silencio, como si fuera un pie de pagina del extracto. */
+            ResultDTO r = servicio.preview(conCsv("5/10/2026,Compra,-45000\n6-9-2026,Otra,-1000\n"));
+            List<?> nuevos = (List<?>) ((Map<?, ?>) r.getObject()).get("newRows");
+            assertThat(nuevos).hasSize(2);
+            assertThat(((Map<?, ?>) nuevos.get(0)).get("date")).isEqualTo("2026-10-05");
+            assertThat(((Map<?, ?>) nuevos.get(1)).get("date")).isEqualTo("2026-09-06");
+        }
+
+        @Test
         @DisplayName("invertir el signo para los bancos que exportan los gastos en positivo")
         void invertirElSigno() {
             /* Sin esto habria que editar sesenta filas a mano, que es
@@ -456,6 +468,44 @@ class ImportacionServiceImplTest {
             ResultDTO r = servicio.confirm(dto);
             assertThat(((Map<?, ?>) r.getObject()).get("confirmed")).isEqualTo(0);
             verify(movimientos, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("confirmar dos veces el mismo extracto no duplica: lo que ya esta se salta")
+        void dobleConfirmacion() {
+            /* El doble clic o el reintento tras un timeout: la fila ya entro
+               en la primera confirmacion y ahora el cotejo la ve como duplicada. */
+            when(movimientos.findByUserIdAndActiveTrue(YO)).thenReturn(List.of(
+                    Movement.builder().id(50L).userId(YO).categoryId(CATEGORIA)
+                            .date(LocalDate.of(2026, 8, 1)).amount(new BigDecimal("45000"))
+                            .description("COMPRA EXITO").confirmed(true).active(true).build()));
+
+            ImportarDTO dto = conCsv("2026-08-01,COMPRA EXITO,-45000\n");
+            dto.setRows(List.of(new FilaAImportarDTO(0, CATEGORIA, null)));
+
+            ResultDTO r = servicio.confirm(dto);
+            assertThat(((Map<?, ?>) r.getObject()).get("created")).isEqualTo(0);
+            assertThat(((Map<?, ?>) r.getObject()).get("skipped").toString())
+                    .contains("ya estaba importada");
+            verify(movimientos, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("una fila que confirma un pendiente no se salta aunque el cotejo la vea repetida")
+        void confirmarPendienteNoSeSalta() {
+            Movement pendiente = Movement.builder().id(77L).userId(YO).categoryId(CATEGORIA)
+                    .date(LocalDate.of(2026, 8, 1)).amount(new BigDecimal("45000"))
+                    .description("ARRIENDO").confirmed(true).active(true).build();
+            when(movimientos.findByUserIdAndActiveTrue(YO)).thenReturn(List.of(pendiente));
+            when(movimientos.findByIdAndActiveTrue(77L)).thenReturn(Optional.of(pendiente));
+            when(acceso.puedeVer(any(), any())).thenReturn(true);
+
+            ImportarDTO dto = conCsv("2026-08-01,ARRIENDO,-45000\n");
+            dto.setRows(List.of(new FilaAImportarDTO(0, null, 77L)));
+
+            ResultDTO r = servicio.confirm(dto);
+            assertThat(((Map<?, ?>) r.getObject()).get("confirmed")).isEqualTo(1);
+            assertThat(((Map<?, ?>) r.getObject()).get("created")).isEqualTo(0);
         }
 
         @Test

@@ -142,6 +142,47 @@ describe('ImportScreen', () => {
       .toContainEqual({ row: 1, categoryId: '10' });
   });
 
+  it('cambiar el mapeo de columnas tira la vista previa y no se puede confirmar', async () => {
+    /* Las inputs del mapeo solo se ven sin vista previa, asi que aqui se
+       prueba el camino real: "Empezar de nuevo", tocar una columna, y la
+       vista previa vieja no vuelve sola. */
+    const u = pintar();
+    escribirExtracto(u);
+    fireEvent.press(u.getByText('Ver que va a pasar'));
+    await waitFor(() => expect(u.getByTestId('resumen-previa')).toBeTruthy());
+
+    fireEvent.press(u.getByText('Empezar de nuevo'));
+    fireEvent.changeText(u.getByPlaceholderText('2'), '3');
+
+    expect(u.queryByTestId('resumen-previa')).toBeNull();
+    expect(u.queryByText('Importar')).toBeNull();
+    expect(importService.confirm).not.toHaveBeenCalled();
+  });
+
+  it('si se edita el CSV mientras llega la vista previa, esa respuesta vieja se descarta', async () => {
+    /* La fila 1 del CSV viejo no es la fila 1 del nuevo: pintar esa
+       respuesta dejaria confirmar sobre un archivo que nadie ha revisado. */
+    let responder: (v: unknown) => void = () => {};
+    (importService.preview as jest.Mock).mockReturnValue(
+      new Promise((resolve) => { responder = resolve; }),
+    );
+
+    const u = pintar();
+    escribirExtracto(u);
+    fireEvent.press(u.getByText('Ver que va a pasar'));
+    await waitFor(() => expect(importService.preview).toHaveBeenCalled());
+
+    fireEvent.changeText(
+      u.getByPlaceholderText('fecha,concepto,valor...'),
+      'fecha,concepto,valor\n2026-08-09,OTRA COSA,-1000\n',
+    );
+    responder(PREVIA);
+
+    await waitFor(() => expect(u.getByText('Ver que va a pasar')).toBeTruthy());
+    expect(u.queryByTestId('resumen-previa')).toBeNull();
+    expect(importService.confirm).not.toHaveBeenCalled();
+  });
+
   it('si el backend no puede leer el archivo, se ve SU motivo', async () => {
     /* "Revisa las columnas y el formato de fecha" vale mucho mas que un
        "error al importar": dice que corregir. */

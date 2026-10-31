@@ -16,7 +16,6 @@ import org.springframework.stereotype.Service;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -24,6 +23,13 @@ import java.util.concurrent.ConcurrentHashMap;
 @Slf4j
 @Service
 public class ExcelExportService {
+
+    /* Formato de los montos. budget-service no conoce la moneda ni los
+       decimales del usuario —esa preferencia vive en el frontend y no viaja
+       en la peticion del Excel—, asi que se queda en pesos sin decimales,
+       como hasta ahora. Esta en un solo sitio para que, el dia que la moneda
+       llegue hasta aqui, se cambie una linea y no dos. */
+    static final String FORMATO_MONEDA = "$#,##0";
 
     private final MovementRepository movementRepository;
     private final CategoryRepository categoryRepository;
@@ -41,11 +47,29 @@ public class ExcelExportService {
         LocalDate periodStart = PeriodUtils.getStartOfPeriod(budgetStartDay, ref);
         LocalDate periodEnd = PeriodUtils.getEndOfPeriod(budgetStartDay, periodStart);
 
-        // Get all movements for the period
-        List<Movement> confirmed = movementRepository
-                .findByUserIdAndDateBetweenAndConfirmedTrueAndActiveTrue(userId, periodStart, periodEnd);
-        List<Movement> pending = movementRepository
-                .findByUserIdAndDateBetweenAndConfirmedFalseAndActiveTrue(userId, periodStart, periodEnd);
+        /* Los mismos movimientos que cuenta el panel (DashboardServiceImpl):
+           si el usuario esta en algun hogar, entran tambien los de los demas
+           miembros, pero SOLO en categorias compartidas —la consulta filtra
+           por categorias con householdId—. Antes aqui solo salian los propios,
+           y el Excel de alguien con hogar no cuadraba con lo que veia en la
+           app. Los movimientos de otro miembro en sus categorias privadas
+           (householdId null) siguen sin aparecer, igual que en el panel.
+           Es la misma lista que da HouseholdServiceImpl.getHouseholdIds; se
+           saca del repositorio que este servicio ya tenia para no cambiarle
+           el constructor. */
+        List<Long> householdIds = householdMemberRepository.findByUserIdAndActiveTrue(userId).stream()
+                .map(m -> m.getHouseholdId()).collect(java.util.stream.Collectors.toList());
+        List<Movement> confirmed;
+        List<Movement> pending;
+        if (!householdIds.isEmpty()) {
+            confirmed = movementRepository.findHouseholdConfirmed(userId, householdIds, periodStart, periodEnd);
+            pending = movementRepository.findHouseholdPending(userId, householdIds, periodStart, periodEnd);
+        } else {
+            confirmed = movementRepository
+                    .findByUserIdAndDateBetweenAndConfirmedTrueAndActiveTrue(userId, periodStart, periodEnd);
+            pending = movementRepository
+                    .findByUserIdAndDateBetweenAndConfirmedFalseAndActiveTrue(userId, periodStart, periodEnd);
+        }
 
         Map<Long, Category> catCache = new ConcurrentHashMap<>();
 
@@ -92,7 +116,7 @@ public class ExcelExportService {
         // Money style
         XSSFCellStyle moneyStyle = wb.createCellStyle();
         moneyStyle.cloneStyleFrom(dataStyle);
-        moneyStyle.setDataFormat(wb.createDataFormat().getFormat("$#,##0"));
+        moneyStyle.setDataFormat(wb.createDataFormat().getFormat(FORMATO_MONEDA));
         moneyStyle.setAlignment(HorizontalAlignment.RIGHT);
 
         // Header style
@@ -145,7 +169,7 @@ public class ExcelExportService {
             summaryValueStyles[i].setFillForegroundColor(new XSSFColor(SUMMARY_BG, null));
             summaryValueStyles[i].setFillPattern(FillPatternType.SOLID_FOREGROUND);
             summaryValueStyles[i].setFont(f);
-            summaryValueStyles[i].setDataFormat(wb.createDataFormat().getFormat("$#,##0"));
+            summaryValueStyles[i].setDataFormat(wb.createDataFormat().getFormat(FORMATO_MONEDA));
             summaryValueStyles[i].setAlignment(HorizontalAlignment.RIGHT);
         }
 
@@ -197,7 +221,6 @@ public class ExcelExportService {
         // Data rows - first confirmed, then pending
         int dataStartRow = 2;
         int rowIdx = dataStartRow;
-        DateTimeFormatter dateFmt = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
         // All movements: confirmed first, then pending
         java.util.List<Movement> allMovements = new java.util.ArrayList<>();
@@ -206,8 +229,12 @@ public class ExcelExportService {
 
         for (Movement m : allMovements) {
             XSSFRow row = ws.createRow(rowIdx);
-            Category cat = catCache.computeIfAbsent(m.getCategoryId(),
-                    id -> categoryRepository.findByIdAndActiveTrue(id).orElse(null));
+            /* findById, no findByIdAndActiveTrue: un movimiento vivo puede
+               colgar de una categoria ya desactivada. Con el filtro de activas
+               salia como "Egreso" sin categoria aunque fuera un ingreso, y las
+               SUMIFS del resumen lo sumaban del lado equivocado. */
+            Category cat = m.getCategoryId() == null ? null : catCache.computeIfAbsent(m.getCategoryId(),
+                    id -> categoryRepository.findById(id).orElse(null));
             String tipo = cat != null && cat.getType() == CategoryType.INCOME ? "Ingreso" : "Egreso";
             String catName = cat != null ? cat.getName() : "";
             String estado = Boolean.TRUE.equals(m.getConfirmed()) ? "Ejecutado" : "Presupuestado";
@@ -237,8 +264,15 @@ public class ExcelExportService {
             cEstado.setCellStyle(centerStyle);
 
             XSSFCell cFecha = row.createCell(6);
-            cFecha.setCellValue(m.getDate() != null ? m.getDate().format(dateFmt) : "");
-            cFecha.setCellStyle(centerStyle);
+            /* Fecha de verdad, no texto: con texto Excel no deja ordenar ni
+               filtrar por fecha, y dateStyle (DD/MM/YYYY) estaba creado pero
+               nadie lo usaba. Sin fecha, la celda queda vacia. */
+            if (m.getDate() != null) {
+                cFecha.setCellValue(m.getDate());
+            } else {
+                cFecha.setBlank();
+            }
+            cFecha.setCellStyle(dateStyle);
 
             // Spacer + summary bg
             row.createCell(7).setCellStyle(dataStyle);
@@ -327,9 +361,7 @@ public class ExcelExportService {
         configR0.getCell(2).setCellStyle(configHeaderStyle);
 
         // Get distinct categories for user
-        // Include personal + household categories
-        List<Long> householdIds = householdMemberRepository.findByUserIdAndActiveTrue(userId).stream()
-                .map(m -> m.getHouseholdId()).collect(java.util.stream.Collectors.toList());
+        // Include personal + household categories (householdIds, calculado arriba)
         List<Category> userCats;
         if (!householdIds.isEmpty()) {
             userCats = categoryRepository.findPersonalAndHousehold(userId, householdIds);

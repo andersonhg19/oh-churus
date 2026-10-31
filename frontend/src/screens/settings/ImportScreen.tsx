@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useToast } from '../../contexts/ToastContext';
@@ -48,6 +48,24 @@ const ImportScreen: React.FC = () => {
   const [categorias, setCategorias] = useState<Category[]>([]);
   const [elegidas, setElegidas] = useState<Record<number, string>>({});
 
+  /* Cambiar el texto o el mapeo de columnas deja la vista previa sin valor:
+     lo que se veia ya no es lo que se va a leer, y confirmar mandaria el CSV
+     nuevo con las filas elegidas sobre el viejo —la fila 3 de antes no es la
+     fila 3 de ahora—. Por eso cualquier cambio la tira. `version` cubre
+     ademas el caso de la respuesta que llega TARDE: si se edito mientras la
+     vista previa estaba en camino, esa respuesta ya es de otro archivo y se
+     descarta en vez de pintarse. */
+  const version = useRef(0);
+  const invalidarPrevia = () => {
+    version.current += 1;
+    setPrevia(null);
+    setElegidas({});
+  };
+  const alCambiar = <T,>(fijar: (v: T) => void) => (v: T) => {
+    fijar(v);
+    invalidarPrevia();
+  };
+
   useEffect(() => {
     const cargar = async () => {
       if (!user) return;
@@ -76,8 +94,10 @@ const ImportScreen: React.FC = () => {
       showToast('warning', 'Validacion', 'Pega el contenido del extracto');
       return;
     }
+    const versionPedida = version.current;
     try {
       const res = await importService.preview(csv, mapeo());
+      if (version.current !== versionPedida) return; // se edito mientras tanto
       if (res.correct && res.object) {
         setPrevia(res.object);
         /* Se precargan las categorias que el diccionario sugiere: si no,
@@ -212,7 +232,7 @@ const ImportScreen: React.FC = () => {
           <Input
             label="Contenido del archivo"
             value={csv}
-            onChangeText={setCsv}
+            onChangeText={alCambiar(setCsv)}
             placeholder="fecha,concepto,valor..."
             multiline
           />
@@ -226,15 +246,15 @@ const ImportScreen: React.FC = () => {
 
           <View style={styles.columnas}>
             <View style={styles.columna}>
-              <Input label="Col. fecha" value={colFecha} onChangeText={setColFecha}
+              <Input label="Col. fecha" value={colFecha} onChangeText={alCambiar(setColFecha)}
                      placeholder="0" keyboardType="numeric" />
             </View>
             <View style={styles.columna}>
-              <Input label="Col. concepto" value={colDescripcion} onChangeText={setColDescripcion}
+              <Input label="Col. concepto" value={colDescripcion} onChangeText={alCambiar(setColDescripcion)}
                      placeholder="1" keyboardType="numeric" />
             </View>
             <View style={styles.columna}>
-              <Input label="Col. valor" value={colImporte} onChangeText={setColImporte}
+              <Input label="Col. valor" value={colImporte} onChangeText={alCambiar(setColImporte)}
                      placeholder="2" keyboardType="numeric" />
             </View>
           </View>
@@ -244,7 +264,7 @@ const ImportScreen: React.FC = () => {
 
           <TouchableOpacity
             testID="alternar-cabecera"
-            onPress={() => setConCabecera((a) => !a)}
+            onPress={() => { setConCabecera((a) => !a); invalidarPrevia(); }}
             accessibilityRole="checkbox"
             accessibilityState={{ checked: conCabecera }}
             accessibilityLabel="La primera fila son los títulos"
@@ -260,7 +280,7 @@ const ImportScreen: React.FC = () => {
 
           <TouchableOpacity
             testID="alternar-signo"
-            onPress={() => setInvertirSigno((a) => !a)}
+            onPress={() => { setInvertirSigno((a) => !a); invalidarPrevia(); }}
             accessibilityRole="checkbox"
             accessibilityState={{ checked: invertirSigno }}
             accessibilityLabel="Mi banco exporta los gastos en positivo"

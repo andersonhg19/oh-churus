@@ -8,6 +8,7 @@ import com.ohchurus.budget.repository.CategoryRepository;
 import com.ohchurus.budget.repository.HouseholdMemberRepository;
 import com.ohchurus.budget.repository.MovementRepository;
 import com.ohchurus.budget.service.impl.ExcelExportService;
+import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -29,6 +30,8 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -81,8 +84,8 @@ class ExcelExportServiceTest {
                 .thenReturn(List.of(confirmedExpense, confirmedIncome));
         when(movementRepository.findByUserIdAndDateBetweenAndConfirmedFalseAndActiveTrue(eq(USER_ID), any(), any()))
                 .thenReturn(List.of(pending));
-        when(categoryRepository.findByIdAndActiveTrue(20L)).thenReturn(Optional.of(expense()));
-        when(categoryRepository.findByIdAndActiveTrue(10L)).thenReturn(Optional.of(income()));
+        when(categoryRepository.findById(20L)).thenReturn(Optional.of(expense()));
+        when(categoryRepository.findById(10L)).thenReturn(Optional.of(income()));
         when(householdMemberRepository.findByUserIdAndActiveTrue(USER_ID)).thenReturn(Collections.emptyList());
         when(categoryRepository.findByUserIdAndActiveTrue(USER_ID)).thenReturn(List.of(expense(), income()));
 
@@ -101,7 +104,66 @@ class ExcelExportServiceTest {
             // first data row: confirmed expense
             assertEquals("Arriendo", ws.getRow(2).getCell(2).getStringCellValue());
             assertEquals(1500000d, ws.getRow(2).getCell(4).getNumericCellValue());
+            // la fecha es una fecha de Excel (numerica, con formato), no texto
+            assertEquals(CellType.NUMERIC, ws.getRow(2).getCell(6).getCellType());
+            assertEquals(REF, ws.getRow(2).getCell(6).getLocalDateTimeCellValue().toLocalDate());
+            assertEquals("DD/MM/YYYY", ws.getRow(2).getCell(6).getCellStyle().getDataFormatString());
+            assertEquals("$#,##0", ws.getRow(2).getCell(4).getCellStyle().getDataFormatString());
         }
+    }
+
+    @Test
+    @DisplayName("Un ingreso en una categoria desactivada sigue saliendo como Ingreso, con su nombre")
+    void shouldKeepInactiveCategory() throws Exception {
+        Category inactiva = Category.builder().id(10L).userId(USER_ID).name("Bonos")
+                .type(CategoryType.INCOME).active(false).build();
+        Movement m = Movement.builder().id(1L).userId(USER_ID).categoryId(10L)
+                .date(REF).amount(new BigDecimal("500000")).confirmed(true).active(true).build();
+
+        when(movementRepository.findByUserIdAndDateBetweenAndConfirmedTrueAndActiveTrue(eq(USER_ID), any(), any()))
+                .thenReturn(List.of(m));
+        when(movementRepository.findByUserIdAndDateBetweenAndConfirmedFalseAndActiveTrue(eq(USER_ID), any(), any()))
+                .thenReturn(Collections.emptyList());
+        when(categoryRepository.findById(10L)).thenReturn(Optional.of(inactiva));
+        when(householdMemberRepository.findByUserIdAndActiveTrue(USER_ID)).thenReturn(Collections.emptyList());
+        when(categoryRepository.findByUserIdAndActiveTrue(USER_ID)).thenReturn(Collections.emptyList());
+
+        try (Workbook wb = parse(service.exportPeriod(USER_ID, 1, REF))) {
+            Sheet ws = wb.getSheet("Presupuesto");
+            assertEquals("Ingreso", ws.getRow(2).getCell(1).getStringCellValue());
+            assertEquals("Bonos", ws.getRow(2).getCell(2).getStringCellValue());
+        }
+    }
+
+    @Test
+    @DisplayName("Con hogar, exporta los mismos movimientos que el panel (consultas del hogar)")
+    void shouldExportHouseholdMovements() throws Exception {
+        HouseholdMember membership = HouseholdMember.builder()
+                .id(1L).householdId(100L).userId(USER_ID).role("OWNER").active(true).build();
+        // Gasto de OTRO miembro en una categoria compartida: lo trae la consulta del hogar
+        Movement deOtro = Movement.builder().id(9L).userId(2L).categoryId(20L)
+                .date(REF).amount(new BigDecimal("80000")).description("Mercado casa")
+                .confirmed(true).active(true).build();
+
+        when(householdMemberRepository.findByUserIdAndActiveTrue(USER_ID)).thenReturn(List.of(membership));
+        when(movementRepository.findHouseholdConfirmed(eq(USER_ID), eq(List.of(100L)), any(), any()))
+                .thenReturn(List.of(deOtro));
+        when(movementRepository.findHouseholdPending(eq(USER_ID), eq(List.of(100L)), any(), any()))
+                .thenReturn(Collections.emptyList());
+        when(categoryRepository.findById(20L)).thenReturn(Optional.of(expense()));
+        when(categoryRepository.findPersonalAndHousehold(eq(USER_ID), anyList()))
+                .thenReturn(List.of(expense()));
+
+        try (Workbook wb = parse(service.exportPeriod(USER_ID, 1, REF))) {
+            Sheet ws = wb.getSheet("Presupuesto");
+            assertEquals("Mercado casa", ws.getRow(2).getCell(3).getStringCellValue());
+            assertEquals(80000d, ws.getRow(2).getCell(4).getNumericCellValue());
+        }
+        // Las consultas solo-propias ya no se usan cuando hay hogar
+        verify(movementRepository, never())
+                .findByUserIdAndDateBetweenAndConfirmedTrueAndActiveTrue(any(), any(), any());
+        verify(movementRepository, never())
+                .findByUserIdAndDateBetweenAndConfirmedFalseAndActiveTrue(any(), any(), any());
     }
 
     @Test
@@ -131,7 +193,7 @@ class ExcelExportServiceTest {
                 .thenReturn(List.of(messy));
         when(movementRepository.findByUserIdAndDateBetweenAndConfirmedFalseAndActiveTrue(eq(USER_ID), any(), any()))
                 .thenReturn(Collections.emptyList());
-        when(categoryRepository.findByIdAndActiveTrue(99L)).thenReturn(Optional.empty());
+        when(categoryRepository.findById(99L)).thenReturn(Optional.empty());
         when(householdMemberRepository.findByUserIdAndActiveTrue(USER_ID)).thenReturn(Collections.emptyList());
         when(categoryRepository.findByUserIdAndActiveTrue(USER_ID)).thenReturn(Collections.emptyList());
 
@@ -152,9 +214,9 @@ class ExcelExportServiceTest {
         HouseholdMember membership = HouseholdMember.builder()
                 .id(1L).householdId(100L).userId(USER_ID).role("OWNER").active(true).build();
 
-        when(movementRepository.findByUserIdAndDateBetweenAndConfirmedTrueAndActiveTrue(eq(USER_ID), any(), any()))
+        when(movementRepository.findHouseholdConfirmed(eq(USER_ID), anyList(), any(), any()))
                 .thenReturn(Collections.emptyList());
-        when(movementRepository.findByUserIdAndDateBetweenAndConfirmedFalseAndActiveTrue(eq(USER_ID), any(), any()))
+        when(movementRepository.findHouseholdPending(eq(USER_ID), anyList(), any(), any()))
                 .thenReturn(Collections.emptyList());
         when(householdMemberRepository.findByUserIdAndActiveTrue(USER_ID)).thenReturn(List.of(membership));
         when(categoryRepository.findPersonalAndHousehold(eq(USER_ID), anyList()))

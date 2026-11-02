@@ -127,6 +127,21 @@ export const formatCurrency = (amount: number): string => {
  *    ("1.500", "2.300.000"), es separador de miles. Un "1.5" es decimal.
  *  - Devuelve NaN si no queda ningun numero, para que el formulario avise.
  */
+/**
+ * Para recuadros estrechos: $7,96 M, $85 mil. En la web no hay forma de
+ * encoger el texto para que quepa, y "$7.960...." no dice nada.
+ */
+export const formatCompacto = (monto: number): string => {
+  const a = Math.abs(monto || 0);
+  const signo = monto < 0 ? '-' : '';
+  if (a >= 1_000_000) {
+    const m = a / 1_000_000;
+    return `${signo}$${m.toLocaleString('es-CO', { maximumFractionDigits: m >= 10 ? 1 : 2 })} M`;
+  }
+  if (a >= 10_000) return `${signo}$${Math.round(a / 1000).toLocaleString('es-CO')} mil`;
+  return formatCurrency(monto);
+};
+
 export const parseMonto = (texto: string | number | null | undefined): number => {
   if (typeof texto === 'number') return texto;
   const limpio = String(texto ?? '').replace(/[^0-9.,-]/g, '');

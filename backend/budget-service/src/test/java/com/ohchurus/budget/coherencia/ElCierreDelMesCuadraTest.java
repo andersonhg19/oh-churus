@@ -280,8 +280,11 @@ class ElCierreDelMesCuadraTest {
         assertThat(comprometido).isEqualByComparingTo(num(t.path("committed")));
         assertThat(num(t.path("unassigned"))).isEqualByComparingTo(num(t.path("incomeExpected")).subtract(num(t.path("budgeted"))));
         assertThat(num(t.path("freeToSpend"))).as("libre sale de su formula").isEqualByComparingTo(
-                num(t.path("incomeReceived")).subtract(num(t.path("spent"))).subtract(num(t.path("saved")))
-                        .subtract(num(t.path("committed"))).subtract(num(t.path("provisionsLeft"))));
+                num(t.path("incomeExpected")).subtract(num(t.path("spent"))).subtract(num(t.path("saved")))
+                        .subtract(num(t.path("toPay"))).subtract(num(t.path("provisionsLeft"))));
+        assertThat(num(t.path("toPay")))
+                .as("falta la natillera y el ahorro que no se hizo, aunque el ahorro no tenga pendiente generado")
+                .isEqualByComparingTo("3315000");
 
         JsonNode casaE = categoria(e, casa);
         assertThat(num(casaE.path("actual"))).isEqualByComparingTo("2300000");
@@ -320,6 +323,7 @@ class ElCierreDelMesCuadraTest {
             }
         }
         assertThat(suma).as("Andy + Samy = todo lo planeado del hogar").isEqualByComparingTo("6115000");
+        assertThat(suma).as("y es lo presupuestado del hogar").isEqualByComparingTo(num(e.path("totals").path("budgeted")));
     }
 
     @Test
@@ -333,7 +337,9 @@ class ElCierreDelMesCuadraTest {
         assertThat(num(t.path("unassigned"))).isEqualByComparingTo("1660000");
         assertThat(num(t.path("spent"))).as("arriendo + su parte de mascotas + delivery").isEqualByComparingTo("2630000");
         assertThat(num(t.path("committed"))).as("la natillera es de Samy, no suya").isEqualByComparingTo("0");
-        assertThat(num(t.path("freeToSpend"))).isEqualByComparingTo("5330000");
+        assertThat(num(t.path("freeToSpend")))
+                .as("recibio 7.960.000, gasto 2.630.000 y le falta el ahorro de 3.000.000")
+                .isEqualByComparingTo("2330000");
         assertThat(categoria(e, personalAndy)).isNotNull();
         assertThat(categoria(e, mascotas).path("status").asText())
                 .as("la bolsa de mascotas es de Samy: lo que Andy gasto ahi esta fuera de lo suyo")

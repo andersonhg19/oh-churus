@@ -391,6 +391,9 @@ public class MovementServiceImpl implements MovementService {
         java.math.BigDecimal total = java.math.BigDecimal.ZERO;
         int confirmados = 0;
         for (int i = 0; i < ids.size(); i++) {
+            /* Lo que ya estaba pagado no se vuelve a contar como "confirmado
+               ahora": el total del lote tiene que ser lo que se pago hoy. */
+            if (movementRepository.findByIdAndActiveTrue(ids.get(i)).map(Movement::getConfirmed).orElse(false)) continue;
             ResultDTO r = confirmWithAmount(ids.get(i), montos.get(i));
             if (!r.isCorrect()) {
                 com.ohchurus.budget.util.Transacciones.revertir();

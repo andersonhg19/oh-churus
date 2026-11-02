@@ -197,9 +197,10 @@ class DTOTest {
         assertEquals(50L, dto2.getParentMovementId());
         assertFalse(dto2.getConfirmed());
 
-        // Default confirmed is true
+        // Sin decir nada, confirmed es nulo: al crear vale "pagado", al editar
+        // deja el estado como estaba (ver MovementServiceImpl).
         MovementSaveDTO dto3 = new MovementSaveDTO();
-        assertTrue(dto3.getConfirmed());
+        assertNull(dto3.getConfirmed());
     }
 
     @Test

@@ -33,36 +33,42 @@ public class DashboardController {
     @PostMapping(value = "/summary", produces = "application/json")
     public ResponseEntity<ResultDTO> summary(@Valid @RequestBody DashboardRequestDTO request) {
         return ResponseEntity.ok(dashboardService.getSummary(
-                com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId(), request.getBudgetStartDay(), request.getReferenceDate()));
+                com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId(), corte(request.getBudgetStartDay()), request.getReferenceDate()));
     }
 
     @PostMapping(value = "/by-category", produces = "application/json")
     public ResponseEntity<ResultDTO> byCategory(@Valid @RequestBody DashboardRequestDTO request) {
         return ResponseEntity.ok(dashboardService.getByCategory(
-                com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId(), request.getBudgetStartDay(), request.getReferenceDate()));
+                com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId(), corte(request.getBudgetStartDay()), request.getReferenceDate()));
     }
 
     @PostMapping(value = "/trend", produces = "application/json")
     public ResponseEntity<ResultDTO> trend(@Valid @RequestBody DashboardRequestDTO request) {
         return ResponseEntity.ok(dashboardService.getTrend(
-                com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId(), request.getBudgetStartDay()));
+                com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId(), corte(request.getBudgetStartDay())));
     }
 
     @PostMapping(value = "/pending", produces = "application/json")
     public ResponseEntity<ResultDTO> pending(@Valid @RequestBody DashboardRequestDTO request) {
         return ResponseEntity.ok(dashboardService.getPending(
-                com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId(), request.getBudgetStartDay(), request.getReferenceDate()));
+                com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId(), corte(request.getBudgetStartDay()), request.getReferenceDate()));
     }
 
     @PostMapping(value = "/split-summary", produces = "application/json")
     public ResponseEntity<ResultDTO> splitSummary(@Valid @RequestBody DashboardRequestDTO request) {
         return ResponseEntity.ok(dashboardService.getSplitSummary(
-                com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId(), request.getBudgetStartDay(), request.getReferenceDate()));
+                com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId(), corte(request.getBudgetStartDay()), request.getReferenceDate()));
     }
 
     @PostMapping(value = "/consolidated", produces = "application/json")
     public ResponseEntity<ResultDTO> consolidated(@Valid @RequestBody DashboardRequestDTO request) {
         return ResponseEntity.ok(budgetAllocationService.consolidated(
-                com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId(), request.getBudgetStartDay(), request.getReferenceDate()));
+                com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId(), corte(request.getBudgetStartDay()), request.getReferenceDate()));
+    }
+
+    /* Sin dia de corte se usa el 1, como en el resto de la app: antes el
+       panel respondia 500 al desempaquetar el nulo. */
+    private static Integer corte(Integer dia) {
+        return dia != null ? dia : 1;
     }
 }

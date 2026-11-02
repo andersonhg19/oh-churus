@@ -144,6 +144,16 @@ public class PlanFinancieroService {
         return out;
     }
 
+    /** Quien paga una fecha: el dueno de su pendiente si existe, si no el del programado. */
+    static Long pagadorEfectivo(Linea l, Fecha f) {
+        if (f.movimientoId() != null) {
+            for (Movement m : l.porClave().values()) {
+                if (f.movimientoId().equals(m.getId()) && m.getUserId() != null) return m.getUserId();
+            }
+        }
+        return l.pagador();
+    }
+
     private Map<String, Object> aMapa(Fecha f) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("scheduledMovementId", f.l().p().getId());
@@ -379,7 +389,9 @@ public class PlanFinancieroService {
     private List<Map<String, Object>> alertas(List<Linea> mias, LocalDate hoy, Map<String, Object> actual) {
         List<Map<String, Object>> out = new ArrayList<>();
         for (Linea l : mias) {
-            if (l.ingreso() || l.clase() == ScheduledKind.PROVISION) continue;
+            /* El descuento de nomina lo cobra la empresa sola: avisar que
+               "vencio" asusta por algo que nadie tiene que hacer. */
+            if (l.ingreso() || l.clase() == ScheduledKind.PROVISION || l.clase() == ScheduledKind.DEDUCTION) continue;
             for (Fecha f : fechas(l, hoy.minusDays(60), hoy.plusDays(DIAS_DE_AVISO), hoy)) {
                 if ("VENCIDO".equals(f.estado())) {
                     out.add(alerta("VENCIDO", f.l().p().getName() + " vencio el " + f.fecha(), f));
@@ -469,8 +481,11 @@ public class PlanFinancieroService {
             for (Long id : hogares.companerosDeHogar(yo)) porPersona.put(id, new ArrayList<>());
             for (Linea l : visibles(yo)) {
                 if (!l.compartida() && !yo.equals(l.pagador())) continue;
-                porPersona.computeIfAbsent(l.pagador(), k -> new ArrayList<>())
-                        .addAll(fechas(l, inicio, fin, hoy));
+                /* Cada fecha va con quien la paga ESTA vez: si el pendiente se
+                   paso a la pareja, ya es de ella. */
+                for (Fecha f : fechas(l, inicio, fin, hoy)) {
+                    porPersona.computeIfAbsent(pagadorEfectivo(l, f), k -> new ArrayList<>()).add(f);
+                }
             }
 
             List<Map<String, Object>> personas = new ArrayList<>();

@@ -106,9 +106,9 @@ public class BudgetAllocationServiceImpl {
             LocalDate periodStart = PeriodUtils.getStartOfPeriod(budgetStartDay, ref);
 
             List<Long> hIds = householdService.getHouseholdIds(userId);
-            List<BudgetAllocation> allocations = !hIds.isEmpty()
+            List<BudgetAllocation> allocations = visibles(!hIds.isEmpty()
                     ? allocationRepository.findAllForUserAndHousehold(userId, hIds, periodStart)
-                    : allocationRepository.findByUserIdAndPeriodStartAndActiveTrue(userId, periodStart);
+                    : allocationRepository.findByUserIdAndPeriodStartAndActiveTrue(userId, periodStart), userId);
 
             // Enrich with category info
             List<Map<String, Object>> result = allocations.stream().map(a -> {
@@ -218,9 +218,9 @@ public class BudgetAllocationServiceImpl {
             List<Long> hIds = householdService.getHouseholdIds(userId);
 
             // Get allocations
-            List<BudgetAllocation> allocations = !hIds.isEmpty()
+            List<BudgetAllocation> allocations = visibles(!hIds.isEmpty()
                     ? allocationRepository.findAllForUserAndHousehold(userId, hIds, periodStart)
-                    : allocationRepository.findByUserIdAndPeriodStartAndActiveTrue(userId, periodStart);
+                    : allocationRepository.findByUserIdAndPeriodStartAndActiveTrue(userId, periodStart), userId);
 
             // Get all confirmed movements in period (non-transfer, non-child for category totals)
             List<Movement> confirmed = !hIds.isEmpty()
@@ -381,6 +381,24 @@ public class BudgetAllocationServiceImpl {
         return lista;
     }
 
+    /**
+     * Las asignaciones que de verdad le corresponden a quien pregunta, segun
+     * como esta la categoria HOY: un ingreso no es gasto presupuestado (salia
+     * sumado al total), y una categoria que la pareja volvio privada deja de
+     * ensenar su presupuesto aunque la asignacion conserve el hogar.
+     */
+    private List<BudgetAllocation> visibles(List<BudgetAllocation> todas, Long userId) {
+        List<BudgetAllocation> out = new ArrayList<>();
+        Map<Long, Category> cats = new HashMap<>();
+        for (BudgetAllocation a : todas) {
+            Category c = cats.computeIfAbsent(a.getCategoryId(), id -> categoryRepository.findByIdAndActiveTrue(id).orElse(null));
+            if (c == null || c.getType() == CategoryType.INCOME) continue;
+            if (c.getHouseholdId() == null && !Objects.equals(c.getUserId(), userId)) continue;
+            out.add(a);
+        }
+        return out;
+    }
+
     // ===== TRANSFER (DISPONIBILIZAR) =====
 
     public ResultDTO transfer(Long userId, Long fromCategoryId, Long toCategoryId,
@@ -537,9 +555,9 @@ public class BudgetAllocationServiceImpl {
             }
 
             // Budget allocations
-            List<BudgetAllocation> allocations = !hIds.isEmpty()
+            List<BudgetAllocation> allocations = visibles(!hIds.isEmpty()
                     ? allocationRepository.findAllForUserAndHousehold(userId, hIds, periodStart)
-                    : allocationRepository.findByUserIdAndPeriodStartAndActiveTrue(userId, periodStart);
+                    : allocationRepository.findByUserIdAndPeriodStartAndActiveTrue(userId, periodStart), userId);
 
             BigDecimal totalBudgeted = allocations.stream()
                     .map(BudgetAllocation::getAllocatedAmount)

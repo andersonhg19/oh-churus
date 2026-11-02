@@ -116,10 +116,16 @@ public class ScheduledMovementServiceImpl implements ScheduledMovementService {
 
     @Override
     public ResultDTO saveAndUpdate(ScheduledMovementSaveDTO dto) {
+        /* Un credito de 0 cuotas termina antes de empezar: no genera nada y
+           desaparece del plan sin que se sepa por que. */
+        if (dto.getDurationMonths() != null && dto.getDurationMonths() <= 0) {
+            return new ResultDTO(false, "La duracion tiene que ser de al menos 1 mes (o vacia si no termina)", 400);
+        }
         try {
             boolean isUpdate = dto.getId() != null;
             return isUpdate ? updateScheduled(dto) : createScheduled(dto);
         } catch (Exception e) {
+            com.ohchurus.budget.util.Transacciones.revertir();
             log.error("Error saving scheduled movement: {}", e.getMessage(), e);
             return new ResultDTO(false, "Error saving scheduled movement", 500);
         }
@@ -213,6 +219,7 @@ public class ScheduledMovementServiceImpl implements ScheduledMovementService {
            ya generadas quedan con claves del calendario viejo (ver
            realinearOcurrencias). */
         String calendarioAntes = firmaDelCalendario(scheduled);
+        Antes antes = new Antes(scheduled.getAmount(), scheduled.getCategoryId(), scheduled.getName(), pagadorDe(scheduled));
         /* El dueno NUNCA cambia al actualizar. Antes se reasignaba al userId
            del cuerpo cuando la categoria era personal, asi que mandar el id de
            un programado ajeno bastaba para quedarse con el. */
@@ -258,9 +265,13 @@ public class ScheduledMovementServiceImpl implements ScheduledMovementService {
 
         ScheduledMovement saved = scheduledMovementRepository.save(scheduled);
         realinearOcurrencias(saved, !calendarioAntes.equals(firmaDelCalendario(saved)),
-                dto.getBudgetStartDay() != null ? dto.getBudgetStartDay() : 1);
+                dto.getBudgetStartDay() != null ? dto.getBudgetStartDay() : 1, antes);
         log.info("Scheduled movement updated: id={}", saved.getId());
         return new ResultDTO(scheduledMovementMapper.toResultDTO(saved));
+    }
+
+    private static String cmp(BigDecimal v) {
+        return v == null ? null : v.stripTrailingZeros().toPlainString();
     }
 
     private static String firmaDelCalendario(ScheduledMovement p) {
@@ -290,7 +301,10 @@ public class ScheduledMovementServiceImpl implements ScheduledMovementService {
      *  · Si no: importe, categoria, nombre y responsable pasan a los pendientes
      *    sin confirmar; y si ahora es una provision, esos pendientes sobran.
      */
-    private void realinearOcurrencias(ScheduledMovement p, boolean cambioElCalendario, int diaDeCorte) {
+    /** Como estaba el programado antes de editarlo: solo se propaga lo que cambio. */
+    private record Antes(BigDecimal importe, Long categoria, String nombre, Long pagador) {}
+
+    private void realinearOcurrencias(ScheduledMovement p, boolean cambioElCalendario, int diaDeCorte, Antes antes) {
         List<Movement> generadas = movementRepository.findByScheduledMovementId(p.getId());
         if (generadas.isEmpty()) {
             return;
@@ -307,13 +321,21 @@ public class ScheduledMovementServiceImpl implements ScheduledMovementService {
         }
 
         if (!cambioElCalendario) {
+            /* Solo lo que CAMBIO en el programado pasa a sus pendientes. Si se
+               toca solo la nota, un pendiente corregido a 175.350 no vuelve a
+               150.000, y uno que esta vez paga la pareja no vuelve a su dueno. */
             Long pagador = pagadorDe(p);
-            Long cuenta = cuentas.porDefecto(pagador).getId();
+            boolean cambioImporte = !Objects.equals(cmp(antes.importe()), cmp(p.getAmount()));
+            boolean cambioCategoria = !Objects.equals(antes.categoria(), p.getCategoryId());
+            boolean cambioNombre = !Objects.equals(antes.nombre(), p.getName());
+            boolean cambioPagador = !Objects.equals(antes.pagador(), pagador);
+            if (!cambioImporte && !cambioCategoria && !cambioNombre && !cambioPagador) return;
+            Long cuenta = cambioPagador ? cuentas.porDefecto(pagador).getId() : null;
             for (Movement m : sinConfirmarVivos) {
-                m.setAmount(p.getAmount() != null ? p.getAmount() : BigDecimal.ZERO);
-                m.setCategoryId(p.getCategoryId());
-                m.setDescription(p.getName());
-                if (!pagador.equals(m.getUserId())) {
+                if (cambioImporte) m.setAmount(p.getAmount() != null ? p.getAmount() : BigDecimal.ZERO);
+                if (cambioCategoria) m.setCategoryId(p.getCategoryId());
+                if (cambioNombre) m.setDescription(p.getName());
+                if (cambioPagador && !pagador.equals(m.getUserId())) {
                     m.setUserId(pagador);
                     m.setAccountId(cuenta);
                 }
@@ -680,7 +702,12 @@ public class ScheduledMovementServiceImpl implements ScheduledMovementService {
      * esta ocurrencia", no "vuelve a crearmela en el siguiente refresco".
      */
     private List<Ocurrencia> ocurrenciasQueFaltan(ScheduledMovement programado, LocalDate hasta) {
-        List<Ocurrencia> todas = CalendarioDeRecurrencias.ocurrenciasHasta(programado, hasta);
+        /* Se enumera unos dias de mas y se corta por la fecha REAL del pago:
+           el arriendo del sabado 28 que se paga el viernes 27 tiene que tener
+           su pendiente el 27, no nacer ya vencido en el periodo siguiente. */
+        List<Ocurrencia> todas = CalendarioDeRecurrencias.ocurrenciasHasta(programado, hasta.plusDays(3)).stream()
+                .filter(o -> !o.fecha().isAfter(hasta))
+                .collect(Collectors.toList());
         if (todas.isEmpty()) {
             return todas;
         }

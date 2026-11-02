@@ -62,5 +62,8 @@ public class MovementSaveDTO {
     /** Quien participa y con que valor. Ver SplitInputDTO. */
     private java.util.List<SplitInputDTO> splits;
 
-    private Boolean confirmed = true;
+    /* Nulo = "no lo dije": al crear se toma como pagado, al editar se deja
+       como estaba. Con true por defecto, corregir el valor de un pendiente
+       desde un cliente que no manda el campo lo daba por pagado. */
+    private Boolean confirmed;
 }

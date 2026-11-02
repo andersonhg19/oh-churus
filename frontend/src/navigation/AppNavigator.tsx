@@ -1,21 +1,32 @@
 import React, { useState, useEffect } from 'react';
-import { Text, View, StyleSheet, TouchableOpacity } from 'react-native';
+import { Text, View, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { createDrawerNavigator } from '@react-navigation/drawer';
+import { createDrawerNavigator, DrawerContentComponentProps } from '@react-navigation/drawer';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
+import { AlcanceProvider } from '../contexts/AlcanceContext';
 import OnboardingScreen, { isOnboardingDone } from '../screens/onboarding/OnboardingScreen';
 import Spinner from '../components/atoms/Spinner';
+import AppText from '../components/atoms/Text';
+import Icono from '../components/atoms/Icono';
 
-// Auth screens
+// Auth
 import LoginScreen from '../screens/auth/LoginScreen';
 import RegisterScreen from '../screens/auth/RegisterScreen';
 
-// Main screens
-import DashboardScreen from '../screens/dashboard/DashboardScreen';
-import SummaryScreen from '../screens/summary/SummaryScreen';
+// Lo nuevo (ola 6): la app al estilo Monefy
+import InicioScreen from '../screens/inicio/InicioScreen';
+import AnotarScreen from '../screens/anotar/AnotarScreen';
+import PresupuestoScreen from '../screens/presupuesto/PresupuestoScreen';
+import CategoriaScreen from '../screens/presupuesto/CategoriaScreen';
+import CierreScreen from '../screens/presupuesto/CierreScreen';
+import ResponsabilidadesScreen from '../screens/responsabilidades/ResponsabilidadesScreen';
+import PorConfirmarScreen from '../screens/pendientes/PorConfirmarScreen';
+import IngresosScreen from '../screens/ingresos/IngresosScreen';
+
+// Lo que se conserva tal cual, ahora desde el menu
 import CategoryDrillDownScreen from '../screens/summary/CategoryDrillDownScreen';
 import MovementFormScreen from '../screens/movements/MovementFormScreen';
 import MovementsListScreen from '../screens/movements/MovementsListScreen';
@@ -34,461 +45,212 @@ import ReconcileScreen from '../screens/accounts/ReconcileScreen';
 import BalancesScreen from '../screens/splits/BalancesScreen';
 import EnvelopesScreen from '../screens/budget/EnvelopesScreen';
 import ImportScreen from '../screens/settings/ImportScreen';
+import PlanScreen from '../screens/plan/PlanScreen';
+import ConsolidatedScreen from '../screens/consolidated/ConsolidatedScreen';
 
-// Administracion (ola 4). Se registran SIEMPRE, y quien no es administrador
-// simplemente no tiene como llegar: la entrada no se pinta y el backend
-// responde 403 a las tres. Registrarlas condicionalmente obligaria a rehacer
-// el arbol de navegacion cuando cambia el rol, y un arbol que cambia debajo de
-// una pantalla abierta es como se pierde el sitio donde estabas.
+// Administracion (ola 4): registradas siempre; quien no es administrador no
+// tiene como llegar y el backend le responde 403.
 import AdminUsersScreen from '../screens/admin/AdminUsersScreen';
 import AdminRolesScreen from '../screens/admin/AdminRolesScreen';
 import AdminModulesScreen from '../screens/admin/AdminModulesScreen';
 import AdminAuditScreen from '../screens/admin/AdminAuditScreen';
 
-// Budget & Consolidated screens
-import BudgetScreen from '../screens/budget/BudgetScreen';
-import PlanScreen from '../screens/plan/PlanScreen';
-import ConsolidatedScreen from '../screens/consolidated/ConsolidatedScreen';
-
-// Fasting screens
+// Ayuno
 import FastingDashboardScreen from '../screens/fasting/FastingDashboardScreen';
 import FastingHistoryScreen from '../screens/fasting/FastingHistoryScreen';
 import FastingConfigScreen from '../screens/fasting/FastingConfigScreen';
 
-import { Movement, CategoryTree, ScheduledMovement, Account} from '../types';
+/* Las pantallas de siempre tipan sus props con la pila en la que vivian; aqui
+   todas comparten una sola, asi que se registran sin ese tipo. */
+const pantalla = (c: React.ComponentType<any>) => c as React.ComponentType<any>;
 
-// --- Type definitions ---
-type AuthStackParamList = {
-  Login: undefined;
-  Register: undefined;
-};
-
-type RootStackParamList = {
-  MainTabs: undefined;
-  MovementFormModal: { movement?: Movement; parentMovement?: Movement };
-};
-
-type DashboardStackParamList = {
-  DashboardMain: undefined;
-  MovementsList: undefined;
-  Plan: undefined;
-};
-
-type SummaryStackParamList = {
-  SummaryMain: undefined;
-  CategoryDrillDown: { categoryId: string; categoryName: string; color: string; startDate: string; endDate: string };
-};
-
-type ScheduledStackParamList = {
-  ScheduledList: undefined;
-  ScheduledForm: { scheduled?: ScheduledMovement };
-};
-
-type BudgetStackParamList = {
-  Envelopes: undefined;
-  BudgetMain: undefined;
-  Consolidated: undefined;
-  PlanFromBudget: undefined;
-};
-
-type SettingsStackParamList = {
-  SettingsMain: undefined;
-  ExportImport: undefined;
-  Import: undefined;
-  PeriodConfig: undefined;
-  CurrencyConfig: undefined;
-  Household: undefined;
-  Consolidated: undefined;
-  CategoriesList: undefined;
-  CategoryForm: { category?: CategoryTree };
-  AccountsList: undefined;
-  AccountForm: { account?: Account };
-  Reconcile: { account: Account };
-  Balances: undefined;
-  AdminUsers: undefined;
-  AdminRoles: undefined;
-  AdminModules: undefined;
-  AdminAudit: undefined;
-};
-
-// --- Stacks ---
-const AuthStack = createNativeStackNavigator<AuthStackParamList>();
-const RootStack = createNativeStackNavigator<RootStackParamList>();
+const AuthStack = createNativeStackNavigator<any>();
+const RootStack = createNativeStackNavigator<any>();
 const Drawer = createDrawerNavigator();
 const FastingTab = createBottomTabNavigator();
-const DashboardStack = createNativeStackNavigator<DashboardStackParamList>();
-const SummaryStack = createNativeStackNavigator<SummaryStackParamList>();
-const ScheduledStack = createNativeStackNavigator<ScheduledStackParamList>();
-const BudgetStack = createNativeStackNavigator<BudgetStackParamList>();
-const SettingsStack = createNativeStackNavigator<SettingsStackParamList>();
-const Tab = createBottomTabNavigator();
+const Finanzas = createNativeStackNavigator<any>();
 
-// --- Stack navigators ---
 const AuthNavigator = () => {
   const { colors } = useTheme();
   return (
     <AuthStack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
-      <AuthStack.Screen name="Login" component={LoginScreen} />
-      <AuthStack.Screen name="Register" component={RegisterScreen} />
+      <AuthStack.Screen name="Login" component={pantalla(LoginScreen)} />
+      <AuthStack.Screen name="Register" component={pantalla(RegisterScreen)} />
     </AuthStack.Navigator>
   );
 };
 
-const DashboardNavigator = () => {
+/*
+ * FINANZAS: una sola pila. Antes eran seis pestanas abajo (Inicio, Resumen,
+ * Presupuesto, +, Programados, Ajustes) y cada una con su pila, asi que una
+ * misma pantalla (el Plan, el Consolidado) vivia registrada dos veces. Ahora,
+ * como en Monefy, la pantalla principal es la dona y todo lo demas se abre
+ * desde el menu lateral. Las pantallas nuevas dibujan su propia barra; las de
+ * siempre conservan la cabecera con flecha atras.
+ */
+const FinanzasNavigator = () => {
   const { colors } = useTheme();
+  const cabecera = {
+    headerShown: true,
+    headerStyle: { backgroundColor: colors.surface },
+    headerTintColor: colors.text,
+    headerShadowVisible: false,
+  };
   return (
-    <DashboardStack.Navigator screenOptions={{
-      headerStyle: { backgroundColor: colors.surface },
-      headerTintColor: colors.text,
-      headerShadowVisible: false,
-      contentStyle: { backgroundColor: colors.background },
-    }}>
-      <DashboardStack.Screen name="DashboardMain" component={DashboardScreen} options={{ headerShown: false }} />
-      <DashboardStack.Screen name="MovementsList" component={MovementsListScreen} options={{ title: 'Movimientos' }} />
-      <DashboardStack.Screen name="Plan" component={PlanScreen} options={{ title: 'Mi quincena' }} />
-    </DashboardStack.Navigator>
+    <Finanzas.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
+      <Finanzas.Screen name="Inicio" component={pantalla(InicioScreen)} />
+      <Finanzas.Screen name="Presupuesto" component={pantalla(PresupuestoScreen)} />
+      <Finanzas.Screen name="Categoria" component={pantalla(CategoriaScreen)} />
+      <Finanzas.Screen name="Cierre" component={pantalla(CierreScreen)} />
+      <Finanzas.Screen name="Responsabilidades" component={pantalla(ResponsabilidadesScreen)} />
+      <Finanzas.Screen name="PorConfirmar" component={pantalla(PorConfirmarScreen)} />
+      <Finanzas.Screen name="Ingresos" component={pantalla(IngresosScreen)} />
+
+      <Finanzas.Group screenOptions={cabecera}>
+        <Finanzas.Screen name="Plan" component={pantalla(PlanScreen)} options={{ title: 'Plan y quincenas' }} />
+        <Finanzas.Screen name="ScheduledList" component={pantalla(ScheduledScreen)} options={{ title: 'Programados' }} />
+        <Finanzas.Screen name="ScheduledForm" component={pantalla(ScheduledFormScreen)} options={{ title: 'Programado' }} />
+        <Finanzas.Screen name="MovementsList" component={pantalla(MovementsListScreen)} options={{ title: 'Movimientos' }} />
+        <Finanzas.Screen name="CategoryDrillDown" component={pantalla(CategoryDrillDownScreen)} options={({ route }: any) => ({ title: route.params?.categoryName || 'Categoría' })} />
+        <Finanzas.Screen name="Envelopes" component={pantalla(EnvelopesScreen)} options={{ title: 'Sobres y arrastre' }} />
+        <Finanzas.Screen name="Consolidated" component={pantalla(ConsolidatedScreen)} options={{ title: 'Consolidado' }} />
+        <Finanzas.Screen name="Balances" component={pantalla(BalancesScreen)} options={{ title: 'Entre nosotros' }} />
+        <Finanzas.Screen name="AccountsList" component={pantalla(AccountsScreen)} options={{ title: 'Cuentas' }} />
+        <Finanzas.Screen name="AccountForm" component={pantalla(AccountFormScreen)} options={{ title: 'Cuenta' }} />
+        <Finanzas.Screen name="Reconcile" component={pantalla(ReconcileScreen)} options={{ title: 'Conciliar' }} />
+        <Finanzas.Screen name="SettingsMain" component={pantalla(SettingsScreen)} options={{ title: 'Ajustes' }} />
+        <Finanzas.Screen name="ExportImport" component={pantalla(ExportImportScreen)} options={{ title: 'Exportar / Importar' }} />
+        <Finanzas.Screen name="Import" component={pantalla(ImportScreen)} options={{ title: 'Importar del banco' }} />
+        <Finanzas.Screen name="PeriodConfig" component={pantalla(PeriodConfigScreen)} options={{ title: 'Día de corte' }} />
+        <Finanzas.Screen name="CurrencyConfig" component={pantalla(CurrencyConfigScreen)} options={{ title: 'Moneda y decimales' }} />
+        <Finanzas.Screen name="Household" component={pantalla(HouseholdScreen)} options={{ title: 'Hogar' }} />
+        <Finanzas.Screen name="CategoriesList" component={pantalla(CategoriesScreen)} options={{ title: 'Categorías' }} />
+        <Finanzas.Screen name="CategoryForm" component={pantalla(CategoryFormScreen)} options={{ title: 'Categoría' }} />
+        <Finanzas.Screen name="AdminUsers" component={pantalla(AdminUsersScreen)} options={{ title: 'Usuarios' }} />
+        <Finanzas.Screen name="AdminRoles" component={pantalla(AdminRolesScreen)} options={{ title: 'Roles' }} />
+        <Finanzas.Screen name="AdminModules" component={pantalla(AdminModulesScreen)} options={{ title: 'Módulos y permisos' }} />
+        <Finanzas.Screen name="AdminAudit" component={pantalla(AdminAuditScreen)} options={{ title: 'Auditoría' }} />
+      </Finanzas.Group>
+    </Finanzas.Navigator>
   );
 };
 
-const SummaryNavigator = () => {
-  const { colors } = useTheme();
-  return (
-    <SummaryStack.Navigator
-      screenOptions={{
-        headerStyle: { backgroundColor: colors.surface },
-        headerTintColor: colors.text,
-        headerShadowVisible: false,
-        contentStyle: { backgroundColor: colors.background },
-      }}
-    >
-      <SummaryStack.Screen name="SummaryMain" component={SummaryScreen} options={{ headerShown: false }} />
-      <SummaryStack.Screen name="CategoryDrillDown" component={CategoryDrillDownScreen} options={({ route }) => ({ title: route.params.categoryName })} />
-    </SummaryStack.Navigator>
-  );
-};
+/** Lo que hay en el menu lateral, en el orden en que se usa. */
+const MENU: { titulo: string; icono: string; destino: string; detalle?: string }[][] = [
+  [
+    { titulo: 'Inicio', icono: 'home', destino: 'Inicio' },
+    { titulo: 'Presupuesto', icono: 'chart', destino: 'Presupuesto', detalle: 'Planeado, real y quién' },
+    { titulo: 'Cierre de cada mes', icono: 'history', destino: 'Cierre', detalle: 'Lo esperado contra lo real' },
+    { titulo: 'Por confirmar', icono: 'check', destino: 'PorConfirmar', detalle: 'Pagos del periodo' },
+    { titulo: 'Responsabilidades', icono: 'people', destino: 'Responsabilidades', detalle: 'Lo mío y lo de los dos' },
+    { titulo: 'Ingresos', icono: 'trending-up', destino: 'Ingresos' },
+  ],
+  [
+    { titulo: 'Plan y quincenas', icono: 'calendar', destino: 'Plan', detalle: 'Calendario y proyección' },
+    { titulo: 'Programados', icono: 'clock', destino: 'ScheduledList', detalle: 'Facturas, cuotas, ahorro, bolsas' },
+    { titulo: 'Movimientos', icono: 'list', destino: 'MovementsList' },
+    { titulo: 'Entre nosotros', icono: 'swap-horizontal', destino: 'Balances', detalle: 'Quién le debe a quién' },
+    { titulo: 'Cuentas', icono: 'wallet', destino: 'AccountsList', detalle: 'Saldos y conciliar' },
+  ],
+  [
+    { titulo: 'Consolidado', icono: 'bar-chart', destino: 'Consolidated' },
+    { titulo: 'Exportar e importar', icono: 'upload', destino: 'ExportImport' },
+    { titulo: 'Ajustes', icono: 'settings', destino: 'SettingsMain', detalle: 'Categorías, hogar, corte, moneda' },
+  ],
+];
 
-const ScheduledNavigator = () => {
+const MenuFinanzas: React.FC<DrawerContentComponentProps> = ({ navigation }) => {
   const { colors } = useTheme();
+  const { user } = useAuth();
+  const ir = (destino: string) => {
+    navigation.closeDrawer();
+    navigation.navigate('FinanceModule', destino === 'Inicio' ? { screen: 'Inicio' } : { screen: destino });
+  };
   return (
-    <ScheduledStack.Navigator
-      screenOptions={{
-        headerStyle: { backgroundColor: colors.surface },
-        headerTintColor: colors.text,
-        headerShadowVisible: false,
-        contentStyle: { backgroundColor: colors.background },
-      }}
-    >
-      <ScheduledStack.Screen name="ScheduledList" component={ScheduledScreen} options={{ headerShown: false }} />
-      <ScheduledStack.Screen name="ScheduledForm" component={ScheduledFormScreen} options={{ title: 'Programado' }} />
-    </ScheduledStack.Navigator>
-  );
-};
-
-const SettingsNavigator = () => {
-  const { colors } = useTheme();
-  return (
-    <SettingsStack.Navigator
-      screenOptions={{
-        headerStyle: { backgroundColor: colors.surface },
-        headerTintColor: colors.text,
-        headerShadowVisible: false,
-        contentStyle: { backgroundColor: colors.background },
-      }}
-    >
-      <SettingsStack.Screen name="SettingsMain" component={SettingsScreen} options={{ headerShown: false }} />
-      <SettingsStack.Screen name="ExportImport" component={ExportImportScreen} options={{ title: 'Exportar / Importar' }} />
-      <SettingsStack.Screen name="Import" component={ImportScreen} options={{ title: 'Importar del banco' }} />
-      <SettingsStack.Screen name="PeriodConfig" component={PeriodConfigScreen} options={{ title: 'Configuracion de periodo' }} />
-      <SettingsStack.Screen name="CurrencyConfig" component={CurrencyConfigScreen} options={{ title: 'Moneda y decimales' }} />
-      <SettingsStack.Screen name="Household" component={HouseholdScreen} options={{ title: 'Nucleo Familiar' }} />
-      <SettingsStack.Screen name="CategoriesList" component={CategoriesScreen} options={{ title: 'Categorias' }} />
-      <SettingsStack.Screen name="CategoryForm" component={CategoryFormScreen} options={{ title: 'Categoria' }} />
-      <SettingsStack.Screen name="AccountsList" component={AccountsScreen} options={{ title: 'Cuentas' }} />
-      <SettingsStack.Screen name="AccountForm" component={AccountFormScreen} options={{ title: 'Cuenta' }} />
-      <SettingsStack.Screen name="Reconcile" component={ReconcileScreen} options={{ title: 'Conciliar' }} />
-      <SettingsStack.Screen name="Balances" component={BalancesScreen} options={{ title: 'Cuentas entre nosotros' }} />
-      <SettingsStack.Screen name="Consolidated" component={ConsolidatedScreen} options={{ title: 'Consolidado Mensual' }} />
-      <SettingsStack.Screen name="AdminUsers" component={AdminUsersScreen} options={{ title: 'Usuarios' }} />
-      <SettingsStack.Screen name="AdminRoles" component={AdminRolesScreen} options={{ title: 'Roles' }} />
-      <SettingsStack.Screen name="AdminModules" component={AdminModulesScreen} options={{ title: 'Modulos y permisos' }} />
-      <SettingsStack.Screen name="AdminAudit" component={AdminAuditScreen} options={{ title: 'Auditoria' }} />
-    </SettingsStack.Navigator>
-  );
-};
-
-// --- Budget Navigator ---
-const BudgetNavigator = () => {
-  const { colors } = useTheme();
-  return (
-    <BudgetStack.Navigator
-      screenOptions={{
-        headerStyle: { backgroundColor: colors.surface },
-        headerTintColor: colors.text,
-        headerShadowVisible: false,
-      }}
-    >
-      <BudgetStack.Screen name="BudgetMain" component={BudgetScreen} options={{ title: 'Presupuesto' }} />
-      <BudgetStack.Screen name="Envelopes" component={EnvelopesScreen} options={{ title: 'Sobres' }} />
-      <BudgetStack.Screen name="PlanFromBudget" component={PlanScreen} options={{ title: 'Plan' }} />
-      <BudgetStack.Screen name="Consolidated" component={ConsolidatedScreen} options={{ title: 'Consolidado' }} />
-    </BudgetStack.Navigator>
-  );
-};
-
-// --- Placeholder for center FAB tab ---
-const EmptyScreen = () => <View />;
-
-// --- Center FAB as proper component (avoids hooks violation) ---
-const CenterTabButton: React.FC<any> = ({ onPress, ...rest }) => {
-  const { colors } = useTheme();
-  return (
-    <TouchableOpacity
-      style={fabStyles.wrapper}
-      onPress={onPress}
-      activeOpacity={0.85}
-      /*
-       * El boton central de la barra es el mas usado de la app y es un "+"
-       * sin etiqueta visible: las otras pestanas tienen su texto debajo y el
-       * lector lo aprovecha, pero esta lleva `tabBarLabel: ''` a proposito
-       * para que el circulo quede limpio. Sin esto, la accion principal de la
-       * app se anuncia como "mas" y ya.
-       */
-      accessibilityRole="button"
-      accessibilityLabel="Anotar un movimiento"
-    >
-      <View style={[fabStyles.fab, { backgroundColor: colors.primary, borderColor: colors.surface }]}>
-        <Text style={[fabStyles.icon, { color: colors.surface }]}>+</Text>
+    <ScrollView style={{ backgroundColor: colors.surface }} contentContainerStyle={menu.contenido}>
+      <AppText variant="subtitle" style={{ marginBottom: 4 }}>Oh Churus</AppText>
+      <AppText variant="caption" color={colors.textSecondary} style={{ marginBottom: 12 }}>{user?.name}</AppText>
+      {MENU.map((grupo, g) => (
+        <View key={g} style={[menu.grupo, g > 0 && { borderTopColor: colors.border, borderTopWidth: 1 }]}>
+          {grupo.map((i) => (
+            <TouchableOpacity key={i.destino} style={menu.item} onPress={() => ir(i.destino)}
+              accessibilityRole="button" accessibilityLabel={i.detalle ? `${i.titulo}: ${i.detalle}` : i.titulo}>
+              <Icono nombre={i.icono} color={colors.primary} />
+              <View style={{ flex: 1 }}>
+                <AppText variant="body">{i.titulo}</AppText>
+                {!!i.detalle && <AppText variant="caption" color={colors.textMuted}>{i.detalle}</AppText>}
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
+      ))}
+      <View style={[menu.grupo, { borderTopColor: colors.border, borderTopWidth: 1 }]}>
+        <TouchableOpacity style={menu.item} onPress={() => { navigation.closeDrawer(); navigation.navigate('FastingModule'); }}
+          accessibilityRole="button" accessibilityLabel="Ir al módulo de ayuno intermitente">
+          <Icono nombre="clock" color={colors.textSecondary} />
+          <AppText variant="body">Ayuno intermitente</AppText>
+        </TouchableOpacity>
       </View>
-    </TouchableOpacity>
+    </ScrollView>
   );
 };
 
-// --- Main Tabs ---
-const MainTabs = () => {
-  const { colors } = useTheme();
-  return (
-    <Tab.Navigator
-      screenOptions={{
-        headerShown: false,
-        tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.border,
-          borderTopWidth: 1,
-          paddingBottom: 4,
-          paddingTop: 4,
-          height: 64,
-          overflow: 'visible' as any,
-        },
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textMuted,
-        /* Eran 11 px: los rotulos de la barra principal, o sea el texto que
-           mas veces se lee de toda la app. La barra ya tiene altura de sobra
-           para 14. */
-        tabBarLabelStyle: {
-          fontSize: 14,
-          fontWeight: '600',
-        },
-      }}
-    >
-      <Tab.Screen
-        name="Dashboard"
-        component={DashboardNavigator}
-        options={{
-          tabBarLabel: 'Inicio',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 22 }}>🏠</Text>,
-        }}
-      />
-      <Tab.Screen
-        name="Summary"
-        component={SummaryNavigator}
-        options={{
-          tabBarLabel: 'Resumen',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 22 }}>📊</Text>,
-        }}
-        listeners={({ navigation }) => ({
-          tabPress: () => navigation.reset({ index: 0, routes: [{ name: 'Summary' }] }),
-        })}
-      />
-      {/* Presupuesto estaba escrito, con su pantalla, su navegador y sus
-          pruebas... y no se monto nunca en ninguna pestana. En una app de
-          presupuestos, era la seccion que le da sentido al resto: sin ella
-          la parte de "Ejecucion presupuestal" del Consolidado no tenia de
-          donde salir y quedaba siempre vacia. */}
-      <Tab.Screen
-        name="Budget"
-        component={BudgetNavigator}
-        options={{
-          tabBarLabel: 'Presupuesto',
-          tabBarIcon: () => <Text style={{ fontSize: 22 }}>🎯</Text>,
-        }}
-      />
-      <Tab.Screen
-        name="AddAction"
-        component={EmptyScreen}
-        options={{
-          tabBarLabel: '',
-          tabBarIcon: () => null,
-          tabBarButton: (props) => <CenterTabButton {...props} />,
-        }}
-        listeners={({ navigation }) => ({
-          tabPress: (e) => {
-            e.preventDefault();
-            navigation.navigate('MovementFormModal');
-          },
-        })}
-      />
-      <Tab.Screen
-        name="Scheduled"
-        component={ScheduledNavigator}
-        options={{
-          tabBarLabel: 'Programados',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 22 }}>📅</Text>,
-        }}
-        listeners={({ navigation }) => ({
-          tabPress: () => navigation.reset({ index: 0, routes: [{ name: 'Scheduled' }] }),
-        })}
-      />
-      <Tab.Screen
-        name="Settings"
-        component={SettingsNavigator}
-        options={{
-          tabBarLabel: 'Ajustes',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 22 }}>⚙️</Text>,
-        }}
-        listeners={({ navigation }) => ({
-          tabPress: () => navigation.reset({ index: 0, routes: [{ name: 'Settings' }] }),
-        })}
-      />
-    </Tab.Navigator>
-  );
-};
-
-// --- Fasting Tabs ---
 const FastingTabs = () => {
   const { colors } = useTheme();
   return (
     <FastingTab.Navigator
       screenOptions={{
         headerShown: false,
-        tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.border,
-          borderTopWidth: 1,
-          paddingBottom: 4,
-          paddingTop: 4,
-          height: 64,
-        },
+        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border, borderTopWidth: 1, paddingBottom: 4, paddingTop: 4, height: 64 },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarLabelStyle: { fontSize: 14, fontWeight: '600' },
       }}
     >
-      <FastingTab.Screen
-        name="FastingDashboard"
-        component={FastingDashboardScreen}
-        options={{ tabBarLabel: 'Dashboard', tabBarIcon: () => <Text style={{ fontSize: 22 }}>🕐</Text> }}
-      />
-      <FastingTab.Screen
-        name="FastingHistory"
-        component={FastingHistoryScreen}
-        options={{ tabBarLabel: 'Historial', tabBarIcon: () => <Text style={{ fontSize: 22 }}>📋</Text> }}
-      />
-      <FastingTab.Screen
-        name="FastingConfig"
-        component={FastingConfigScreen}
-        options={{ tabBarLabel: 'Config', tabBarIcon: () => <Text style={{ fontSize: 22 }}>⚙️</Text> }}
-      />
+      <FastingTab.Screen name="FastingDashboard" component={pantalla(FastingDashboardScreen)}
+        options={{ tabBarLabel: 'Dashboard', tabBarIcon: () => <Text style={{ fontSize: 22 }}>🕐</Text> }} />
+      <FastingTab.Screen name="FastingHistory" component={pantalla(FastingHistoryScreen)}
+        options={{ tabBarLabel: 'Historial', tabBarIcon: () => <Text style={{ fontSize: 22 }}>📋</Text> }} />
+      <FastingTab.Screen name="FastingConfig" component={pantalla(FastingConfigScreen)}
+        options={{ tabBarLabel: 'Config', tabBarIcon: () => <Text style={{ fontSize: 22 }}>⚙️</Text> }} />
     </FastingTab.Navigator>
   );
 };
 
-// --- Module Drawer ---
 const ModuleDrawer = () => {
   const { colors } = useTheme();
   return (
     <Drawer.Navigator
+      drawerContent={(props) => <MenuFinanzas {...props} />}
       screenOptions={{
-        headerStyle: { backgroundColor: colors.surface },
-        headerTintColor: colors.text,
-        headerShadowVisible: false,
-        drawerStyle: { backgroundColor: colors.surface, width: 280 },
-        drawerActiveTintColor: colors.primary,
-        drawerInactiveTintColor: colors.textSecondary,
-        drawerLabelStyle: { fontSize: 16 },
+        headerShown: false,
+        drawerStyle: { backgroundColor: colors.surface, width: 300 },
       }}
     >
-      <Drawer.Screen
-        name="FinanceModule"
-        component={MainTabs}
-        options={{ title: 'Finanzas Personales', drawerIcon: () => <Text style={{ fontSize: 20 }}>💰</Text> }}
-      />
-      <Drawer.Screen
-        name="FastingModule"
-        component={FastingTabs}
-        options={{ title: 'Ayuno Intermitente', drawerIcon: () => <Text style={{ fontSize: 20 }}>🕐</Text> }}
-      />
+      <Drawer.Screen name="FinanceModule" component={FinanzasNavigator} options={{ title: 'Finanzas' }} />
+      <Drawer.Screen name="FastingModule" component={FastingTabs}
+        options={{ title: 'Ayuno Intermitente', headerShown: true, headerStyle: { backgroundColor: colors.surface }, headerTintColor: colors.text }} />
     </Drawer.Navigator>
   );
 };
 
-const fabStyles = StyleSheet.create({
-  wrapper: {
-    top: -26,
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: 72,
-    height: 72,
-  },
-  fab: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    borderWidth: 3,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 10,
-  },
-  icon: {
-    fontSize: 30,
-    fontWeight: '400',
-    marginTop: -2,
-  },
-});
-
-// --- Root Navigator ---
 const AppNavigator: React.FC = () => {
   const { colors } = useTheme();
   const { isAuthenticated, loading } = useAuth();
   const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
 
   useEffect(() => {
-    isOnboardingDone().then(done => setShowOnboarding(!done));
+    isOnboardingDone().then((done) => setShowOnboarding(!done));
   }, []);
 
-  if (loading || showOnboarding === null) {
-    return <Spinner fullScreen />;
-  }
-
-  if (showOnboarding) {
-    return <OnboardingScreen onComplete={() => setShowOnboarding(false)} />;
-  }
+  if (loading || showOnboarding === null) return <Spinner fullScreen />;
+  if (showOnboarding) return <OnboardingScreen onComplete={() => setShowOnboarding(false)} />;
 
   return (
     <NavigationContainer
       theme={{
         dark: true,
-        colors: {
-          primary: colors.primary,
-          background: colors.background,
-          card: colors.surface,
-          text: colors.text,
-          border: colors.border,
-          notification: colors.danger,
-        },
+        colors: { primary: colors.primary, background: colors.background, card: colors.surface, text: colors.text, border: colors.border, notification: colors.danger },
         fonts: {
           regular: { fontFamily: 'System', fontWeight: '400' },
           medium: { fontFamily: 'System', fontWeight: '500' },
@@ -498,26 +260,35 @@ const AppNavigator: React.FC = () => {
       }}
     >
       {isAuthenticated ? (
-        <RootStack.Navigator screenOptions={{ headerShown: false }}>
-          <RootStack.Screen name="MainTabs" component={ModuleDrawer} />
-          <RootStack.Screen
-            name="MovementFormModal"
-            component={MovementFormScreen}
-            options={{
-              presentation: 'modal',
-              headerShown: true,
-              title: 'Nuevo Movimiento',
-              headerStyle: { backgroundColor: colors.surface },
-              headerTintColor: colors.text,
-              headerShadowVisible: false,
-            }}
-          />
-        </RootStack.Navigator>
+        <AlcanceProvider>
+          <RootStack.Navigator screenOptions={{ headerShown: false }}>
+            <RootStack.Screen name="MainTabs" component={ModuleDrawer} />
+            <RootStack.Screen name="Anotar" component={pantalla(AnotarScreen)} options={{ presentation: 'fullScreenModal' }} />
+            <RootStack.Screen
+              name="MovementFormModal"
+              component={pantalla(MovementFormScreen)}
+              options={({ route }: any) => ({
+                presentation: 'modal',
+                headerShown: true,
+                title: route.params?.movement ? 'Editar movimiento' : route.params?.parentMovement ? 'Sub-gasto' : 'Nuevo movimiento',
+                headerStyle: { backgroundColor: colors.surface },
+                headerTintColor: colors.text,
+                headerShadowVisible: false,
+              })}
+            />
+          </RootStack.Navigator>
+        </AlcanceProvider>
       ) : (
         <AuthNavigator />
       )}
     </NavigationContainer>
   );
 };
+
+const menu = StyleSheet.create({
+  contenido: { padding: 20, paddingTop: 40 },
+  grupo: { paddingVertical: 8 },
+  item: { flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 52, paddingVertical: 6 },
+});
 
 export default AppNavigator;

@@ -22,7 +22,13 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 type RootStackParamList = {
   MainTabs: undefined;
-  MovementFormModal: { movement?: Movement; parentMovement?: Movement };
+  MovementFormModal: {
+    movement?: Movement;
+    parentMovement?: Movement;
+    /* Lo que ya se escribio en el teclado rapido ("Mas opciones"): no se
+       vuelve a pedir. */
+    prefill?: { amount?: number; categoryId?: string; type?: CategoryType; date?: string; description?: string; confirmed?: boolean };
+  };
 };
 
 type Props = NativeStackScreenProps<RootStackParamList, 'MovementFormModal'>;
@@ -33,15 +39,16 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
   const { user } = useAuth();
   const existing = route.params?.movement;
   const parentMovement = route.params?.parentMovement;
+  const prefill = route.params?.prefill;
   const isEdit = !!existing;
 
   const [allCategories, setAllCategories] = useState<Category[]>([]);
-  const [movementType, setMovementType] = useState<CategoryType>(existing?.categoryType || 'EXPENSE');
+  const [movementType, setMovementType] = useState<CategoryType>(existing?.categoryType || prefill?.type || 'EXPENSE');
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
-  const [amount, setAmount] = useState(existing ? String(existing.amount) : '');
-  const [description, setDescription] = useState(existing?.description || '');
-  const [date, setDate] = useState(existing?.date || fechaLocalISO());
-  const [confirmed, setConfirmed] = useState(existing?.confirmed ?? true);
+  const [amount, setAmount] = useState(existing ? String(existing.amount) : prefill?.amount ? String(prefill.amount) : '');
+  const [description, setDescription] = useState(existing?.description || prefill?.description || '');
+  const [date, setDate] = useState(existing?.date || prefill?.date || fechaLocalISO());
+  const [confirmed, setConfirmed] = useState(existing?.confirmed ?? prefill?.confirmed ?? true);
 
   /* La cuenta donde ocurre. Si no se toca, el backend lo manda a la cuenta
      por defecto, asi que anotar rapido sigue siendo un gesto: no se obliga a
@@ -114,8 +121,12 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
         if (res.correct && res.object) {
           const list = res.object.list || [];
           setAllCategories(list);
-          if (existing?.categoryId) {
-            const found = list.find((c: Category) => String(c.id) === String(existing.categoryId));
+          /* El sub-gasto va en la categoria de su padre: el formulario la
+             oculta, pero la validacion la exigia y nunca se tomaba, asi que
+             guardar un sub-gasto siempre fallaba. */
+          const categoriaInicial = existing?.categoryId || parentMovement?.categoryId || prefill?.categoryId;
+          if (categoriaInicial) {
+            const found = list.find((c: Category) => String(c.id) === String(categoriaInicial));
             if (found) {
               setSelectedCategory(found);
               setMovementType(found.type);
@@ -127,7 +138,7 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
       }
     };
     loadCategories();
-  }, [user, existing]);
+  }, [user, existing, parentMovement, prefill]);
 
   const filteredCategories = allCategories.filter(c => c.type === movementType);
 

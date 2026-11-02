@@ -59,7 +59,12 @@ export interface TotalesDelPeriodo {
   savingsRatePct: number;
   unbudgetedSpending: number;
   provisionsLeft: number;
+  /** Lo que falta pagar segun el plan, generado o no su pendiente. */
+  toPay: number;
+  /** Lo libre al final del periodo, con los ingresos esperados. */
   freeToSpend: number;
+  /** Lo mismo, con lo que ya llego. */
+  freeNow: number;
   executionPct: number;
 }
 

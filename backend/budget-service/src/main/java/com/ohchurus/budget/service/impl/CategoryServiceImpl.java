@@ -80,6 +80,13 @@ public class CategoryServiceImpl implements CategoryService {
             return new ResultDTO(false, "Category name already exists at this level", 203);
         }
 
+        /* Solo se comparte con un hogar del que se es miembro: con el id de un
+           hogar ajeno, un extrano metia categorias y gastos en el presupuesto
+           de otra familia. */
+        if (dto.getHouseholdId() != null && !acceso.esDeMiHogar(dto.getHouseholdId())) {
+            return new ResultDTO(false, "No perteneces a ese hogar", 403);
+        }
+
         Category category = Category.builder()
                 .userId(dueno)
                 .name(dto.getName())
@@ -129,6 +136,9 @@ public class CategoryServiceImpl implements CategoryService {
         category.setIcon(dto.getIcon());
         category.setColor(dto.getColor());
         category.setType(dto.getType());
+        if (dto.getHouseholdId() != null && !acceso.esDeMiHogar(dto.getHouseholdId())) {
+            return new ResultDTO(false, "No perteneces a ese hogar", 403);
+        }
         category.setHouseholdId(dto.getHouseholdId());
         /* El interruptor se edita como cualquier otro campo: marcar una
                    categoria como reembolsable a mitad de mes tiene que poder

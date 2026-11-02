@@ -16,6 +16,9 @@ interface TextProps {
      texto que muestra: el texto cambia con el idioma y el formato de moneda,
      el testID no. La auditoria pedia anadir testID justamente por esto. */
   testID?: string;
+  /* Las cifras grandes en recuadros estrechos se encogen en vez de cortarse. */
+  adjustsFontSizeToFit?: boolean;
+  accessibilityLabel?: string;
 }
 
 const AppText: React.FC<TextProps> = ({
@@ -26,6 +29,8 @@ const AppText: React.FC<TextProps> = ({
   style,
   numberOfLines,
   testID,
+  adjustsFontSizeToFit,
+  accessibilityLabel,
 }) => {
   const { colors } = useTheme();
 
@@ -63,6 +68,8 @@ const AppText: React.FC<TextProps> = ({
       ]}
       numberOfLines={numberOfLines}
       testID={testID}
+      adjustsFontSizeToFit={adjustsFontSizeToFit}
+      accessibilityLabel={accessibilityLabel}
     >
       {children}
     </RNText>

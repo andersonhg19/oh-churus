@@ -92,7 +92,7 @@ public class PlanFinancieroService {
     /** Una fecha concreta de un programado, con su estado. */
     record Fecha(Linea l, LocalDate fecha, LocalDate clave, BigDecimal monto, String estado, Long movimientoId) {}
 
-    private List<Linea> visibles(Long yo) {
+    List<Linea> visibles(Long yo) {
         List<Long> hIds = hogares.getHouseholdIds(yo);
         List<ScheduledMovement> lista = !hIds.isEmpty()
                 ? programados.findHouseholdActive(yo, hIds)
@@ -121,9 +121,13 @@ public class PlanFinancieroService {
      * El monto es el real si ya existe el movimiento: si el parqueadero de
      * este mes costo 150.000, el plan dice 150.000 y no 210.000.
      */
-    private List<Fecha> fechas(Linea l, LocalDate desde, LocalDate hasta, LocalDate hoy) {
+    List<Fecha> fechas(Linea l, LocalDate desde, LocalDate hasta, LocalDate hoy) {
         List<Fecha> out = new ArrayList<>();
-        for (Ocurrencia o : CalendarioDeRecurrencias.ocurrenciasHasta(l.p(), hasta)) {
+        /* Se enumera unos dias de mas y se filtra por la fecha real: con
+           "dia habil anterior", el 28 que cae sabado se paga el viernes 27, pero
+           su fecha canonica (28) quedaba fuera de la ventana que termina el 27
+           y el pago desaparecia de los dos periodos. */
+        for (Ocurrencia o : CalendarioDeRecurrencias.ocurrenciasHasta(l.p(), hasta.plusDays(3))) {
             if (o.fecha().isBefore(desde) || o.fecha().isAfter(hasta)) continue;
             Movement m = l.porClave().get(o.clave());
             if (m == null) m = l.porClave().get(o.fecha());

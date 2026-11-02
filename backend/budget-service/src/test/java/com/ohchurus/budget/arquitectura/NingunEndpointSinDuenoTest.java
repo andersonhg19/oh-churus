@@ -113,6 +113,12 @@ class NingunEndpointSinDuenoTest {
         EXENTAS.put("/v1/plan/projection", new Exencion(
                 "no recibe ningun id: proyecta lo que paga quien pide",
                 "/v1/dashboard/summary"));
+        EXENTAS.put("/v1/estado/periodo", new Exencion(
+                "la identidad sale del token; personUserId solo puede ser alguien del hogar (ElCierreDelMesCuadraTest.nadieDeFuera) y de el solo se ve lo comun",
+                "/v1/dashboard/summary"));
+        EXENTAS.put("/v1/estado/historial", new Exencion(
+                "misma regla que /v1/estado/periodo, repetida por periodos",
+                "/v1/dashboard/summary"));
         EXENTAS.put("/v1/budget-allocation/copy-previous", new Exencion(
                 "no recibe ningun id: copia las asignaciones visibles de quien pide",
                 "/v1/dashboard/summary"));

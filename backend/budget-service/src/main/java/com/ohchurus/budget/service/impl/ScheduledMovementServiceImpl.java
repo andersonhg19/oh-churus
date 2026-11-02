@@ -209,6 +209,10 @@ public class ScheduledMovementServiceImpl implements ScheduledMovementService {
         }
 
         ScheduledMovement scheduled = existing.get();
+        /* La firma del calendario ANTES de tocarlo: si cambia, las ocurrencias
+           ya generadas quedan con claves del calendario viejo (ver
+           realinearOcurrencias). */
+        String calendarioAntes = firmaDelCalendario(scheduled);
         /* El dueno NUNCA cambia al actualizar. Antes se reasignaba al userId
            del cuerpo cuando la categoria era personal, asi que mandar el id de
            un programado ajeno bastaba para quedarse con el. */
@@ -242,9 +246,114 @@ public class ScheduledMovementServiceImpl implements ScheduledMovementService {
             scheduled.setNotes(dto.getNotes().isBlank() ? null : dto.getNotes().trim());
         }
 
+        /* Con la categoria nueva el responsable de siempre puede dejar de ser
+           valido (la categoria paso a privada y lo paga la pareja). */
+        if (scheduled.getPayerUserId() != null) {
+            String pagadorInvalido = pagadorInvalido(scheduled.getPayerUserId(), scheduled.getCategoryId(),
+                    com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId());
+            if (pagadorInvalido != null) {
+                return new ResultDTO(false, pagadorInvalido, 400);
+            }
+        }
+
         ScheduledMovement saved = scheduledMovementRepository.save(scheduled);
+        realinearOcurrencias(saved, !calendarioAntes.equals(firmaDelCalendario(saved)),
+                dto.getBudgetStartDay() != null ? dto.getBudgetStartDay() : 1);
         log.info("Scheduled movement updated: id={}", saved.getId());
         return new ResultDTO(scheduledMovementMapper.toResultDTO(saved));
+    }
+
+    private static String firmaDelCalendario(ScheduledMovement p) {
+        return String.join("|", String.valueOf(p.getFrequency()), String.valueOf(p.getStartDate()),
+                String.valueOf(p.getEndDate()), String.valueOf(p.getDayOfMonth()),
+                String.valueOf(p.getWeekOfMonth()), String.valueOf(p.getDayOfWeek()),
+                String.valueOf(p.getWeekendPolicy()));
+    }
+
+    /**
+     * Lo ya generado tiene que seguir al programado editado.
+     *
+     * Paso en produccion: el salario se movio del dia 1 al 28. La ocurrencia
+     * confirmada del 1-nov se quedo con la clave de noviembre; el calendario
+     * nuevo produjo el 28-oct (clave octubre), que "faltaba", y lo genero otra
+     * vez —la misma nomina dos veces—, y el 28-nov ya no salia nunca porque su
+     * clave la ocupaba la vieja.
+     *
+     *  · Si cambio el CALENDARIO: los pendientes sin confirmar de hoy en
+     *    adelante se borran (el siguiente refresco los genera con el calendario
+     *    nuevo) y todo lo demas —confirmado, atrasado, omitido— se re-clava a la
+     *    ocurrencia nueva del MISMO periodo de presupuesto (la mas cercana si hay
+     *    varias), sin repetir: con corte el 28 el salario del 1-nov y el del
+     *    28-oct son la misma nomina; con corte el 1, el arriendo del 1 y el del
+     *    25 de octubre son el mismo. Lo que no tiene pareja se queda sin clave y
+     *    se reconoce por su fecha, como las filas de antes de existir la clave.
+     *  · Si no: importe, categoria, nombre y responsable pasan a los pendientes
+     *    sin confirmar; y si ahora es una provision, esos pendientes sobran.
+     */
+    private void realinearOcurrencias(ScheduledMovement p, boolean cambioElCalendario, int diaDeCorte) {
+        List<Movement> generadas = movementRepository.findByScheduledMovementId(p.getId());
+        if (generadas.isEmpty()) {
+            return;
+        }
+        LocalDate hoy = LocalDate.now();
+        List<Movement> sinConfirmarVivos = generadas.stream()
+                .filter(m -> Boolean.TRUE.equals(m.getActive()) && !Boolean.TRUE.equals(m.getConfirmed()))
+                .collect(Collectors.toList());
+
+        if (ScheduledKind.de(p.getKind()) == ScheduledKind.PROVISION) {
+            movementRepository.deleteAll(sinConfirmarVivos);
+            log.info("Scheduled {} is now a provision: {} pending removed", p.getId(), sinConfirmarVivos.size());
+            return;
+        }
+
+        if (!cambioElCalendario) {
+            Long pagador = pagadorDe(p);
+            Long cuenta = cuentas.porDefecto(pagador).getId();
+            for (Movement m : sinConfirmarVivos) {
+                m.setAmount(p.getAmount() != null ? p.getAmount() : BigDecimal.ZERO);
+                m.setCategoryId(p.getCategoryId());
+                m.setDescription(p.getName());
+                if (!pagador.equals(m.getUserId())) {
+                    m.setUserId(pagador);
+                    m.setAccountId(cuenta);
+                }
+            }
+            movementRepository.saveAll(sinConfirmarVivos);
+            return;
+        }
+
+        List<Movement> futurasSinConfirmar = generadas.stream()
+                .filter(m -> !Boolean.TRUE.equals(m.getConfirmed()) && m.getDate() != null && !m.getDate().isBefore(hoy))
+                .collect(Collectors.toList());
+        movementRepository.deleteAll(futurasSinConfirmar);
+
+        List<Movement> quedan = generadas.stream()
+                .filter(m -> !futurasSinConfirmar.contains(m) && m.getDate() != null)
+                .sorted(Comparator.comparing(Movement::getDate))
+                .collect(Collectors.toList());
+        if (quedan.isEmpty()) {
+            return;
+        }
+        LocalDate ultima = quedan.get(quedan.size() - 1).getDate();
+        List<Ocurrencia> nuevas = CalendarioDeRecurrencias.ocurrenciasHasta(p, ultima.plusDays(32));
+        Set<LocalDate> usadas = new HashSet<>();
+        for (Movement m : quedan) {
+            LocalDate suPeriodo = PeriodUtils.getStartOfPeriod(diaDeCorte, m.getDate());
+            Ocurrencia cercana = nuevas.stream()
+                    .filter(o -> !usadas.contains(o.clave()))
+                    .filter(o -> PeriodUtils.getStartOfPeriod(diaDeCorte, o.fecha()).equals(suPeriodo))
+                    .min(Comparator.comparingLong(o -> Math.abs(java.time.temporal.ChronoUnit.DAYS.between(o.fecha(), m.getDate()))))
+                    .orElse(null);
+            if (cercana != null) {
+                usadas.add(cercana.clave());
+                m.setPeriodStart(cercana.clave());
+            } else {
+                m.setPeriodStart(null);
+            }
+        }
+        movementRepository.saveAll(quedan);
+        log.info("Scheduled {} calendar changed: {} future pending removed, {} occurrences re-keyed",
+                p.getId(), futurasSinConfirmar.size(), quedan.size());
     }
 
     /*
@@ -389,7 +498,11 @@ public class ScheduledMovementServiceImpl implements ScheduledMovementService {
      * escribirle a alguien noventa gastos que quiza nunca hizo. Se aceptan
      * despues, todas o unas pocas, por /v1/scheduled/materialize.
      */
+    /* Transaccion propia: el panel la llama dentro de la suya, y si generar
+       falla (dos refrescos a la vez chocan con el indice de V11) el panel tiene
+       que seguir mostrandose, sin quedar marcado para revertir. */
     @Override
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     public ResultDTO generatePending(Long userId, int budgetStartDay) {
         try {
             // Include household scheduled movements to avoid duplicates
@@ -484,6 +597,7 @@ public class ScheduledMovementServiceImpl implements ScheduledMovementService {
             respuesta.put("needsReview", !propuestas.isEmpty());
             return new ResultDTO(respuesta);
         } catch (Exception e) {
+            com.ohchurus.budget.util.Transacciones.revertir();
             log.error("Error generating pending movements: {}", e.getMessage(), e);
             return new ResultDTO(false, "Error generating pending movements", 500);
         }
@@ -549,6 +663,7 @@ public class ScheduledMovementServiceImpl implements ScheduledMovementService {
 
             return new ResultDTO(creados);
         } catch (Exception e) {
+            com.ohchurus.budget.util.Transacciones.revertir();
             log.error("Error materializing occurrences: {}", e.getMessage(), e);
             return new ResultDTO(false, "Error materializing occurrences", 500);
         }

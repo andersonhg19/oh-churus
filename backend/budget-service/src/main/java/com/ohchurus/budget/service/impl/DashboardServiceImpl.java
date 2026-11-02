@@ -437,6 +437,11 @@ public class DashboardServiceImpl implements DashboardService {
                 boolean isShared = cat != null && cat.getHouseholdId() != null;
                 boolean isIncome = cat != null && cat.getType() == CategoryType.INCOME;
                 boolean isTransfer = Boolean.TRUE.equals(m.getIsTransfer());
+                /* Las mismas reglas que el resto de cifras (Computables): una
+                   apertura no es un ingreso, una liquidacion no es un gasto y el
+                   sub-gasto ya esta dentro de su padre. Solo la transferencia se
+                   queda, porque aqui si mueve plata entre lo comun y lo propio. */
+                if (!isTransfer && !Computables.suma(m)) continue;
 
                 if (isTransfer) {
                     // Transfers count in shared/personal views but NOT in total

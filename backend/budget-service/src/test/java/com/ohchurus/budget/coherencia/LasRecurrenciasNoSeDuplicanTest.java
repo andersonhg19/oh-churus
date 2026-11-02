@@ -235,6 +235,50 @@ class LasRecurrenciasNoSeDuplicanTest {
     }
 
     @Test
+    @DisplayName("mover el salario del 1 al 28 con corte el 28 no lo duplica ni bloquea el siguiente")
+    void moverElSalarioAlDiaDeCorteNoDuplica() throws Exception {
+        /*
+         * Paso en produccion el 31-oct-2026: el salario de Andy se cobraba el 1
+         * y se paso al 28, que es su dia de corte. El del 1-nov ya estaba
+         * confirmado; el calendario nuevo produjo el 28-oct, que es la MISMA
+         * nomina del mismo periodo, y lo genero otra vez. Y el 28-nov no salia
+         * nunca porque su clave mensual la ocupaba la del 1-nov.
+         */
+        Long cat = programados.findById(arriendoDeAna).orElseThrow().getCategoryId();
+        LocalDate inicio = LocalDate.now().minusMonths(2).withDayOfMonth(1);
+        Long salario = programados.save(ScheduledMovement.builder()
+                .userId(ANA).categoryId(cat).name("Salario")
+                .amount(new BigDecimal("7960000")).frequency(Frequency.MONTHLY)
+                .startDate(inicio).dayOfMonth(1).active(true).build()).getId();
+        for (int i = 0; i < 3; i++) refrescarElPanel(ANA, 28);
+        /* Todo lo generado hasta hoy se cobro. */
+        movimientos.findAll().stream()
+                .filter(m -> salario.equals(m.getScheduledMovementId()))
+                .filter(m -> !m.getDate().isAfter(LocalDate.now()))
+                .forEach(m -> { m.setConfirmed(true); movimientos.save(m); });
+
+        mvc.perform(post("/v1/scheduled/save")
+                        .header("Authorization", token(ANA))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"id\":" + salario + ",\"categoryId\":" + cat
+                                + ",\"name\":\"Salario\",\"amount\":7960000,\"frequency\":\"MONTHLY\","
+                                + "\"dayOfMonth\":28,\"budgetStartDay\":28,\"startDate\":\"" + inicio + "\"}"))
+                .andReturn();
+        for (int i = 0; i < 3; i++) refrescarElPanel(ANA, 28);
+
+        Map<LocalDate, Long> porPeriodoDeCorte = ocurrenciasVivasDe(salario).stream()
+                .collect(Collectors.groupingBy(
+                        m -> com.ohchurus.budget.util.PeriodUtils.getStartOfPeriod(28, m.getDate()),
+                        Collectors.counting()));
+        assertThat(porPeriodoDeCorte.values())
+                .as("mover el dia de cobro duplico la nomina de un mismo periodo: " + porPeriodoDeCorte)
+                .allMatch(n -> n == 1L);
+        assertThat(porPeriodoDeCorte)
+                .as("el salario del periodo actual tiene que existir")
+                .containsKey(com.ohchurus.budget.util.PeriodUtils.getStartOfPeriod(28, LocalDate.now()));
+    }
+
+    @Test
     @DisplayName("lo que se genera NO depende de quien refresca ni de que dia sea")
     void laVentanaNoDependeDeQuienMira() throws Exception {
         /*

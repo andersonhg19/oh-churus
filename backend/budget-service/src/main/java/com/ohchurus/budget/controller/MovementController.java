@@ -65,6 +65,30 @@ public class MovementController {
     }
 
     /**
+     * Confirma varios pendientes de una vez: el ahorro, el arriendo y las
+     * cuotas de la tarjeta en un solo toque. Cuerpo:
+     * {"items":[{"id":12},{"id":13,"amount":150000}]}. Es todo o nada: si uno
+     * no se puede confirmar, no se confirma ninguno y se dice cual fallo.
+     */
+    @PostMapping(value = "/confirm-batch", produces = "application/json")
+    public ResponseEntity<ResultDTO> confirmBatch(@RequestBody java.util.Map<String, Object> body) {
+        Object items = body != null ? body.get("items") : null;
+        if (!(items instanceof java.util.List<?> lista) || lista.isEmpty()) {
+            return ResponseEntity.ok(new ResultDTO(false, "No hay pagos para confirmar", 400));
+        }
+        java.util.List<Long> ids = new java.util.ArrayList<>();
+        java.util.List<java.math.BigDecimal> montos = new java.util.ArrayList<>();
+        for (Object o : lista) {
+            if (!(o instanceof java.util.Map<?, ?> item) || item.get("id") == null) {
+                return ResponseEntity.ok(new ResultDTO(false, "Cada pago necesita su id", 400));
+            }
+            ids.add(Long.valueOf(item.get("id").toString()));
+            montos.add(item.get("amount") != null ? new java.math.BigDecimal(item.get("amount").toString()) : null);
+        }
+        return ResponseEntity.ok(movementService.confirmarVarios(ids, montos));
+    }
+
+    /**
      * Cambia quien paga UN pendiente (esta vez lo paga el otro). El cambio
      * permanente se hace en el programado; esto es para la eventualidad.
      * payerUserId no es la identidad de quien llama: es el miembro del hogar

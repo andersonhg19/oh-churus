@@ -99,20 +99,27 @@ public class MovementServiceImpl implements MovementService {
             boolean isUpdate = dto.getId() != null;
             return isUpdate ? updateMovement(dto) : createMovement(dto);
         } catch (Exception e) {
+            /* Atrapar la excepcion dentro del metodo transaccional NO revierte:
+               lo ya escrito (el movimiento sin sus partes, una sola pata de la
+               transferencia) se confirmaba igual. */
+            com.ohchurus.budget.util.Transacciones.revertir();
             log.error("Error saving movement: {}", e.getMessage(), e);
             return new ResultDTO(false, "Error saving movement", 500);
         }
     }
 
     private ResultDTO createMovement(MovementSaveDTO dto) {
-        if (!categoryRepository.findByIdAndActiveTrue(dto.getCategoryId()).isPresent()) {
+        /* Solo en categorias que puedo ver: con el id de una categoria privada
+           de la pareja se le podia anotar un gasto en su presupuesto. */
+        if (categoryRepository.findByIdAndActiveTrue(dto.getCategoryId())
+                .filter(acceso::puedeVerCategoria).isEmpty()) {
             return new ResultDTO(false, "Category not found", 404);
         }
 
         // Validate parent and depth
         if (dto.getParentMovementId() != null) {
             Optional<Movement> parentOpt = movementRepository.findByIdAndActiveTrue(dto.getParentMovementId());
-            if (parentOpt.isEmpty()) {
+            if (parentOpt.isEmpty() || !puedoTocar(parentOpt.get())) {
                 return new ResultDTO(false, "Parent movement not found", 404);
             }
             Movement parent = parentOpt.get();
@@ -179,7 +186,10 @@ public class MovementServiceImpl implements MovementService {
             return new ResultDTO(false, "Movement not found", 404);
         }
 
-        if (!categoryRepository.findByIdAndActiveTrue(dto.getCategoryId()).isPresent()) {
+        /* Solo en categorias que puedo ver: con el id de una categoria privada
+           de la pareja se le podia anotar un gasto en su presupuesto. */
+        if (categoryRepository.findByIdAndActiveTrue(dto.getCategoryId())
+                .filter(acceso::puedeVerCategoria).isEmpty()) {
             return new ResultDTO(false, "Category not found", 404);
         }
 
@@ -196,6 +206,8 @@ public class MovementServiceImpl implements MovementService {
             movement.setCategoryId(dto.getCategoryId());
         }
         movement.setDate(dto.getDate());
+        boolean cambioElImporte = movement.getAmount() == null || dto.getAmount() == null
+                || movement.getAmount().compareTo(dto.getAmount()) != 0;
         movement.setAmount(dto.getAmount());
         movement.setDescription(dto.getDescription());
         /* El formulario no reenvia de que programado salio el pendiente, y
@@ -230,6 +242,9 @@ public class MovementServiceImpl implements MovementService {
                 ? repartos.aplicar(movement, dto.getSplitMode(), dto.getSplits())
                 : null;
         if (repartoInvalido != null) return repartoInvalido;
+        if (!tocaReparto && cambioElImporte) {
+            repartos.recalcular(movement);
+        }
 
         Movement saved = movementRepository.save(movement);
         propagarALaOtraPata(saved);
@@ -357,6 +372,42 @@ public class MovementServiceImpl implements MovementService {
     }
 
     @Override
+    public ResultDTO confirmarVarios(java.util.List<Long> ids, java.util.List<java.math.BigDecimal> montos) {
+        /* Se valida TODO antes de tocar nada: una lista con un pago ajeno o ya
+           borrado al final no puede dejar confirmados los de antes. */
+        if (new java.util.HashSet<>(ids).size() != ids.size()) {
+            return new ResultDTO(false, "Un pago aparece dos veces", 400);
+        }
+        for (int i = 0; i < ids.size(); i++) {
+            Optional<Movement> m = movementRepository.findByIdAndActiveTrue(ids.get(i));
+            if (m.isEmpty() || !puedoTocar(m.get())) {
+                return new ResultDTO(false, "Pago no encontrado: " + ids.get(i), 404);
+            }
+            java.math.BigDecimal monto = montos.get(i);
+            if (monto != null && monto.signum() <= 0) {
+                return new ResultDTO(false, "El valor de " + m.get().getDescription() + " tiene que ser mayor que cero", 400);
+            }
+        }
+        java.math.BigDecimal total = java.math.BigDecimal.ZERO;
+        int confirmados = 0;
+        for (int i = 0; i < ids.size(); i++) {
+            ResultDTO r = confirmWithAmount(ids.get(i), montos.get(i));
+            if (!r.isCorrect()) {
+                com.ohchurus.budget.util.Transacciones.revertir();
+                return r;
+            }
+            confirmados++;
+            total = total.add(movementRepository.findById(ids.get(i)).map(Movement::getAmount)
+                    .orElse(java.math.BigDecimal.ZERO));
+        }
+        Map<String, Object> res = new java.util.LinkedHashMap<>();
+        res.put("confirmed", confirmados);
+        res.put("total", total);
+        log.info("Batch confirmed {} movements for {}", confirmados, total);
+        return new ResultDTO(res);
+    }
+
+    @Override
     public ResultDTO confirmWithAmount(Long id, java.math.BigDecimal newAmount) {
         categoryCacheTL.remove();
         cuentaCacheTL.remove();
@@ -366,8 +417,14 @@ public class MovementServiceImpl implements MovementService {
         }
 
         Movement entity = movement.get();
-        if (newAmount != null && newAmount.compareTo(java.math.BigDecimal.ZERO) > 0) {
+        /* Un importe cero o negativo se ignoraba y se confirmaba el original
+           sin decir nada: quien escribio 0 creia haber registrado otra cosa. */
+        if (newAmount != null && newAmount.compareTo(java.math.BigDecimal.ZERO) <= 0) {
+            return new ResultDTO(false, "El valor tiene que ser mayor que cero", 400);
+        }
+        if (newAmount != null && newAmount.compareTo(entity.getAmount()) != 0) {
             entity.setAmount(newAmount);
+            repartos.recalcular(entity);
         }
         entity.setConfirmed(true);
         Movement saved = movementRepository.save(entity);

@@ -373,13 +373,12 @@ class MovementServiceImplEdgeCasesTest {
             Movement m = Movement.builder().id(1L).userId(USER_ID).categoryId(10L)
                     .date(LocalDate.now()).amount(new BigDecimal("500")).confirmed(false).active(true).build();
             when(movementRepository.findByIdAndActiveTrue(1L)).thenReturn(Optional.of(m));
-            when(movementRepository.save(any(Movement.class))).thenAnswer(i -> i.getArgument(0));
-            when(movementMapper.toResultDTO(any(Movement.class))).thenReturn(dtoFor(1L, 10L));
 
+            /* Antes se ignoraba y se confirmaba el original en silencio. */
             ResultDTO r = service.confirmWithAmount(1L, BigDecimal.ZERO);
-            assertTrue(r.isCorrect());
+            assertFalse(r.isCorrect());
             assertEquals(new BigDecimal("500"), m.getAmount()); // unchanged
-            assertTrue(m.getConfirmed());
+            assertFalse(Boolean.TRUE.equals(m.getConfirmed()));
         }
 
         @Test

@@ -208,7 +208,7 @@ class DTOTest {
         LocalDate now = LocalDate.now();
         ScheduledMovementSaveDTO dto = new ScheduledMovementSaveDTO(1L, 2L, 3L, "Rent",
                 new BigDecimal("500"), Frequency.MONTHLY, 12, now, 15, 3, 5,
-                com.ohchurus.budget.enums.WeekendPolicy.PREVIOUS_BUSINESS_DAY, null, null, null);
+                com.ohchurus.budget.enums.WeekendPolicy.PREVIOUS_BUSINESS_DAY, null, null, null, null);
         assertEquals(1L, dto.getId());
         assertEquals(2L, dto.getUserId());
         assertEquals(3L, dto.getCategoryId());

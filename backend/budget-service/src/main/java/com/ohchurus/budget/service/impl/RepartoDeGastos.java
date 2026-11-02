@@ -121,6 +121,10 @@ public class RepartoDeGastos {
         List<Movement> repartidos = movimientos.stream()
                 .filter(m -> !Boolean.FALSE.equals(m.getActive()))
                 .filter(m -> m.getSplitMode() != null)
+                /* Lo que todavia no se pago no genera deuda: un pendiente
+                   repartido de 500.000 ya ponia a la pareja a deber 250.000
+                   antes de que nadie pusiera un peso. */
+                .filter(m -> Boolean.TRUE.equals(m.getConfirmed()))
                 .collect(Collectors.toList());
 
         if (!repartidos.isEmpty()) {

@@ -222,6 +222,30 @@
         },
         "type" : "object"
       },
+      "EstadoRequestDTO" : {
+        "properties" : {
+          "budgetStartDay" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "periods" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "personUserId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "referenceDate" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "scope" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "FilaAImportarDTO" : {
         "properties" : {
           "categoryId" : {
@@ -662,6 +686,10 @@
             "exclusiveMinimum" : false,
             "minimum" : 0.01,
             "type" : "number"
+          },
+          "budgetStartDay" : {
+            "format" : "int32",
+            "type" : "integer"
           },
           "categoryId" : {
             "format" : "int64",
@@ -1568,6 +1596,66 @@
         ]
       }
     },
+    "/v1/estado/historial" : {
+      "post" : {
+        "operationId" : "historial",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/EstadoRequestDTO"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [
+          "estado-controller"
+        ]
+      }
+    },
+    "/v1/estado/periodo" : {
+      "post" : {
+        "operationId" : "periodo",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/EstadoRequestDTO"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [
+          "estado-controller"
+        ]
+      }
+    },
     "/v1/export/excel" : {
       "post" : {
         "operationId" : "exportExcel",
@@ -1932,6 +2020,39 @@
             }
           }
         ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [
+          "movement-controller"
+        ]
+      }
+    },
+    "/v1/movements/confirm-batch" : {
+      "post" : {
+        "operationId" : "confirmBatch",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "additionalProperties" : {
+                  "type" : "object"
+                },
+                "type" : "object"
+              }
+            }
+          },
+          "required" : true
+        },
         "responses" : {
           "200" : {
             "content" : {

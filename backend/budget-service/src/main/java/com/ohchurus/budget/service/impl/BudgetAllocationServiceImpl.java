@@ -229,15 +229,23 @@ public class BudgetAllocationServiceImpl {
 
             // Group actual spending by categoryId (exclude transfers)
             Map<Long, BigDecimal> actualByCategory = new HashMap<>();
+            /* Quien lo gasto: el tercer dato de un presupuesto conjunto, junto
+               con lo planeado y lo real. Es el dueno del movimiento, que es
+               quien lo pago. */
+            Map<Long, Map<Long, BigDecimal>> actualByCategoryAndUser = new HashMap<>();
+            Map<Long, Category> cats = new HashMap<>();
             for (Movement m : confirmed) {
                 if (Boolean.TRUE.equals(m.getIsTransfer())) continue;
                 /* La regla de toda la app (Computables): sin esto los
                    sub-gastos se contaban junto con su padre y el real de la
                    categoria salia doble. */
                 if (!Computables.suma(m)) continue;
-                Category cat = categoryRepository.findByIdAndActiveTrue(m.getCategoryId()).orElse(null);
+                Category cat = cats.computeIfAbsent(m.getCategoryId(),
+                        id -> categoryRepository.findByIdAndActiveTrue(id).orElse(null));
                 if (cat != null && cat.getType() == CategoryType.EXPENSE) {
                     actualByCategory.merge(m.getCategoryId(), Computables.importe(m), BigDecimal::add);
+                    actualByCategoryAndUser.computeIfAbsent(m.getCategoryId(), k -> new HashMap<>())
+                            .merge(m.getUserId(), Computables.importe(m), BigDecimal::add);
                 }
             }
 
@@ -251,6 +259,11 @@ public class BudgetAllocationServiceImpl {
             Map<Long, BigDecimal> committedByCategory = new HashMap<>();
             for (Movement m : pendientes) {
                 if (Boolean.TRUE.equals(m.getIsTransfer()) || !Computables.suma(m)) continue;
+                /* Un ingreso pendiente (la quincena que no ha llegado) no
+                   compromete presupuesto de gasto. */
+                Category cat = cats.computeIfAbsent(m.getCategoryId(),
+                        id -> categoryRepository.findByIdAndActiveTrue(id).orElse(null));
+                if (cat == null || cat.getType() != CategoryType.EXPENSE) continue;
                 committedByCategory.merge(m.getCategoryId(), Computables.importe(m), BigDecimal::add);
             }
 
@@ -287,12 +300,49 @@ public class BudgetAllocationServiceImpl {
                 item.put("executionPct", executionPct);
                 item.put("favorable", variance.compareTo(BigDecimal.ZERO) >= 0);
                 item.put("shared", a.getHouseholdId() != null);
+                item.put("unbudgeted", false);
+                item.put("actualByUser", porPersona(actualByCategoryAndUser.get(a.getCategoryId())));
 
                 categoryRepository.findByIdAndActiveTrue(a.getCategoryId()).ifPresent(cat -> {
                     item.put("categoryName", cat.getName());
                     item.put("categoryIcon", cat.getIcon());
                     item.put("categoryColor", cat.getColor());
                 });
+                items.add(item);
+            }
+
+            /* Lo gastado SIN presupuesto tambien es real. Antes el Delivery del
+               hogar (75.500 en el primer fin de semana) no salia en ninguna
+               parte del presupuesto: ni como categoria ni en el total. */
+            Set<Long> conPresupuesto = allocations.stream().map(BudgetAllocation::getCategoryId)
+                    .collect(java.util.stream.Collectors.toSet());
+            BigDecimal totalUnbudgeted = BigDecimal.ZERO;
+            Set<Long> sinPresupuesto = new java.util.TreeSet<>(actualByCategory.keySet());
+            sinPresupuesto.addAll(committedByCategory.keySet());
+            sinPresupuesto.removeAll(conPresupuesto);
+            for (Long catId : sinPresupuesto) {
+                Category cat = cats.get(catId);
+                if (cat == null) continue;
+                BigDecimal actual = actualByCategory.getOrDefault(catId, BigDecimal.ZERO);
+                BigDecimal committed = committedByCategory.getOrDefault(catId, BigDecimal.ZERO);
+                totalActual = totalActual.add(actual);
+                totalCommitted = totalCommitted.add(committed);
+                totalUnbudgeted = totalUnbudgeted.add(actual);
+                Map<String, Object> item = new LinkedHashMap<>();
+                item.put("categoryId", catId);
+                item.put("allocatedAmount", BigDecimal.ZERO);
+                item.put("actualAmount", actual);
+                item.put("committedAmount", committed);
+                item.put("availableAmount", actual.add(committed).negate());
+                item.put("variance", actual.negate());
+                item.put("executionPct", 0);
+                item.put("favorable", actual.signum() == 0);
+                item.put("shared", cat.getHouseholdId() != null);
+                item.put("unbudgeted", true);
+                item.put("actualByUser", porPersona(actualByCategoryAndUser.get(catId)));
+                item.put("categoryName", cat.getName());
+                item.put("categoryIcon", cat.getIcon());
+                item.put("categoryColor", cat.getColor());
                 items.add(item);
             }
 
@@ -304,6 +354,7 @@ public class BudgetAllocationServiceImpl {
             result.put("totalVariance", totalBudgeted.subtract(totalActual));
             result.put("totalCommitted", totalCommitted);
             result.put("totalAvailable", totalBudgeted.subtract(totalActual).subtract(totalCommitted));
+            result.put("totalUnbudgeted", totalUnbudgeted);
             result.put("sharedBudgeted", sharedBudgeted);
             result.put("personalBudgeted", personalBudgeted);
             result.put("categories", items);
@@ -313,6 +364,21 @@ public class BudgetAllocationServiceImpl {
             log.error("Error getting budget summary: {}", e.getMessage(), e);
             return new ResultDTO(false, "Error getting budget summary", 500);
         }
+    }
+
+    private List<Map<String, Object>> porPersona(Map<Long, BigDecimal> montos) {
+        List<Map<String, Object>> lista = new ArrayList<>();
+        if (montos == null) return lista;
+        montos.entrySet().stream()
+                .sorted(Map.Entry.<Long, BigDecimal>comparingByValue().reversed())
+                .forEach(e -> {
+                    Map<String, Object> p = new LinkedHashMap<>();
+                    p.put("userId", e.getKey());
+                    p.put("name", householdService.apodoDe(e.getKey()));
+                    p.put("amount", e.getValue());
+                    lista.add(p);
+                });
+        return lista;
     }
 
     // ===== TRANSFER (DISPONIBILIZAR) =====
@@ -444,6 +510,10 @@ public class BudgetAllocationServiceImpl {
                 boolean isShared = cat.getHouseholdId() != null;
                 boolean isIncome = cat.getType() == CategoryType.INCOME;
                 boolean isTransfer = Boolean.TRUE.equals(m.getIsTransfer());
+                /* Mismas reglas que el panel: sin esto el consolidado contaba
+                   los saldos de apertura como ingreso, las liquidaciones como
+                   gasto y cada sub-gasto dos veces. */
+                if (!isTransfer && !com.ohchurus.budget.util.Computables.suma(m)) continue;
 
                 if (isTransfer) {
                     /* Solo cuenta la pata COMPARTIDA, y cuenta por las dos.

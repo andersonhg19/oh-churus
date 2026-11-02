@@ -18,6 +18,9 @@ public interface MovementService {
 
     ResultDTO confirm(Long id);
 
+    /** Confirma varios pendientes; todo o nada. montos[i] nulo = el valor previsto. */
+    ResultDTO confirmarVarios(java.util.List<Long> ids, java.util.List<java.math.BigDecimal> montos);
+
     /** Cambia quien paga un pendiente de categoria compartida. */
     ResultDTO reasignarPagador(Long id, Long nuevoPagador);
 

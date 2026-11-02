@@ -40,6 +40,13 @@ export const movementService = {
     return response.data;
   },
 
+  /** Confirma varios pendientes de una vez: todo o nada. */
+  confirmBatch: async (items: { id: string | number; amount?: number }[]) => {
+    const response = await api.post<ResultDTO<{ confirmed: number; total: number }>>(
+      `${BASE}/confirm-batch`, { items: items.map((i) => ({ id: Number(i.id), amount: i.amount })) });
+    return response.data;
+  },
+
   confirm: async (id: string, newAmount?: number) => {
     const response = await api.post<ResultDTO<Movement>>(
       `${BASE}/confirm/${id}`,

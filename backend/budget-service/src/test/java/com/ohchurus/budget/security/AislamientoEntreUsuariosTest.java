@@ -289,6 +289,16 @@ class AislamientoEntreUsuariosTest {
         }
 
         @Test
+        @DisplayName("no puede confirmar en lote un movimiento de Ana ni cambiarle el importe")
+        void confirmarEnLote() throws Exception {
+            atacar("/v1/movements/confirm-batch", "{\"items\":[{\"id\":" + movimientoDeAna + ",\"amount\":9999999}]}");
+            assertThat(movimientos.findById(movimientoDeAna))
+                    .as("el lote le cambio el importe a Ana")
+                    .get().extracting(Movement::getAmount)
+                    .isEqualTo(new BigDecimal("1500000.00"));
+        }
+
+        @Test
         @DisplayName("no puede pasarle a su nombre (ni a nadie) un pendiente de Ana")
         void reasignarPagadorAjeno() throws Exception {
             atacar("/v1/movements/reassign/" + movimientoDeAna, "{\"payerUserId\":" + BRUNO + "}");

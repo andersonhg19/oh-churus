@@ -67,4 +67,9 @@ public class ScheduledMovementSaveDTO {
     private com.ohchurus.budget.enums.ScheduledKind kind;
     @Size(max = 255, message = "no puede superar los 255 caracteres")
     private String notes;
+
+    /* Dia de corte de quien edita. Solo se usa para re-emparejar lo ya
+       generado cuando cambia el calendario: una ocurrencia sigue siendo "la
+       misma" si cae en el mismo periodo de presupuesto. Nulo = dia 1. */
+    private Integer budgetStartDay;
 }

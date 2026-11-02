@@ -94,6 +94,34 @@ public class RepartoServiceImpl implements RepartoService {
     }
 
     /**
+     * El importe cambio (se confirmo por otro valor, o se edito sin mandar el
+     * reparto): las partes se vuelven a calcular con las mismas reglas. Sin
+     * esto "mi parte" y los balances seguian con el importe viejo.
+     *
+     * Si las reglas ya no cuadran con el importe nuevo (un reparto por montos
+     * fijos que sumaba el total anterior), se deja como estaba y queda en el
+     * log: es mejor una parte vieja visible que un reparto inventado.
+     */
+    public void recalcular(Movement movimiento) {
+        if (movimiento.getSplitMode() == null || movimiento.getId() == null) return;
+        List<SplitInputDTO> entradas = partes.findByMovementIdAndActiveTrue(movimiento.getId()).stream()
+                .map(p -> {
+                    SplitInputDTO e = new SplitInputDTO();
+                    e.setParticipantId(p.getUserId());
+                    e.setValue(p.getShareValue());
+                    return e;
+                })
+                .collect(Collectors.toList());
+        if (entradas.isEmpty()) return;
+        if (validar(movimiento.getAmount(), movimiento.getSplitMode(), entradas) != null) {
+            log.warn("Movement {} amount changed but its {} split no longer fits: left unchanged",
+                    movimiento.getId(), movimiento.getSplitMode());
+            return;
+        }
+        guardar(movimiento, movimiento.getSplitMode(), entradas);
+    }
+
+    /**
      * Comprueba que el reparto tiene sentido, SIN tocar nada.
      *
      * Va separado de guardar por un fallo que cazo su propia prueba: al

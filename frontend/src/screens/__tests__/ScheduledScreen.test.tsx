@@ -52,7 +52,8 @@ describe('ScheduledScreen', () => {
       <ScheduledScreen navigation={mockNavigation} route={mockRoute} />,
       { wrapper: Wrapper },
     );
-    await waitFor(() => expect(getByText('Programados')).toBeTruthy());
+    /* El titulo lo pone la barra de navegacion; la pantalla ya no lo repite. */
+    await waitFor(() => expect(getByText('Facturas, cuotas, ahorros y bolsas')).toBeTruthy());
   });
 
   it('renders scheduled items', async () => {

@@ -75,6 +75,7 @@ class ElCierreDelMesCuadraTest {
     private MockMvc mvc;
     private Long hogar, salario, casa, mascotas, ahorro, delivery, personalAndy, personalSamy;
     private Long natilleraPendiente;
+    private Long ahorroAndy;
 
     @BeforeEach
     void montar() throws Exception {
@@ -106,7 +107,7 @@ class ElCierreDelMesCuadraTest {
         Long salSamy = programar(SAMY, "Salario Samy", salario, "6600000", 15, null);
         Long arriendo = programar(ANDY, "Arriendo", casa, "2300000", 1, "PAYMENT");
         Long natillera = programar(SAMY, "Natillera", casa, "315000", 1, "PAYMENT");
-        programar(ANDY, "Ahorro Andy", ahorro, "3000000", 1, "SAVING");
+        ahorroAndy = programar(ANDY, "Ahorro Andy", ahorro, "3000000", 1, "SAVING");
         programar(SAMY, "Mascotas", mascotas, "500000", 1, "PROVISION");
 
         asignar(casa, hogar, ANDY, "2615000");
@@ -383,6 +384,64 @@ class ElCierreDelMesCuadraTest {
         assertThat(num(sepMascotas.path("actual"))).isEqualByComparingTo("700000");
         assertThat(octMascotas).as("sin asignacion en octubre, lo presupuestado es la bolsa planeada").isNotNull();
         assertThat(num(octMascotas.path("allocated"))).isEqualByComparingTo("500000");
+    }
+
+    @Test
+    @DisplayName("liberar parte del ahorro: el plan sigue en 3.000.000, se ahorra 1.000.000 y 2.000.000 pasan a lo libre")
+    void liberarParteDelAhorro() throws Exception {
+        Long pendiente = mov(ANDY, ahorro, "3000000", SEP, false, ahorroAndy);
+        BigDecimal libreAntes = num(estado(ANDY, null, null).path("totals").path("freeToSpend"));
+
+        JsonNode r = pedir(ANDY, "/v1/movements/release/" + pendiente, "{\"amount\":2000000}");
+        assertThat(r.path("correct").asBoolean()).as(r.toString()).isTrue();
+        assertThat(num(r.path("object").path("stillPending"))).isEqualByComparingTo("1000000");
+        pedir(ANDY, "/v1/movements/confirm/" + pendiente, "{}");
+
+        JsonNode e = estado(ANDY, null, null);
+        JsonNode a = categoria(e, ahorro);
+        assertThat(num(a.path("allocated"))).as("liberar no cambia el presupuesto").isEqualByComparingTo("3000000");
+        assertThat(num(a.path("actual"))).as("se ahorro de verdad 1.000.000").isEqualByComparingTo("1000000");
+        assertThat(num(a.path("released"))).isEqualByComparingTo("2000000");
+        assertThat(a.path("status").asText()).as("el mes cerro sin cumplir la meta").isEqualTo("META_INCUMPLIDA");
+        assertThat(num(e.path("totals").path("released"))).isEqualByComparingTo("2000000");
+        assertThat(num(e.path("totals").path("freeToSpend")))
+                .as("lo libre sube exactamente lo liberado")
+                .isEqualByComparingTo(libreAntes.add(new BigDecimal("2000000")));
+        for (JsonNode p : e.path("responsibilities")) {
+            if (p.path("userId").asLong() == ANDY) {
+                assertThat(num(p.path("savings"))).as("lo que le tocaba sigue siendo 3.000.000").isEqualByComparingTo("3000000");
+                assertThat(num(p.path("pending"))).as("ya no le falta nada: pago 1 y libero 2").isEqualByComparingTo("0");
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("liberar todo el ahorro: queda LIBERADO, no se regenera y el cierre dice que no se ahorro")
+    void liberarTodoElAhorro() throws Exception {
+        Long pendiente = mov(ANDY, ahorro, "3000000", SEP, false, ahorroAndy);
+        assertThat(pedir(ANDY, "/v1/movements/release/" + pendiente, "{}").path("correct").asBoolean()).isTrue();
+        pedir(ANDY, "/v1/scheduled/generate-pending", "{\"budgetStartDay\":1}");
+        assertThat(movimientos.findAll().stream()
+                .filter(m -> ahorroAndy.equals(m.getScheduledMovementId()) && SEP.equals(m.getPeriodStart())
+                        && Boolean.TRUE.equals(m.getActive())).count())
+                .as("la ocurrencia liberada no vuelve a aparecer por pagar").isZero();
+
+        JsonNode a = categoria(estado(ANDY, null, null), ahorro);
+        assertThat(num(a.path("allocated"))).isEqualByComparingTo("3000000");
+        assertThat(num(a.path("actual"))).isEqualByComparingTo("0");
+        assertThat(a.path("items").toString()).contains("LIBERADO");
+        assertThat(a.path("status").asText()).isEqualTo("META_INCUMPLIDA");
+    }
+
+    @Test
+    @DisplayName("no se libera lo ya pagado, ni mas de lo pendiente, ni lo de otro hogar")
+    void liberarTieneLimites() throws Exception {
+        Long pendiente = mov(ANDY, ahorro, "3000000", SEP, false, ahorroAndy);
+        assertThat(pedir(ANDY, "/v1/movements/release/" + pendiente, "{\"amount\":5000000}").path("correct").asBoolean()).isFalse();
+        assertThat(pedir(ANDY, "/v1/movements/release/" + pendiente, "{\"amount\":0}").path("correct").asBoolean()).isFalse();
+        assertThat(pedir(99L, "/v1/movements/release/" + pendiente, "{}").path("correct").asBoolean()).isFalse();
+        pedir(ANDY, "/v1/movements/confirm/" + pendiente, "{}");
+        assertThat(pedir(ANDY, "/v1/movements/release/" + pendiente, "{}").path("correct").asBoolean()).isFalse();
     }
 
     @Test

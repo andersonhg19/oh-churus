@@ -2207,6 +2207,37 @@
         ]
       }
     },
+    "/v1/movements/release/{id}" : {
+      "post" : {
+        "operationId" : "release",
+        "parameters" : [
+          {
+            "in" : "path",
+            "name" : "id",
+            "required" : true,
+            "schema" : {
+              "format" : "int64",
+              "type" : "integer"
+            }
+          }
+        ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [
+          "movement-controller"
+        ]
+      }
+    },
     "/v1/movements/save" : {
       "post" : {
         "operationId" : "save_1",

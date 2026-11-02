@@ -29,7 +29,7 @@ const PeriodNavigator: React.FC<PeriodNavigatorProps> = ({
   const label = `${getMonthName(midDate.getMonth())} ${midDate.getFullYear()}`;
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.card, borderColor: colors.border }]}>
+    <View style={[styles.container, { backgroundColor: colors.surfaceLight }]}>
       {/*
         * Un lector de pantalla lee "<" como "menor que" y ">" como "mayor
         * que". Sin etiqueta, los dos botones que mueven el periodo —que son la
@@ -41,7 +41,7 @@ const PeriodNavigator: React.FC<PeriodNavigatorProps> = ({
         accessibilityRole="button"
         accessibilityLabel="Periodo anterior"
       >
-        <AppText variant="subtitle" color={colors.primary}>{'<'}</AppText>
+        <AppText variant="subtitle" color={colors.textSecondary}>{'<'}</AppText>
       </TouchableOpacity>
       {/* El periodo se agrupa en UN elemento: si no, el lector dice el mes por
           un lado y las dos fechas por otro, como si fueran tres cosas. */}
@@ -66,7 +66,7 @@ const PeriodNavigator: React.FC<PeriodNavigatorProps> = ({
         accessibilityState={{ disabled: !canGoNext }}
         accessibilityHint={canGoNext ? undefined : 'Ya estas en el periodo actual'}
       >
-        <AppText variant="subtitle" color={canGoNext ? colors.primary : colors.textMuted}>{'>'}</AppText>
+        <AppText variant="subtitle" color={canGoNext ? colors.textSecondary : colors.border}>{'>'}</AppText>
       </TouchableOpacity>
     </View>
   );
@@ -77,10 +77,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: 12,
-    borderWidth: 1,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    borderRadius: 14,
     marginBottom: spacing.sm,
   },
   arrow: {

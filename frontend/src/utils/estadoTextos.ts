@@ -18,24 +18,28 @@ export const ESTADOS_ELEMENTO: Record<ElementoDelPlan['status'], { texto: string
   VENCIDO: { texto: 'Vencido', tono: 'mal' },
   PREVISTO: { texto: 'Previsto', tono: 'neutro' },
   PROVISION: { texto: 'Bolsa', tono: 'neutro' },
+  LIBERADO: { texto: 'Liberado', tono: 'aviso' },
 };
 
 export const colorDeTono = (tono: string, c: { income: string; pending: string; expense: string; textSecondary: string }) =>
   tono === 'bien' ? c.income : tono === 'aviso' ? c.pending : tono === 'mal' ? c.expense : c.textSecondary;
 
 /** La frase del cierre: "se esperaban 500.000 y se gastaron 700.000". */
-export function fraseDelCierre(c: Pick<CategoriaDelPeriodo, 'kind' | 'allocated' | 'actual' | 'status'>, cerrado: boolean): string {
+export function fraseDelCierre(
+  c: Pick<CategoriaDelPeriodo, 'kind' | 'allocated' | 'actual' | 'status'> & { released?: number }, cerrado: boolean,
+): string {
   const plan = formatCurrency(c.allocated);
   const real = formatCurrency(c.actual);
+  const liberado = c.released && c.released > 0 ? ` Se liberaron ${formatCurrency(c.released)} para otras cosas.` : '';
   if (c.kind === 'SAVING') {
     if (c.actual >= c.allocated && c.allocated > 0) return `Se quería ahorrar ${plan} y se ahorró ${real}.`;
     const falta = formatCurrency(Math.max(0, c.allocated - c.actual));
-    return cerrado
+    return (cerrado
       ? `Se quería ahorrar ${plan} y se ahorró ${real}: faltaron ${falta}.`
-      : `Meta ${plan}: van ${real}, faltan ${falta}.`;
+      : `Meta ${plan}: van ${real}, faltan ${falta}.`) + liberado;
   }
   if (c.status === 'SIN_PRESUPUESTO') return `No tenía presupuesto y se ${cerrado ? 'gastaron' : 'llevan'} ${real}.`;
   const verbo = cerrado ? 'se gastaron' : 'van';
-  if (c.actual > c.allocated) return `Se esperaban ${plan} y ${verbo} ${real}: ${formatCurrency(c.actual - c.allocated)} de más.`;
-  return `Se esperaban ${plan} y ${verbo} ${real}: ${cerrado ? 'sobraron' : 'quedan'} ${formatCurrency(c.allocated - c.actual)}.`;
+  if (c.actual > c.allocated) return `Se esperaban ${plan} y ${verbo} ${real}: ${formatCurrency(c.actual - c.allocated)} de más.` + liberado;
+  return `Se esperaban ${plan} y ${verbo} ${real}: ${cerrado ? 'sobraron' : 'quedan'} ${formatCurrency(c.allocated - c.actual)}.` + liberado;
 }

@@ -1,0 +1,14 @@
+-- =====================================================================
+-- V12 — Plata liberada de un compromiso del plan
+-- =====================================================================
+--
+-- "Este mes no voy a poder ahorrar: necesito esa plata para unas deudas que
+-- no estaban en el plan." El ahorro no se paga, pero tampoco se borra: el
+-- presupuesto sigue diciendo que se queria ahorrar 3.000.000, y al cierre del
+-- mes tiene que poder decir "se ahorraron 1.000.000; se liberaron 2.000.000".
+--
+-- released_amount guarda cuanto se libero de ese pendiente. Si se libera
+-- todo, el pendiente se cierra sin pagarse (deja de estar por pagar y su plata
+-- pasa a lo libre); si se libera una parte, el pendiente sigue por el resto.
+-- Nulo = nunca se libero nada: ninguna fila existente cambia de significado.
+ALTER TABLE oc_budget_movement ADD COLUMN released_amount NUMERIC(15, 2);

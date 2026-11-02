@@ -3,6 +3,7 @@ import { View, StyleSheet, ScrollView } from 'react-native';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import AppText from '../../components/atoms/Text';
+import Icono from '../../components/atoms/Icono';
 import Card from '../../components/atoms/Card';
 import Button from '../../components/atoms/Button';
 import { spacing } from '../../theme';
@@ -60,7 +61,9 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
         accessible
         accessibilityLabel={`Tu cuenta: ${user?.name || 'Usuario'}, ${user?.email || 'sin correo'}`}
       >
-        <AppText variant="title" style={styles.avatar}>🐿️</AppText>
+        <View style={[styles.avatar, { width: 64, height: 64, borderRadius: 32, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', alignSelf: 'center' }]}>
+          <AppText variant="title" style={{ color: '#1A1405', fontSize: 30 }}>{(user?.name || '?').charAt(0).toUpperCase()}</AppText>
+        </View>
         <AppText variant="subtitle">{user?.name || 'Usuario'}</AppText>
         <AppText variant="caption" color={colors.textSecondary}>{user?.email}</AppText>
       </View>
@@ -72,7 +75,7 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
         onPress={() => navigation.navigate('ExportImport')}
       >
         <View style={styles.menuRow}>
-          <AppText variant="body">📊 Exportar / Importar</AppText>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}><Icono nombre="upload" color={colors.primary} /><AppText variant="body">Exportar / Importar</AppText></View>
           <AppText variant="body" color={colors.textMuted}>›</AppText>
         </View>
       </Card>
@@ -83,7 +86,7 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
         onPress={() => navigation.navigate('PeriodConfig')}
       >
         <View style={styles.menuRow}>
-          <AppText variant="body">📅 Configuracion de periodo</AppText>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}><Icono nombre="calendar" color={colors.primary} /><AppText variant="body">Día de corte del periodo</AppText></View>
           <AppText variant="body" color={colors.textMuted}>›</AppText>
         </View>
       </Card>
@@ -94,7 +97,7 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
         onPress={() => navigation.navigate('CurrencyConfig')}
       >
         <View style={styles.menuRow}>
-          <AppText variant="body">💱 Moneda y decimales</AppText>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}><Icono nombre="coin" color={colors.primary} /><AppText variant="body">Moneda y decimales</AppText></View>
           <AppText variant="body" color={colors.textMuted}>›</AppText>
         </View>
       </Card>
@@ -105,7 +108,7 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
         onPress={() => navigation.navigate('Household')}
       >
         <View style={styles.menuRow}>
-          <AppText variant="body">🏠 Nucleo Familiar</AppText>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}><Icono nombre="home" color={colors.primary} /><AppText variant="body">Hogar y apodos</AppText></View>
           <AppText variant="body" color={colors.textMuted}>›</AppText>
         </View>
       </Card>
@@ -116,7 +119,7 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
         onPress={() => navigation.navigate('AccountsList')}
       >
         <View style={styles.menuRow}>
-          <AppText variant="body">🏦 Cuentas y saldos</AppText>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}><Icono nombre="wallet" color={colors.primary} /><AppText variant="body">Cuentas y saldos</AppText></View>
           <AppText variant="body" color={colors.textMuted}>›</AppText>
         </View>
       </Card>
@@ -127,7 +130,7 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
         onPress={() => navigation.navigate('Balances')}
       >
         <View style={styles.menuRow}>
-          <AppText variant="body">🤝 Cuentas entre nosotros</AppText>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}><Icono nombre="swap-horizontal" color={colors.primary} /><AppText variant="body">Cuentas entre nosotros</AppText></View>
           <AppText variant="body" color={colors.textMuted}>›</AppText>
         </View>
       </Card>
@@ -138,7 +141,7 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
         onPress={() => navigation.navigate('CategoriesList')}
       >
         <View style={styles.menuRow}>
-          <AppText variant="body">📁 Gestionar Categorias</AppText>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}><Icono nombre="list" color={colors.primary} /><AppText variant="body">Categorías</AppText></View>
           <AppText variant="body" color={colors.textMuted}>›</AppText>
         </View>
       </Card>
@@ -149,7 +152,7 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
         onPress={() => navigation.navigate('Consolidated')}
       >
         <View style={styles.menuRow}>
-          <AppText variant="body">📊 Consolidado Mensual</AppText>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}><Icono nombre="bar-chart" color={colors.primary} /><AppText variant="body">Consolidado del mes</AppText></View>
           <AppText variant="body" color={colors.textMuted}>›</AppText>
         </View>
       </Card>
@@ -166,7 +169,7 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
             onPress={() => navigation.navigate('AdminUsers')}
           >
             <View style={styles.menuRow}>
-              <AppText variant="body">👥 Usuarios y roles</AppText>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}><Icono nombre="users" color={colors.primary} /><AppText variant="body">Usuarios y roles</AppText></View>
               <AppText variant="body" color={colors.textMuted}>›</AppText>
             </View>
           </Card>
@@ -177,7 +180,7 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
             onPress={() => navigation.navigate('AdminRoles')}
           >
             <View style={styles.menuRow}>
-              <AppText variant="body">🔑 Roles</AppText>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}><Icono nombre="key" color={colors.primary} /><AppText variant="body">Roles</AppText></View>
               <AppText variant="body" color={colors.textMuted}>›</AppText>
             </View>
           </Card>
@@ -188,7 +191,7 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
             onPress={() => navigation.navigate('AdminModules')}
           >
             <View style={styles.menuRow}>
-              <AppText variant="body">🧩 Modulos y permisos</AppText>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}><Icono nombre="shield" color={colors.primary} /><AppText variant="body">Módulos y permisos</AppText></View>
               <AppText variant="body" color={colors.textMuted}>›</AppText>
             </View>
           </Card>
@@ -199,7 +202,7 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
             onPress={() => navigation.navigate('AdminAudit')}
           >
             <View style={styles.menuRow}>
-              <AppText variant="body">📜 Auditoria</AppText>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}><Icono nombre="history" color={colors.primary} /><AppText variant="body">Auditoría</AppText></View>
               <AppText variant="body" color={colors.textMuted}>›</AppText>
             </View>
           </Card>
@@ -208,7 +211,7 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
 
       <Card style={styles.menuItem}>
         <View style={styles.menuRow}>
-          <AppText variant="body">🎨 Apariencia</AppText>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}><Icono nombre="settings" color={colors.primary} /><AppText variant="body">Apariencia</AppText></View>
           <Button
             title={isDark ? 'Modo claro' : 'Modo oscuro'}
             accessibilityLabel={isDark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}

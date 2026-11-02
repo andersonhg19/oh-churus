@@ -40,6 +40,13 @@ export const movementService = {
     return response.data;
   },
 
+  /** Suelta plata de un pendiente del plan sin cambiar el presupuesto (todo si no hay monto). */
+  release: async (id: string | number, amount?: number) => {
+    const response = await api.post<ResultDTO<{ released: number; totalReleased: number; stillPending: number }>>(
+      `${BASE}/release/${id}`, amount !== undefined ? { amount } : {});
+    return response.data;
+  },
+
   /** Confirma varios pendientes de una vez: todo o nada. */
   confirmBatch: async (items: { id: string | number; amount?: number }[]) => {
     const response = await api.post<ResultDTO<{ confirmed: number; total: number }>>(

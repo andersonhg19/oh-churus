@@ -289,6 +289,16 @@ class AislamientoEntreUsuariosTest {
         }
 
         @Test
+        @DisplayName("no puede liberar la plata de un pendiente de Ana")
+        void liberarAjeno() throws Exception {
+            atacar("/v1/movements/release/" + movimientoDeAna, "{\"amount\":100000}");
+            assertThat(movimientos.findById(movimientoDeAna))
+                    .as("Bruno le libero plata a Ana")
+                    .get().extracting(Movement::getReleasedAmount)
+                    .isNull();
+        }
+
+        @Test
         @DisplayName("no puede confirmar en lote un movimiento de Ana ni cambiarle el importe")
         void confirmarEnLote() throws Exception {
             atacar("/v1/movements/confirm-batch", "{\"items\":[{\"id\":" + movimientoDeAna + ",\"amount\":9999999}]}");

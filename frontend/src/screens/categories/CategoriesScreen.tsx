@@ -72,7 +72,6 @@ const CategoriesScreen: React.FC<Props> = ({ navigation }) => {
   if (error) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <AppText variant="subtitle" style={styles.header}>Categorias</AppText>
         <EstadoError mensaje={error} onReintentar={cargar} />
       </View>
     );
@@ -80,7 +79,6 @@ const CategoriesScreen: React.FC<Props> = ({ navigation }) => {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <AppText variant="subtitle" style={styles.header}>Categorias</AppText>
 
       <ScrollView
         contentContainerStyle={tree.length === 0 ? styles.emptyContainer : styles.listContent}

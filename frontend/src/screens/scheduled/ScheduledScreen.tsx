@@ -122,15 +122,15 @@ const ScheduledScreen: React.FC<Props> = ({ navigation }) => {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.headerRow}>
-        <AppText variant="subtitle">Programados</AppText>
+        <AppText variant="caption" color={colors.textSecondary} style={{ flex: 1 }}>Facturas, cuotas, ahorros y bolsas</AppText>
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <Button
             title="Generar"
+            variant="outline"
             accessibilityLabel="Generar los movimientos que ya tocaban"
             onPress={handleGenerate}
             loading={generating}
             size="small"
-            variant="secondary"
           />
           <Button
             title="+ Nuevo"

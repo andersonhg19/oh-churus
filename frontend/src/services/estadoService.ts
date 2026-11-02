@@ -16,8 +16,10 @@ export interface ElementoDelPlan {
   name: string;
   date: string;
   amount: number;
-  status: 'PAGADO' | 'PENDIENTE' | 'VENCIDO' | 'PREVISTO' | 'PROVISION';
+  status: 'PAGADO' | 'PENDIENTE' | 'VENCIDO' | 'PREVISTO' | 'PROVISION' | 'LIBERADO';
   kind: 'PAYMENT' | 'DEDUCTION' | 'SAVING' | 'PROVISION';
+  /** Lo que se libero de esta fecha para usarlo en otra cosa. */
+  released?: number;
   payerUserId: number;
   payerName?: string;
 }
@@ -38,6 +40,7 @@ export interface CategoriaDelPeriodo {
   status: EstadoCategoria;
   hasAllocation: boolean;
   plannedInItems: number;
+  released?: number;
   provision: number;
   provisionLeft: number;
   otherSpending: number;
@@ -61,6 +64,8 @@ export interface TotalesDelPeriodo {
   provisionsLeft: number;
   /** Lo que falta pagar segun el plan, generado o no su pendiente. */
   toPay: number;
+  /** Lo liberado de compromisos del plan en el periodo. */
+  released?: number;
   /** Lo libre al final del periodo, con los ingresos esperados. */
   freeToSpend: number;
   /** Lo mismo, con lo que ya llego. */

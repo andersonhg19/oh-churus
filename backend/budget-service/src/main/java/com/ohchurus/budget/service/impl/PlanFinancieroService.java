@@ -90,7 +90,18 @@ public class PlanFinancieroService {
     }
 
     /** Una fecha concreta de un programado, con su estado. */
-    record Fecha(Linea l, LocalDate fecha, LocalDate clave, BigDecimal monto, String estado, Long movimientoId) {}
+    /**
+     * Una fecha concreta de un programado, con su estado. monto es lo que
+     * queda por pagar (o lo pagado); liberado es lo que se solto de esa fecha
+     * para usarlo en otra cosa (V12). Lo planeado es la suma de los dos.
+     */
+    record Fecha(Linea l, LocalDate fecha, LocalDate clave, BigDecimal monto, String estado, Long movimientoId,
+                 BigDecimal liberado) {
+        Fecha(Linea l, LocalDate fecha, LocalDate clave, BigDecimal monto, String estado, Long movimientoId) {
+            this(l, fecha, clave, monto, estado, movimientoId, BigDecimal.ZERO);
+        }
+        BigDecimal planeado() { return monto.add(liberado); }
+    }
 
     List<Linea> visibles(Long yo) {
         List<Long> hIds = hogares.getHouseholdIds(yo);
@@ -105,7 +116,10 @@ public class PlanFinancieroService {
             if (c == null) continue;
             Map<LocalDate, Movement> porClave = new HashMap<>();
             for (Movement m : movimientos.findByScheduledMovementId(p.getId())) {
-                if (!Boolean.TRUE.equals(m.getActive())) continue;
+                /* Un pendiente liberado del todo queda inactivo, pero esa fecha
+                   sigue existiendo en el plan: se ensena como LIBERADO. */
+                boolean liberado = m.getReleasedAmount() != null && m.getReleasedAmount().signum() > 0;
+                if (!Boolean.TRUE.equals(m.getActive()) && !liberado) continue;
                 porClave.putIfAbsent(m.getPeriodStart() != null ? m.getPeriodStart() : m.getDate(), m);
             }
             lineas.add(new Linea(p, c, ScheduledMovementServiceImpl.pagadorDe(p),
@@ -133,13 +147,17 @@ public class PlanFinancieroService {
             if (m == null) m = l.porClave().get(o.fecha());
             BigDecimal monto = m != null && m.getAmount() != null ? m.getAmount()
                     : (l.p().getAmount() != null ? l.p().getAmount() : BigDecimal.ZERO);
+            BigDecimal liberado = m != null && m.getReleasedAmount() != null ? m.getReleasedAmount() : BigDecimal.ZERO;
+            boolean cerradoSinPagar = m != null && !Boolean.TRUE.equals(m.getActive());
+            if (cerradoSinPagar) monto = BigDecimal.ZERO;
             String estado;
             if (l.clase() == ScheduledKind.PROVISION) estado = "PROVISION";
+            else if (cerradoSinPagar) estado = "LIBERADO";
             else if (m != null && Boolean.TRUE.equals(m.getConfirmed())) estado = "PAGADO";
             else if (o.fecha().isBefore(hoy)) estado = "VENCIDO";
             else if (m != null) estado = "PENDIENTE";
             else estado = "PREVISTO";
-            out.add(new Fecha(l, o.fecha(), o.clave(), monto, estado, m != null ? m.getId() : null));
+            out.add(new Fecha(l, o.fecha(), o.clave(), monto, estado, m != null ? m.getId() : null, liberado));
         }
         return out;
     }
@@ -162,6 +180,7 @@ public class PlanFinancieroService {
         m.put("date", f.fecha().toString());
         m.put("amount", f.monto());
         m.put("status", f.estado());
+        m.put("released", f.liberado());
         m.put("kind", f.l().clase().name());
         m.put("income", f.l().ingreso());
         m.put("categoryId", f.l().cat().getId());
@@ -396,7 +415,7 @@ public class PlanFinancieroService {
             for (Fecha f : fechas(l, hoy.minusDays(60), hoy.plusDays(DIAS_DE_AVISO), hoy)) {
                 if ("VENCIDO".equals(f.estado())) {
                     out.add(alerta("VENCIDO", f.l().p().getName() + " vencio el " + f.fecha(), f));
-                } else if (!"PAGADO".equals(f.estado()) && !f.fecha().isBefore(hoy)) {
+                } else if (!"PAGADO".equals(f.estado()) && !"LIBERADO".equals(f.estado()) && !f.fecha().isBefore(hoy)) {
                     out.add(alerta("PROXIMO", f.l().p().getName() + " vence el " + f.fecha(), f));
                 }
             }

@@ -371,6 +371,53 @@ public class MovementServiceImpl implements MovementService {
         return new ResultDTO(movementMapper.toResultDTO(guardado));
     }
 
+    /**
+     * LIBERAR plata de un compromiso del plan: "este mes no ahorro, necesito
+     * esa plata para unas deudas que no estaban en el plan".
+     *
+     * El presupuesto NO cambia: la asignacion y el programado siguen diciendo
+     * cuanto se queria ahorrar, y el cierre del mes lo compara con lo que de
+     * verdad se ahorro. Lo que cambia es que esa plata deja de estar "por
+     * pagar" y pasa a lo libre.
+     *   · Liberar todo: el pendiente se cierra sin pagarse (queda inactivo y
+     *     con lo liberado anotado). No se vuelve a generar: la fecha existe.
+     *   · Liberar una parte: el pendiente sigue por el resto, que se confirma
+     *     como siempre.
+     * Solo lo pendiente: lo confirmado ya salio de una cuenta.
+     */
+    @Override
+    @Transactional
+    public ResultDTO liberar(Long id, java.math.BigDecimal monto) {
+        Optional<Movement> encontrado = movementRepository.findByIdAndActiveTrue(id);
+        if (encontrado.isEmpty() || !puedoTocar(encontrado.get())) {
+            return new ResultDTO(false, "Movement not found", 404);
+        }
+        Movement m = encontrado.get();
+        if (Boolean.TRUE.equals(m.getConfirmed())) {
+            return new ResultDTO(false, "Ya esta pagado: solo se libera lo que sigue pendiente", 400);
+        }
+        java.math.BigDecimal pendiente = m.getAmount() != null ? m.getAmount() : java.math.BigDecimal.ZERO;
+        java.math.BigDecimal suelta = monto != null ? monto : pendiente;
+        if (suelta.signum() <= 0 || suelta.compareTo(pendiente) > 0) {
+            return new ResultDTO(false, "Se puede liberar entre 1 y " + pendiente.toPlainString(), 400);
+        }
+        java.math.BigDecimal antes = m.getReleasedAmount() != null ? m.getReleasedAmount() : java.math.BigDecimal.ZERO;
+        m.setReleasedAmount(antes.add(suelta));
+        if (suelta.compareTo(pendiente) == 0) {
+            m.setActive(false);
+        } else {
+            m.setAmount(pendiente.subtract(suelta));
+            repartos.recalcular(m);
+        }
+        Movement guardado = movementRepository.save(m);
+        log.info("Movement {} released {} (now pending {})", id, suelta, guardado.getActive() ? guardado.getAmount() : 0);
+        Map<String, Object> res = new java.util.LinkedHashMap<>();
+        res.put("released", suelta);
+        res.put("totalReleased", guardado.getReleasedAmount());
+        res.put("stillPending", Boolean.TRUE.equals(guardado.getActive()) ? guardado.getAmount() : java.math.BigDecimal.ZERO);
+        return new ResultDTO(res);
+    }
+
     @Override
     public ResultDTO confirmarVarios(java.util.List<Long> ids, java.util.List<java.math.BigDecimal> montos) {
         /* Se valida TODO antes de tocar nada: una lista con un pago ajeno o ya

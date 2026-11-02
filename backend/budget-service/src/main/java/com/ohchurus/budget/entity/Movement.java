@@ -127,6 +127,12 @@ public class Movement {
     /** Con quien se salda, cuando es una liquidacion. */
     private Long settledWithUserId;
 
+    /**
+     * Cuanto se libero de este pendiente del plan (V12): plata que no se pago
+     * (o no se ahorro) y paso a estar disponible. Nulo = nada.
+     */
+    private java.math.BigDecimal releasedAmount;
+
     @Column(nullable = false)
     @Builder.Default
     private Boolean isTransfer = false;

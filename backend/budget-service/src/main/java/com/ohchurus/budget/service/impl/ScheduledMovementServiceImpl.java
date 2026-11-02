@@ -345,7 +345,9 @@ public class ScheduledMovementServiceImpl implements ScheduledMovementService {
         }
 
         List<Movement> futurasSinConfirmar = generadas.stream()
-                .filter(m -> !Boolean.TRUE.equals(m.getConfirmed()) && m.getDate() != null && !m.getDate().isBefore(hoy))
+                /* Lo liberado no se borra: es el registro de que esa vez no se pago. */
+                .filter(m -> !Boolean.TRUE.equals(m.getConfirmed()) && m.getReleasedAmount() == null
+                        && m.getDate() != null && !m.getDate().isBefore(hoy))
                 .collect(Collectors.toList());
         movementRepository.deleteAll(futurasSinConfirmar);
 

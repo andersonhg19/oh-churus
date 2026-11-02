@@ -154,7 +154,7 @@ const PlanScreen: React.FC = () => {
             {quincena.alerts.map((a, n) => (
               <AppText key={n} variant="caption" style={styles.alerta}
                 color={a.type === 'VENCIDO' || a.type === 'QUINCENA_AJUSTADA' ? colors.expense : colors.text}>
-                {a.type === 'VENCIDO' ? '⚠️' : a.type === 'PROXIMO' ? '⏰' : a.type === 'CUOTA_TERMINA' ? '🎉' : '🔴'} {a.message}
+                {a.type === 'VENCIDO' ? 'Vencido · ' : a.type === 'PROXIMO' ? 'Próximo · ' : a.type === 'CUOTA_TERMINA' ? 'Termina · ' : ''}{a.message}
                 {a.amount ? ` (${formatCurrency(a.amount)})` : ''}
               </AppText>
             ))}
@@ -163,8 +163,8 @@ const PlanScreen: React.FC = () => {
 
         <Card style={styles.tarjeta}
           accessible
-          accessibilityLabel={`Disponible para gastar hoy: ${formatCurrency(d.freeToSpend)}`}>
-          <AppText variant="caption" color={colors.textSecondary}>Disponible para gastar hoy</AppText>
+          accessibilityLabel={`Libre para gastar hoy: ${formatCurrency(d.freeToSpend)}`}>
+          <AppText variant="caption" color={colors.textSecondary}>Libre para gastar hoy</AppText>
           <AppText variant="title" color={color(d.freeToSpend)} testID="disponible-hoy">{formatCurrency(d.freeToSpend)}</AppText>
           <AppText variant="caption" color={colors.textMuted} style={styles.rango}>
             No es el saldo del banco: es lo confirmado en tus cuentas menos lo que aún tiene que salir antes del siguiente pago.
@@ -289,7 +289,6 @@ const PlanScreen: React.FC = () => {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <AppText variant="subtitle" style={styles.header}>Plan</AppText>
       <View style={styles.toggle}>
         <CapsuleToggle
           options={[

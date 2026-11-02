@@ -44,6 +44,8 @@ const PorConfirmarScreen: React.FC<{ navigation: any; route?: any }> = ({ naviga
   const [valores, setValores] = useState<Record<string, number>>({});
   const [abierto, setAbierto] = useState<Movement | null>(null);
   const [cambiandoValor, setCambiandoValor] = useState<Movement | null>(null);
+  /* Liberar: "este mes no ahorro, uso esa plata para otra cosa". */
+  const [liberando, setLiberando] = useState<Movement | null>(null);
   const [confirmando, setConfirmando] = useState(false);
 
   const traer = useCallback(async () => {
@@ -83,6 +85,18 @@ const PorConfirmarScreen: React.FC<{ navigation: any; route?: any }> = ({ naviga
       cargar();
     } catch { showToast('error', 'Error', 'No se pudieron confirmar'); }
     finally { setConfirmando(false); }
+  };
+
+  const liberar = async (m: Movement, monto: number) => {
+    try {
+      const r = await movementService.release(m.id, monto);
+      if (!r.correct) { showToast('error', 'No se pudo liberar', r.message); return; }
+      const sigue = r.object?.stillPending || 0;
+      showToast('success', `Liberaste ${formatCurrency(monto)}`,
+        sigue > 0 ? `${m.description || 'El pago'} sigue por ${formatCurrency(sigue)}` : 'Ya está disponible para gastar');
+      setLiberando(null);
+      cargar();
+    } catch { showToast('error', 'Error', 'No se pudo liberar'); }
   };
 
   const reasignar = async (m: Movement, quien: number) => {
@@ -210,6 +224,9 @@ const PorConfirmarScreen: React.FC<{ navigation: any; route?: any }> = ({ naviga
                 </AppText>
                 {accion('Confirmar ahora', 'check', () => confirmar([abierto]), 'Confirmar este pago ahora')}
                 {accion('Cambiar el valor', 'edit', () => { setCambiandoValor(abierto); setAbierto(null); }, 'Cambiar el valor de este pago')}
+                {abierto.categoryType !== 'INCOME' && accion('Liberar esta plata (no pagarla este mes)', 'swap-horizontal',
+                  () => { setLiberando(abierto); setAbierto(null); },
+                  'Liberar todo o parte de este pago para usar la plata en otra cosa, sin cambiar el presupuesto')}
                 {abierto.shared && miembros.length > 1 && miembros.filter((x) => String(x.userId) !== String(abierto.userId)).map((x) =>
                   accion(`Que lo pague ${x.nombre} esta vez`, 'people', () => reasignar(abierto, x.userId), `Pasarle este pago a ${x.nombre}`))}
                 {abierto.categoryType !== 'INCOME' && accion('Anotar un sub-gasto', 'plus', () => { const p = abierto; setAbierto(null); navigation.navigate('MovementFormModal', { parentMovement: p }); },
@@ -220,6 +237,11 @@ const PorConfirmarScreen: React.FC<{ navigation: any; route?: any }> = ({ naviga
           </View>
         </TouchableOpacity>
       </Modal>
+
+      <MontoModal visible={!!liberando} titulo={`Liberar de ${liberando?.description || 'este pago'}`}
+        detalle="El presupuesto no cambia: al cierre se verá cuánto se cumplió y cuánto se liberó"
+        inicial={liberando ? valorDe(liberando) : 0} textoListo="Liberar"
+        onListo={(v) => liberando && liberar(liberando, v)} onCerrar={() => setLiberando(null)} />
 
       <MontoModal visible={!!cambiandoValor} titulo={cambiandoValor?.description || 'Valor real'}
         detalle="Si el valor real fue distinto al previsto" inicial={cambiandoValor ? valorDe(cambiandoValor) : 0}

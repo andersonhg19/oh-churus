@@ -65,6 +65,19 @@ public class MovementController {
     }
 
     /**
+     * Libera plata de un pendiente del plan para usarla en otra cosa, sin
+     * cambiar el presupuesto. Cuerpo opcional {"amount": 2000000}; sin monto
+     * se libera todo.
+     */
+    @PostMapping(value = "/release/{id}", produces = "application/json")
+    public ResponseEntity<ResultDTO> release(@PathVariable Long id,
+            @RequestBody(required = false) java.util.Map<String, Object> body) {
+        java.math.BigDecimal monto = body != null && body.get("amount") != null
+                ? new java.math.BigDecimal(body.get("amount").toString()) : null;
+        return ResponseEntity.ok(movementService.liberar(id, monto));
+    }
+
+    /**
      * Confirma varios pendientes de una vez: el ahorro, el arriendo y las
      * cuotas de la tarjeta en un solo toque. Cuerpo:
      * {"items":[{"id":12},{"id":13,"amount":150000}]}. Es todo o nada: si uno

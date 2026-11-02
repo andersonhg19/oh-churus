@@ -50,7 +50,8 @@ describe('CategoriesScreen', () => {
       <CategoriesScreen navigation={mockNavigation} route={mockRoute} />,
       { wrapper: Wrapper },
     );
-    await waitFor(() => expect(getByText('Categorias')).toBeTruthy());
+    /* El titulo lo pone la barra de navegacion; la pantalla ya no lo repite. */
+    await waitFor(() => expect(categoryService.getTree).toHaveBeenCalled());
   });
 
   it('renders category items', async () => {

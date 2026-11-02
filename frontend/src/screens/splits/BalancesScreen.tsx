@@ -112,7 +112,6 @@ const BalancesScreen: React.FC = () => {
   if (error) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <AppText variant="subtitle" style={styles.header}>Cuentas entre nosotros</AppText>
         <EstadoError mensaje={error} onReintentar={cargar} />
       </View>
     );
@@ -122,7 +121,6 @@ const BalancesScreen: React.FC = () => {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <AppText variant="subtitle" style={styles.header}>Cuentas entre nosotros</AppText>
 
       <ScrollView
         contentContainerStyle={balances.length === 0 ? styles.emptyContainer : styles.listContent}

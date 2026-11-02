@@ -25,6 +25,7 @@ import CierreScreen from '../screens/presupuesto/CierreScreen';
 import ResponsabilidadesScreen from '../screens/responsabilidades/ResponsabilidadesScreen';
 import PorConfirmarScreen from '../screens/pendientes/PorConfirmarScreen';
 import IngresosScreen from '../screens/ingresos/IngresosScreen';
+import MovimientosScreen from '../screens/movimientos/MovimientosScreen';
 
 // Lo que se conserva tal cual, ahora desde el menu
 import CategoryDrillDownScreen from '../screens/summary/CategoryDrillDownScreen';
@@ -105,6 +106,7 @@ const FinanzasNavigator = () => {
       <Finanzas.Screen name="Responsabilidades" component={pantalla(ResponsabilidadesScreen)} />
       <Finanzas.Screen name="PorConfirmar" component={pantalla(PorConfirmarScreen)} />
       <Finanzas.Screen name="Ingresos" component={pantalla(IngresosScreen)} />
+      <Finanzas.Screen name="Movimientos" component={pantalla(MovimientosScreen)} />
 
       <Finanzas.Group screenOptions={cabecera}>
         <Finanzas.Screen name="Plan" component={pantalla(PlanScreen)} options={{ title: 'Plan y quincenas' }} />
@@ -148,7 +150,8 @@ const MENU: { titulo: string; icono: string; destino: string; detalle?: string }
   [
     { titulo: 'Plan y quincenas', icono: 'calendar', destino: 'Plan', detalle: 'Calendario y proyección' },
     { titulo: 'Programados', icono: 'clock', destino: 'ScheduledList', detalle: 'Facturas, cuotas, ahorro, bolsas' },
-    { titulo: 'Movimientos', icono: 'list', destino: 'MovementsList' },
+    { titulo: 'Movimientos', icono: 'list', destino: 'Movimientos', detalle: 'Por categoría, desplegables' },
+    { titulo: 'Buscar movimientos', icono: 'search', destino: 'MovementsList' },
     { titulo: 'Entre nosotros', icono: 'swap-horizontal', destino: 'Balances', detalle: 'Quién le debe a quién' },
     { titulo: 'Cuentas', icono: 'wallet', destino: 'AccountsList', detalle: 'Saldos y conciliar' },
   ],

@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Modal } from 'react-native';
+import CirculoCategoria from '../../components/atoms/CirculoCategoria';
 import { useFocusEffect } from '@react-navigation/native';
 import AppText from '../../components/atoms/Text';
 import Icono from '../../components/atoms/Icono';
@@ -36,6 +37,7 @@ const InicioScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
      antes el recuadro decia "20 pagos" y la lista ensenaba otros 9. */
   const [porPagar, setPorPagar] = useState({ n: 0, monto: 0 });
   const [otras, setOtras] = useState<Category[]>([]);
+  const [elegida, setElegida] = useState<CategoriaEnDona | null>(null);
 
   const traer = useCallback(async () => {
     if (!user) return;
@@ -108,7 +110,7 @@ const InicioScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         refreshControl={<RefreshControl refreshing={refrescando} onRefresh={refrescar} tintColor={colors.primary} />}>
         <DonaDeCategorias
           categorias={enDona}
-          onCategoria={(c) => navigation.navigate('Anotar', { tipo: 'EXPENSE', categoriaId: c.id })}
+          onCategoria={(c) => setElegida(c)}
           onCentro={() => navigation.navigate('Presupuesto')}
           onMas={() => navigation.navigate('Anotar', { tipo: 'EXPENSE' })}
           etiquetaCentro={`Gastado ${formatCurrency(t?.spent || 0)} de ${formatCurrency(presupuestoDeGasto)}. Ver el presupuesto`}
@@ -149,6 +151,15 @@ const InicioScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           </TouchableOpacity>
         )}
 
+        <TouchableOpacity style={[styles.libre, { borderColor: colors.border }]} onPress={() => navigation.navigate('Movimientos')}
+          accessibilityRole="button" accessibilityLabel="Ver los movimientos del periodo por categoría">
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <Icono nombre="list" color={colors.textSecondary} />
+            <AppText variant="body" color={colors.textSecondary}>Movimientos del periodo</AppText>
+          </View>
+          <Icono nombre="right" color={colors.textSecondary} tamano={18} />
+        </TouchableOpacity>
+
         <TouchableOpacity style={[styles.libre, { borderColor: colors.border }]} onPress={() => navigation.navigate('Responsabilidades')}
           accessibilityRole="button" accessibilityLabel={`Libre para gastar ${formatCurrency(t?.freeToSpend || 0)}. Ver de dónde sale`}>
           <AppText variant="body" color={colors.textSecondary}>Libre para gastar</AppText>
@@ -157,6 +168,41 @@ const InicioScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           </AppText>
         </TouchableOpacity>
       </ScrollView>
+
+      <Modal visible={!!elegida} transparent animationType="slide" onRequestClose={() => setElegida(null)}>
+        <TouchableOpacity style={styles.fondo} activeOpacity={1} onPress={() => setElegida(null)}
+          accessibilityRole="button" accessibilityLabel="Cerrar">
+          {elegida && (
+            <View style={[styles.hoja, { backgroundColor: colors.surface }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 4 }}>
+                <CirculoCategoria icono={elegida.icono} color={elegida.color} tamano={40} />
+                <View>
+                  <AppText variant="subtitle">{elegida.nombre}</AppText>
+                  <AppText variant="caption" color={colors.textSecondary}>Van {formatCurrency(elegida.valor)} este periodo</AppText>
+                </View>
+              </View>
+              <TouchableOpacity style={[styles.opcion, { backgroundColor: colors.expense }]}
+                onPress={() => { const c = elegida; setElegida(null); navigation.navigate('Anotar', { tipo: 'EXPENSE', categoriaId: c.id }); }}
+                accessibilityRole="button" accessibilityLabel={`Anotar un gasto en ${elegida.nombre}`}>
+                <Icono nombre="minus" color="#FFFFFF" />
+                <AppText variant="body" style={{ color: '#FFFFFF', fontWeight: '800' }}>Anotar un gasto</AppText>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.opcion, { backgroundColor: colors.surfaceLight }]}
+                onPress={() => { const c = elegida; setElegida(null); navigation.navigate('Movimientos', { categoriaId: c.id }); }}
+                accessibilityRole="button" accessibilityLabel={`Ver los movimientos de ${elegida.nombre}`}>
+                <Icono nombre="list" color={colors.text} />
+                <AppText variant="body" style={{ fontWeight: '700' }}>Ver sus movimientos</AppText>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.opcion, { backgroundColor: colors.surfaceLight }]}
+                onPress={() => { const c = elegida; setElegida(null); navigation.navigate('Categoria', { categoryId: c.id }); }}
+                accessibilityRole="button" accessibilityLabel={`Ver el presupuesto de ${elegida.nombre}`}>
+                <Icono nombre="chart" color={colors.text} />
+                <AppText variant="body" style={{ fontWeight: '700' }}>Ver su presupuesto</AppText>
+              </TouchableOpacity>
+            </View>
+          )}
+        </TouchableOpacity>
+      </Modal>
 
       <View style={styles.botones}>
         <TouchableOpacity style={[styles.grande, { backgroundColor: colors.expense }]}
@@ -183,6 +229,9 @@ const styles = StyleSheet.create({
   punto: { width: 10, height: 10, borderRadius: 5 },
   libre: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, borderRadius: 14, borderWidth: 1, minHeight: 52 },
   botones: { flexDirection: 'row', gap: 12, padding: 16, paddingTop: 8 },
+  fondo: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  hoja: { padding: 20, gap: 10, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
+  opcion: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 54, borderRadius: 14, paddingHorizontal: 16 },
   grande: { flex: 1, height: 60, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   textoGrande: { color: '#FFFFFF', fontWeight: '800' },
 });

@@ -9,6 +9,7 @@ import PorConfirmarScreen from '../pendientes/PorConfirmarScreen';
 import AnotarScreen from '../anotar/AnotarScreen';
 import PresupuestoScreen from '../presupuesto/PresupuestoScreen';
 import CategoriaScreen from '../presupuesto/CategoriaScreen';
+import MovimientosScreen from '../movimientos/MovimientosScreen';
 import { estadoService } from '../../services/estadoService';
 import { dashboardService } from '../../services/dashboardService';
 import { movementService } from '../../services/movementService';
@@ -29,7 +30,7 @@ jest.mock('@react-navigation/native', () => ({
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 jest.mock('../../services/estadoService', () => ({ estadoService: { periodo: jest.fn(), historial: jest.fn() } }));
 jest.mock('../../services/dashboardService', () => ({ dashboardService: { getPending: jest.fn() } }));
-jest.mock('../../services/movementService', () => ({ movementService: { confirmBatch: jest.fn(), reassign: jest.fn(), save: jest.fn() } }));
+jest.mock('../../services/movementService', () => ({ movementService: { confirmBatch: jest.fn(), reassign: jest.fn(), save: jest.fn(), getAll: jest.fn(), release: jest.fn() } }));
 jest.mock('../../services/categoryService', () => ({ categoryService: { getAll: jest.fn() } }));
 jest.mock('../../services/accountService', () => ({ accountService: { getAll: jest.fn() } }));
 jest.mock('../../services/budgetAllocationService', () => ({
@@ -106,7 +107,12 @@ describe('Inicio', () => {
     const { findByLabelText, getByLabelText } = render(<Envoltura><InicioScreen navigation={nav()} /></Envoltura>);
     fireEvent.press(await findByLabelText('Anotar un gasto'));
     expect(mockNavegar).toHaveBeenCalledWith('Anotar', { tipo: 'EXPENSE' });
+    /* Tocar la categoria ofrece anotar, ver sus movimientos o su presupuesto. */
     fireEvent.press(getByLabelText(/Anotar en Mascotas/));
+    fireEvent.press(getByLabelText('Ver los movimientos de Mascotas'));
+    expect(mockNavegar).toHaveBeenCalledWith('Movimientos', { categoriaId: 1 });
+    fireEvent.press(getByLabelText(/Anotar en Mascotas/));
+    fireEvent.press(getByLabelText('Anotar un gasto en Mascotas'));
     expect(mockNavegar).toHaveBeenCalledWith('Anotar', { tipo: 'EXPENSE', categoriaId: 1 });
   });
 });
@@ -160,6 +166,18 @@ describe('Por pagar: el recuadro y la lista dicen lo mismo', () => {
     fireEvent.press(await findByLabelText('Marcar todos'));
     expect(getByLabelText(/Confirmar 2 pagos/)).toBeTruthy();
     expect(getByLabelText('Desmarcar todos')).toBeTruthy();
+  });
+});
+
+describe('Liberar plata de un pago del plan', () => {
+  it('libera lo que se escribe con el teclado y lo dice', async () => {
+    (movementService as any).release = jest.fn().mockResolvedValue({ correct: true, object: { released: 2300000, totalReleased: 2300000, stillPending: 0 } });
+    const { findByLabelText, getAllByLabelText, getByLabelText } = render(<Envoltura><PorConfirmarScreen navigation={nav()} /></Envoltura>);
+    fireEvent.press(await findByLabelText(/Arriendo, .*Ver opciones/));
+    fireEvent.press(getByLabelText(/Liberar todo o parte de este pago/));
+    fireEvent.press(getAllByLabelText('Liberar')[0]);
+    await waitFor(() => expect((movementService as any).release).toHaveBeenCalledWith('1', 2300000));
+    expect(toast).toHaveBeenCalledWith('success', expect.stringMatching(/Liberaste .*2.300.000/), 'Ya está disponible para gastar');
   });
 });
 
@@ -218,5 +236,32 @@ describe('La frase del cierre', () => {
       .toMatch(/Se quería ahorrar .*3.000.000 y se ahorró .*0: faltaron .*3.000.000/);
     expect(fraseDelCierre({ kind: 'EXPENSE', allocated: 0, actual: 75500, status: 'SIN_PRESUPUESTO' }, false))
       .toMatch(/No tenía presupuesto y se llevan .*75.500/);
+  });
+});
+
+describe('Movimientos del periodo, como en Monefy', () => {
+  const mov = (id: string, cat: string, nombre: string, amount: number, desc: string) => ({
+    id, userId: '3', categoryId: cat, categoryName: nombre, categoryType: 'EXPENSE', amount, description: desc,
+    date: '2026-10-31', confirmed: true, shared: true,
+  });
+  it('ordena las categorías de la que más movió a la que menos, deja las vacías al final y expande todo', async () => {
+    (movementService.getAll as jest.Mock).mockResolvedValue({ correct: true, object: { list: [
+      mov('58', '42', 'Delivery', 51500, 'Pago Almuerzo'), mov('60', '42', 'Delivery', 24000, 'Compra de helado'),
+      mov('59', '27', 'Casa', 9500, 'Crema'),
+    ] } });
+    (categoryService.getAll as jest.Mock).mockResolvedValue({ correct: true, object: { list: [
+      { id: '27', name: 'Casa', type: 'EXPENSE', householdId: 1, active: true },
+      { id: '42', name: 'Delivery', type: 'EXPENSE', householdId: 1, active: true },
+      { id: '34', name: 'Regalo', type: 'EXPENSE', householdId: 1, active: true },
+    ] } });
+    const { findAllByLabelText, getByLabelText, queryByText, getByText } = render(
+      <Envoltura><MovimientosScreen navigation={nav()} /></Envoltura>);
+    const filas = await findAllByLabelText(/movimientos\. (Expandir|Contraer)/);
+    expect(filas.map((f) => f.props.accessibilityLabel.split(':')[0])).toEqual(['Delivery', 'Casa', 'Regalo']);
+    expect(queryByText('Compra de helado')).toBeNull();
+    fireEvent.press(getByLabelText('Expandir todo'));
+    expect(getByText('Compra de helado')).toBeTruthy();
+    expect(getByText('Pago Almuerzo')).toBeTruthy();
+    expect(getByText('Sin movimientos')).toBeTruthy();
   });
 });

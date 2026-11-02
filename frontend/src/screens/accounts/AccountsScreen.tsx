@@ -74,15 +74,13 @@ const AccountsScreen: React.FC<Props> = ({ navigation }) => {
   if (error) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <AppText variant="subtitle" style={styles.header}>Cuentas</AppText>
-        <EstadoError mensaje={error} onReintentar={cargar} />
+          <EstadoError mensaje={error} onReintentar={cargar} />
       </View>
     );
   }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <AppText variant="subtitle" style={styles.header}>Cuentas</AppText>
 
       <ScrollView
         contentContainerStyle={cuentas.length === 0 ? styles.emptyContainer : styles.listContent}
@@ -212,13 +210,13 @@ const AccountsScreen: React.FC<Props> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { padding: spacing.md, paddingBottom: spacing.sm },
-  listContent: { padding: spacing.md, paddingTop: 0, paddingBottom: spacing.xl * 2 },
+  listContent: { padding: spacing.md, paddingBottom: spacing.xl * 2 },
   emptyContainer: { flex: 1 },
   patrimonio: { marginBottom: spacing.md },
   cuenta: { marginBottom: spacing.sm },
   filaCuenta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  datosCuenta: { flex: 1, marginRight: spacing.sm },
-  saldos: { alignItems: 'flex-end' },
+  datosCuenta: { flex: 1, minWidth: 0, marginRight: spacing.sm },
+  saldos: { alignItems: 'flex-end', maxWidth: '48%', flexShrink: 1 },
   conciliar: {
     marginTop: spacing.sm,
     paddingTop: spacing.sm,

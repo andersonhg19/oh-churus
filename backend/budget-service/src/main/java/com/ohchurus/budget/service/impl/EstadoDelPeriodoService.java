@@ -157,7 +157,7 @@ public class EstadoDelPeriodoService {
                     Map<?, ?> c = (Map<?, ?>) o;
                     Map<String, Object> r = new LinkedHashMap<>();
                     for (String k : List.of("categoryId", "categoryName", "categoryIcon", "categoryColor", "kind",
-                            "allocated", "actual", "difference", "status")) r.put(k, c.get(k));
+                            "allocated", "actual", "difference", "status", "released")) r.put(k, c.get(k));
                     cats.add(r);
                 }
                 resumen.put("categories", cats);
@@ -186,6 +186,7 @@ public class EstadoDelPeriodoService {
         BigDecimal bolsa = BigDecimal.ZERO;
         BigDecimal planDeLineas = BigDecimal.ZERO;
         BigDecimal comprometidoSinElemento = BigDecimal.ZERO;
+        BigDecimal liberado = BigDecimal.ZERO;
         boolean tieneAsignacion;
         boolean ahorro;
         boolean pagoOFactura;
@@ -234,6 +235,7 @@ public class EstadoDelPeriodoService {
            todavia, y sin esto lo libre de noviembre salia igual a todo lo que
            entra. */
         BigDecimal porPagarDelPlan = BigDecimal.ZERO;
+        BigDecimal totLiberado = BigDecimal.ZERO;
         Set<Long> movimientosDeIngresoProgramados = new HashSet<>();
         List<Map<String, Object>> ingresosDetalle = new ArrayList<>();
 
@@ -253,11 +255,15 @@ public class EstadoDelPeriodoService {
                    descuento de nomina tambien es de quien lo paga: el computador
                    de Samy se lo descuentan a ella. */
                 if (!l.ingreso()) {
-                    BigDecimal[] r = responsables.computeIfAbsent(pagador, k -> ceros(4));
-                    if (l.clase() == ScheduledKind.PROVISION) r[1] = r[1].add(f.monto());
-                    else if (l.clase() == ScheduledKind.SAVING) r[2] = r[2].add(f.monto());
-                    else r[0] = r[0].add(f.monto());
+                    /* Lo que le toca sigue siendo lo PLANEADO aunque haya
+                       liberado una parte: liberar no cambia el compromiso, solo
+                       dice que esta vez no se cumplio. */
+                    BigDecimal[] r = responsables.computeIfAbsent(pagador, k -> ceros(5));
+                    if (l.clase() == ScheduledKind.PROVISION) r[1] = r[1].add(f.planeado());
+                    else if (l.clase() == ScheduledKind.SAVING) r[2] = r[2].add(f.planeado());
+                    else r[0] = r[0].add(f.planeado());
                     if ("PAGADO".equals(f.estado())) r[3] = r[3].add(f.monto());
+                    r[4] = r[4].add(f.liberado());
                 }
 
                 boolean entra = alcance.hogar() ? comun : alcance.persona().equals(pagador);
@@ -276,10 +282,14 @@ public class EstadoDelPeriodoService {
                 if (c == null) continue;
                 if (l.clase() == ScheduledKind.SAVING) c.ahorro = true;
                 else if (l.clase() != ScheduledKind.PROVISION) c.pagoOFactura = true;
-                c.planDeLineas = c.planDeLineas.add(f.monto());
+                /* Lo planeado no cambia al liberar: el cierre tiene que poder
+                   decir "se queria ahorrar 3.000.000". */
+                c.planDeLineas = c.planDeLineas.add(f.planeado());
+                c.liberado = c.liberado.add(f.liberado());
                 if (l.clase() == ScheduledKind.PROVISION) {
                     c.bolsa = c.bolsa.add(f.monto());
                 } else {
+                    /* Lo liberado ya no esta por pagar: paso a lo libre. */
                     if (!"PAGADO".equals(f.estado())) porPagarDelPlan = porPagarDelPlan.add(f.monto());
                     if ("PAGADO".equals(f.estado())) c.realDeElementos = c.realDeElementos.add(f.monto());
                     /* El descuento de nomina sale del sueldo solo: no es una
@@ -390,6 +400,7 @@ public class EstadoDelPeriodoService {
             BigDecimal bolsaRestante = c.bolsa.subtract(otros).subtract(c.comprometidoSinElemento).max(BigDecimal.ZERO);
             totBolsaRestante = totBolsaRestante.add(bolsaRestante);
 
+            totLiberado = totLiberado.add(c.liberado);
             totAsignado = totAsignado.add(c.asignado);
             if (!esAhorro) totReal = totReal.add(c.real);
             totComprometido = totComprometido.add(c.comprometido);
@@ -410,6 +421,7 @@ public class EstadoDelPeriodoService {
             r.put("status", estado);
             r.put("hasAllocation", c.tieneAsignacion);
             r.put("plannedInItems", c.planDeLineas);
+            r.put("released", c.liberado);
             r.put("provision", c.bolsa);
             r.put("provisionLeft", bolsaRestante);
             r.put("otherSpending", otros);
@@ -443,6 +455,7 @@ public class EstadoDelPeriodoService {
         t.put("unbudgetedSpending", totSinPresupuesto);
         t.put("provisionsLeft", totBolsaRestante);
         t.put("toPay", porPagarDelPlan);
+        t.put("released", totLiberado);
         t.put("freeToSpend", libre);
         t.put("freeNow", libreHoy);
         t.put("executionPct", pct(totReal, totAsignado.subtract(totAhorroMeta)));
@@ -510,6 +523,7 @@ public class EstadoDelPeriodoService {
         m.put("date", f.fecha().toString());
         m.put("amount", f.monto());
         m.put("status", f.estado());
+        m.put("released", f.liberado());
         m.put("kind", f.l().clase().name());
         Long pagador = pagadorDe(f.l(), f);
         m.put("payerUserId", pagador);
@@ -557,7 +571,8 @@ public class EstadoDelPeriodoService {
             p.put("savings", v[2]);
             p.put("total", suyo);
             p.put("paid", v[3]);
-            p.put("pending", v[0].add(v[2]).subtract(v[3]).max(BigDecimal.ZERO));
+            p.put("released", v[4]);
+            p.put("pending", v[0].add(v[2]).subtract(v[3]).subtract(v[4]).max(BigDecimal.ZERO));
             p.put("sharePct", pct(suyo, total));
             out.add(p);
         });

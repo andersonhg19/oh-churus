@@ -263,7 +263,7 @@ const ScheduledFormScreen: React.FC<Props> = ({ navigation, route }) => {
           accessibilityState={{ selected: movementType === 'INCOME' }}
           accessibilityLabel="Es un ingreso"
         >
-          <AppText variant="body" color={movementType === 'INCOME' ? '#FFF' : colors.text}>💰 Ingreso</AppText>
+          <AppText variant="body" color={movementType === 'INCOME' ? '#FFF' : colors.text}>+ Ingreso</AppText>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.typeBtn, { backgroundColor: movementType === 'EXPENSE' ? colors.expense : colors.surface, borderColor: movementType === 'EXPENSE' ? colors.expense : colors.border }]}
@@ -272,7 +272,7 @@ const ScheduledFormScreen: React.FC<Props> = ({ navigation, route }) => {
           accessibilityState={{ selected: movementType === 'EXPENSE' }}
           accessibilityLabel="Es un gasto"
         >
-          <AppText variant="body" color={movementType === 'EXPENSE' ? '#FFF' : colors.text}>💸 Gasto</AppText>
+          <AppText variant="body" color={movementType === 'EXPENSE' ? '#FFF' : colors.text}>− Gasto</AppText>
         </TouchableOpacity>
       </View>
 

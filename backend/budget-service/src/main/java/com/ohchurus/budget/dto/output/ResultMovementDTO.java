@@ -36,6 +36,8 @@ public class ResultMovementDTO {
 
     private String splitMode;
     private Boolean isSettlement;
+    /** Cuanto se libero de este pendiente del plan. */
+    private java.math.BigDecimal releasedAmount;
 
     /**
      * Lo que este movimiento cuenta como gasto MIO.

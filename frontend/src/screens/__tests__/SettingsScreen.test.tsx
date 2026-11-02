@@ -33,7 +33,7 @@ describe('SettingsScreen', () => {
     const { getByText } = render(
       <SettingsScreen navigation={mockNavigation} route={{} as any} />, { wrapper: Wrapper },
     );
-    fireEvent.press(getByText(/Configuracion de periodo/));
+    fireEvent.press(getByText(/Día de corte del periodo/));
     expect(mockNavigation.navigate).toHaveBeenCalledWith('PeriodConfig');
   });
 

@@ -141,6 +141,28 @@ describe('Por confirmar', () => {
   });
 });
 
+describe('Por pagar: el recuadro y la lista dicen lo mismo', () => {
+  it('en Hogar cuenta los pagos comunes de los dos y abre esa misma lista', async () => {
+    const { findByLabelText } = render(<Envoltura><InicioScreen navigation={nav()} /></Envoltura>);
+    const recuadro = await findByLabelText(/Por pagar .*2.683.000 en 3 pagos/);
+    fireEvent.press(recuadro);
+    expect(mockNavegar).toHaveBeenCalledWith('PorConfirmar', { quien: 'DOS' });
+  });
+
+  it('la lista de los dos dice los mismos 3 pagos y el mismo total', async () => {
+    const { findByText } = render(<Envoltura><PorConfirmarScreen navigation={nav()} route={{ params: { quien: 'DOS' } }} /></Envoltura>);
+    expect(await findByText(/3 pagos · .*2.683.000/)).toBeTruthy();
+    expect(await findByText('Natillera')).toBeTruthy();
+  });
+
+  it('"Marcar todos" marca, no filtra', async () => {
+    const { findByLabelText, getByLabelText } = render(<Envoltura><PorConfirmarScreen navigation={nav()} /></Envoltura>);
+    fireEvent.press(await findByLabelText('Marcar todos'));
+    expect(getByLabelText(/Confirmar 2 pagos/)).toBeTruthy();
+    expect(getByLabelText('Desmarcar todos')).toBeTruthy();
+  });
+});
+
 describe('Anotar', () => {
   it('el teclado suma y se guarda el resultado en la categoría elegida', async () => {
     (movementService.save as jest.Mock).mockResolvedValue({ correct: true, object: {} });

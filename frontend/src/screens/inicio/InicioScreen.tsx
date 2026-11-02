@@ -32,6 +32,9 @@ const InicioScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { alcance, corte, periodo } = useAlcance();
   const [estado, setEstado] = useState<EstadoDelPeriodo | null>(null);
   const [misPendientes, setMisPendientes] = useState({ n: 0, monto: 0 });
+  /* Lo por pagar del recuadro sale de la MISMA lista que se abre al tocarlo:
+     antes el recuadro decia "20 pagos" y la lista ensenaba otros 9. */
+  const [porPagar, setPorPagar] = useState({ n: 0, monto: 0 });
   const [otras, setOtras] = useState<Category[]>([]);
 
   const traer = useCallback(async () => {
@@ -41,11 +44,15 @@ const InicioScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       dashboardService.getPending(user.userId, corte, periodo.inicio),
     ]);
     setEstado(exigir(e) || null);
-    const mios = (exigir(p) || []).filter((m) => String(m.userId) === String(user.userId));
-    setMisPendientes({
-      n: mios.length,
-      monto: mios.filter((m) => m.categoryType !== 'INCOME').reduce((t, m) => t + (m.amount || 0), 0),
-    });
+    const pendientes = exigir(p) || [];
+    const pagos = pendientes.filter((m) => m.categoryType !== 'INCOME');
+    const mios = pagos.filter((m) => String(m.userId) === String(user.userId));
+    setMisPendientes({ n: mios.length, monto: mios.reduce((t, m) => t + (m.amount || 0), 0) });
+    /* Hogar: lo comun de los dos. Una persona: lo que le toca a ella. */
+    const delAlcance = alcance.tipo === 'HOGAR'
+      ? pagos.filter((m) => m.shared !== false)
+      : pagos.filter((m) => String(m.userId) === String(alcance.userId));
+    setPorPagar({ n: delAlcance.length, monto: delAlcance.reduce((t, m) => t + (m.amount || 0), 0) });
     try {
       const c = await categoryService.getAll({ userId: user.userId, page: 0, size: 200 });
       setOtras(((c.correct && c.object?.list) || []).filter((x: Category) => x.type === 'EXPENSE' && x.active !== false));
@@ -118,16 +125,16 @@ const InicioScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           {recuadro('Ingresos', t?.incomeReceived || 0, `de ${formatCompacto(t?.incomeExpected || 0)}`,
             () => navigation.navigate('Ingresos'),
             `Ingresos recibidos ${formatCurrency(t?.incomeReceived || 0)} de ${formatCurrency(t?.incomeExpected || 0)}. Ver el detalle`)}
-          {recuadro('Por pagar', t?.committed || 0, `${(estado?.compliance.billsTotal || 0) - (estado?.compliance.billsPaid || 0)} pagos`,
-            () => navigation.navigate('PorConfirmar'),
-            `Por pagar ${formatCurrency(t?.committed || 0)}. Ver los pagos`)}
+          {recuadro('Por pagar', porPagar.monto, `${porPagar.n} ${porPagar.n === 1 ? 'pago' : 'pagos'}`,
+            () => navigation.navigate('PorConfirmar', { quien: alcance.tipo === 'HOGAR' ? 'DOS' : alcance.userId }),
+            `Por pagar ${formatCurrency(porPagar.monto)} en ${porPagar.n} pagos. Ver cuáles son`)}
           {recuadro('Fondos', estado?.funds.total || 0, 'en cuentas',
             () => navigation.navigate('AccountsList'), `Fondos ${formatCurrency(estado?.funds.total || 0)}. Ver las cuentas`)}
         </View>
 
         {misPendientes.n > 0 && (
           <TouchableOpacity style={[styles.aviso, { backgroundColor: colors.surfaceLight }]}
-            onPress={() => navigation.navigate('PorConfirmar')} accessibilityRole="button"
+            onPress={() => navigation.navigate('PorConfirmar', { quien: 'MIOS' })} accessibilityRole="button"
             accessibilityLabel={`Tienes ${misPendientes.n} pagos por confirmar. Confirmarlos`}>
             <View style={[styles.punto, { backgroundColor: colors.primary }]} />
             <AppText variant="body" style={{ flex: 1, fontWeight: '700' }}>

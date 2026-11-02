@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, Modal } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import AppText from '../../components/atoms/Text';
@@ -25,13 +25,21 @@ import { Movement } from '../../types';
  * otro, que es donde se le pasa un pago cuando hay una eventualidad.
  * Tocar una fila abre lo que se puede hacer con ese pago.
  */
-const PorConfirmarScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
+type Quien = 'MIOS' | 'DOS' | number;
+
+const PorConfirmarScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation, route }) => {
   const { colors } = useTheme();
   const { showToast } = useToast();
   const { user } = useAuth();
   const { corte, periodo, miembros, nombreDe } = useAlcance();
   const [todos, setTodos] = useState<Movement[]>([]);
-  const [soloMios, setSoloMios] = useState(true);
+  /* Se abre en lo que se toco: "Por pagar" del hogar abre los de los dos,
+     el aviso de "tienes N pagos" abre los mios, y desde la vista de una
+     persona, los de esa persona. */
+  const pedido: Quien = route?.params?.quien ?? 'MIOS';
+  const [quien, setQuien] = useState<Quien>(pedido);
+  useEffect(() => { setQuien(pedido); }, [pedido]);
+  const soloMios = quien === 'MIOS' || String(quien) === String(user?.userId);
   const [marcados, setMarcados] = useState<Record<string, boolean>>({});
   const [valores, setValores] = useState<Record<string, number>>({});
   const [abierto, setAbierto] = useState<Movement | null>(null);
@@ -47,9 +55,16 @@ const PorConfirmarScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { cargando, error, cargar } = useCarga(traer);
   useFocusEffect(useCallback(() => { cargar(); }, [cargar]));
 
-  const lista = todos
-    .filter((m) => !soloMios || String(m.userId) === String(user?.userId))
-    .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  const deQuien = (m: Movement) => quien === 'DOS' ? true
+    : soloMios ? String(m.userId) === String(user?.userId) : String(m.userId) === String(quien);
+  const enVista = todos.filter(deQuien).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  /* Los pagos primero; lo que se espera recibir (una quincena) va aparte, para
+     que el conteo de pagos sea el mismo que el del recuadro del inicio. */
+  const pagos = enVista.filter((m) => m.categoryType !== 'INCOME');
+  const ingresos = enVista.filter((m) => m.categoryType === 'INCOME');
+  const lista = [...pagos, ...ingresos];
+  const totalPagos = pagos.reduce((t, m) => t + (m.amount || 0), 0);
+  const totalIngresos = ingresos.reduce((t, m) => t + (m.amount || 0), 0);
   const valorDe = (m: Movement) => valores[m.id] ?? m.amount ?? 0;
   const elegidos = lista.filter((m) => marcados[m.id]);
   const total = elegidos.reduce((t, m) => t + (m.categoryType === 'INCOME' ? 0 : valorDe(m)), 0);
@@ -99,7 +114,7 @@ const PorConfirmarScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         <View style={[styles.pestanas, { backgroundColor: colors.surfaceLight }]}>
           {[true, false].map((v) => (
             <TouchableOpacity key={String(v)} style={[styles.pestana, soloMios === v && { backgroundColor: colors.primary }]}
-              onPress={() => { setSoloMios(v); setMarcados({}); }} accessibilityRole="tab"
+              onPress={() => { setQuien(v ? 'MIOS' : 'DOS'); setMarcados({}); }} accessibilityRole="tab"
               accessibilityState={{ selected: soloMios === v }} accessibilityLabel={v ? 'Solo los míos' : 'Los de los dos'}>
               <AppText variant="caption" style={{ fontWeight: '700', color: soloMios === v ? '#1A1405' : colors.textSecondary }}>
                 {v ? 'Los míos' : 'De los dos'}
@@ -107,16 +122,33 @@ const PorConfirmarScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             </TouchableOpacity>
           ))}
         </View>
-        {lista.length > 0 && (
+      </View>
+      {quien !== 'MIOS' && quien !== 'DOS' && !soloMios && (
+        <AppText variant="caption" color={colors.textSecondary} style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+          Viendo los de {nombreDe(quien) || 'otra persona'}
+        </AppText>
+      )}
+      {lista.length > 0 && (
+        <View style={styles.resumen}>
+          <View style={{ flex: 1 }}>
+            <AppText variant="body" style={{ fontWeight: '700' }}>
+              {pagos.length} {pagos.length === 1 ? 'pago' : 'pagos'} · {formatCurrency(totalPagos)}
+            </AppText>
+            {ingresos.length > 0 && (
+              <AppText variant="caption" color={colors.income}>
+                y {ingresos.length} por recibir · {formatCurrency(totalIngresos)}
+              </AppText>
+            )}
+          </View>
           <TouchableOpacity onPress={() => setMarcados(elegidos.length === lista.length ? {} : Object.fromEntries(lista.map((m) => [m.id, true])))}
             style={styles.todo} accessibilityRole="button"
             accessibilityLabel={elegidos.length === lista.length ? 'Desmarcar todos' : 'Marcar todos'}>
             <AppText variant="caption" style={{ color: colors.primary, fontWeight: '700' }}>
-              {elegidos.length === lista.length ? 'Ninguno' : 'Todos'}
+              {elegidos.length === lista.length ? 'Desmarcar todos' : 'Marcar todos'}
             </AppText>
           </TouchableOpacity>
-        )}
-      </View>
+        </View>
+      )}
 
       <ScrollView contentContainerStyle={styles.contenido}>
         {lista.length === 0 && (
@@ -203,6 +235,7 @@ const styles = StyleSheet.create({
   pestanas: { flex: 1, flexDirection: 'row', borderRadius: 12, padding: 4 },
   pestana: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 9, minHeight: 44, justifyContent: 'center' },
   todo: { minHeight: 44, paddingHorizontal: 8, justifyContent: 'center' },
+  resumen: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 10 },
   contenido: { padding: 16, paddingBottom: 32 },
   fila: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1 },
   casilla: { width: 48, height: 56, alignItems: 'center', justifyContent: 'center', marginLeft: -8 },

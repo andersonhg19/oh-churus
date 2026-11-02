@@ -41,7 +41,12 @@ const PERIODOS_FUTUROS = 3;
 export const AlcanceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
   const corte = user?.budgetStartDay || 1;
-  const [alcance, setAlcance] = useState<Alcance>({ tipo: 'HOGAR' });
+  /* Al entrar se ve lo PROPIO: lo que yo pago y me toca. El hogar y la pareja
+     estan a un toque en el selector. Al cambiar de usuario (cerrar sesion y
+     entrar como la otra persona) vuelve a empezar en lo suyo. */
+  const propio = (): Alcance => (user ? { tipo: 'PERSONA', userId: Number(user.userId) } : { tipo: 'HOGAR' });
+  const [alcance, setAlcance] = useState<Alcance>(propio);
+  useEffect(() => { setAlcance(propio()); }, [user?.userId]); // eslint-disable-line react-hooks/exhaustive-deps
   const [miembros, setMiembros] = useState<Miembro[]>([]);
   const [inicio, setInicio] = useState(() => getStartOfPeriod(corte, new Date()));
 

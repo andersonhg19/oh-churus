@@ -12,7 +12,7 @@ import { spacing } from '../../theme';
 import { planService, PlanItem, PlanWindow, Quincena, Responsabilidades } from '../../services/planService';
 import { useCarga, exigir } from '../../hooks/useCarga';
 import { formatCurrency, formatDate, formatDateShort, fechaLocalISO, getMonthName } from '../../utils/format';
-import { getIconEmoji } from '../../utils/iconMap';
+import CirculoCategoria from '../../components/atoms/CirculoCategoria';
 import { useFocusEffect } from '@react-navigation/native';
 
 /**
@@ -80,10 +80,9 @@ const PlanScreen: React.FC = () => {
   const Item = ({ i, conPagador }: { i: PlanItem; conPagador?: boolean }) => (
     <View style={styles.item} accessible
       accessibilityLabel={`${i.name}, ${formatDate(i.date)}, ${formatCurrency(i.amount)}, ${ESTADOS[i.status].etiqueta}`}>
+      <View style={{ marginRight: 10 }}><CirculoCategoria icono={i.categoryIcon} color={i.categoryColor} tamano={30} /></View>
       <View style={{ flex: 1 }}>
-        <AppText variant="body" numberOfLines={1}>
-          {i.categoryIcon ? `${getIconEmoji(i.categoryIcon)} ` : ''}{i.name}
-        </AppText>
+        <AppText variant="body" numberOfLines={1}>{i.name}</AppText>
         <AppText variant="caption" color={colors.textSecondary}>
           {formatDateShort(i.date)} · {ESTADOS[i.status].icono} {ESTADOS[i.status].etiqueta}
           {conPagador && i.payerName ? ` · Paga ${i.payerName}` : ''}

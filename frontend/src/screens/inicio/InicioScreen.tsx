@@ -85,7 +85,10 @@ const InicioScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     id: c.categoryId, nombre: c.categoryName, icono: c.categoryIcon,
     color: c.categoryColor || PALETA[(gastos.length + i) % PALETA.length], valor: 0,
   }));
-  otras.filter((o) => !enDona.some((d) => String(d.id) === String(o.id))).slice(0, Math.max(0, 8 - enDona.length))
+  /* TODAS las categorias de gasto alrededor, como en Monefy: antes solo salian
+     las que tenian plan o gasto y se completaba hasta 8, asi que Regalo, Obra
+     social y las demas no aparecian para anotar en ellas. */
+  otras.filter((o) => !enDona.some((d) => String(d.id) === String(o.id)))
     .forEach((o, i) => enDona.push({ id: Number(o.id), nombre: o.name, icono: o.icon,
       color: o.color || PALETA[(enDona.length + i) % PALETA.length], valor: 0 }));
 
@@ -107,6 +110,7 @@ const InicioScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           categorias={enDona}
           onCategoria={(c) => navigation.navigate('Anotar', { tipo: 'EXPENSE', categoriaId: c.id })}
           onCentro={() => navigation.navigate('Presupuesto')}
+          onMas={() => navigation.navigate('Anotar', { tipo: 'EXPENSE' })}
           etiquetaCentro={`Gastado ${formatCurrency(t?.spent || 0)} de ${formatCurrency(presupuestoDeGasto)}. Ver el presupuesto`}
           centro={
             <>

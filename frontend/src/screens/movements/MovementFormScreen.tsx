@@ -16,7 +16,7 @@ import { Movement, Category, CategoryType, Account, SplitMode, SplitInput } from
 import { formatCurrency, fechaLocalISO, parseMonto } from '../../utils/format';
 import { confirmarBorrado } from '../../utils/confirmar';
 import { useAccionUnica } from '../../hooks/useAccionUnica';
-import { getIconEmoji } from '../../utils/iconMap';
+import CirculoCategoria from '../../components/atoms/CirculoCategoria';
 import { validateAmount, validateDate, validateCategory, validateAll } from '../../utils/validators';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
@@ -370,7 +370,7 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
               accessibilityState={{ selected: isSelected }}
               accessibilityLabel={`Categoría ${grupo} ${cat.name}`}
             >
-              <AppText style={styles.catIcon}>{getIconEmoji(cat.icon)}</AppText>
+              <CirculoCategoria icono={cat.icon} color={cat.color} tamano={28} />
               <AppText variant="caption" style={{
                 color: isSelected ? '#FFF' : colors.text,
                 fontWeight: isSelected ? '700' : '400',

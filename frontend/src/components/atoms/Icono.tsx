@@ -28,6 +28,7 @@ const rect = (x: number, y: number, w: number, h: number, rx = 2): Dibujo => (c)
 const DIBUJOS: Record<string, Dibujo> = {
   // navegacion y acciones
   menu: P('M4 6h16M4 12h16M4 18h16'),
+  more: varios(circulo(5, 12, 1.5), circulo(12, 12, 1.5), circulo(19, 12, 1.5)),
   back: P('M15 5l-7 7 7 7'),
   left: P('M15 6l-6 6 6 6'),
   right: P('M9 6l6 6-6 6'),

@@ -167,6 +167,7 @@ public class PlanFinancieroService {
         m.put("categoryId", f.l().cat().getId());
         m.put("categoryName", f.l().cat().getName());
         m.put("categoryIcon", f.l().cat().getIcon());
+        m.put("categoryColor", f.l().cat().getColor());
         m.put("shared", f.l().compartida());
         m.put("payerUserId", f.l().pagador());
         m.put("payerName", hogares.apodoDe(f.l().pagador()));

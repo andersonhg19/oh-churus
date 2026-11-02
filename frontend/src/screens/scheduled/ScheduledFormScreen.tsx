@@ -15,7 +15,7 @@ import { categoryService } from '../../services/categoryService';
 import { validateRequired, validateAmount, validateDate, validateCategory, validateDayOfMonth, validateDuration, validateAll } from '../../utils/validators';
 import { ScheduledMovement, Frequency, Category, CategoryType, WeekendPolicy, ScheduledKind } from '../../types';
 import { householdService } from '../../services/householdService';
-import { getIconEmoji } from '../../utils/iconMap';
+import CirculoCategoria from '../../components/atoms/CirculoCategoria';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 type ScheduledStackParamList = {
@@ -291,9 +291,12 @@ const ScheduledFormScreen: React.FC<Props> = ({ navigation, route }) => {
         }
         accessibilityHint={showCategoryPicker ? 'Cierra la lista de categorías' : 'Abre la lista de categorías'}
       >
-        <AppText variant="body" color={selectedCategory ? colors.text : colors.textMuted}>
-          {selectedCategory ? `${getIconEmoji(selectedCategory.icon)} ${selectedCategory.name}` : `Seleccionar categoría de ${movementType === 'INCOME' ? 'ingreso' : 'gasto'}`}
-        </AppText>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          {selectedCategory && <CirculoCategoria icono={selectedCategory.icon} color={selectedCategory.color} tamano={28} />}
+          <AppText variant="body" color={selectedCategory ? colors.text : colors.textMuted}>
+            {selectedCategory ? selectedCategory.name : `Seleccionar categoría de ${movementType === 'INCOME' ? 'ingreso' : 'gasto'}`}
+          </AppText>
+        </View>
       </TouchableOpacity>
       {showCategoryPicker && (
         <ScrollView style={[styles.pickerList, { backgroundColor: colors.surface, borderColor: colors.border }]} nestedScrollEnabled>
@@ -312,12 +315,15 @@ const ScheduledFormScreen: React.FC<Props> = ({ navigation, route }) => {
               accessibilityState={{ selected: cat.id === selectedCategory?.id }}
               accessibilityLabel={`Categoría ${cat.name}`}
             >
-              <AppText
-                variant="body"
-                color={cat.id === selectedCategory?.id ? '#FFFFFF' : colors.text}
-              >
-                {getIconEmoji(cat.icon)} {cat.name}
-              </AppText>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <CirculoCategoria icono={cat.icon} color={cat.color} tamano={28} />
+                <AppText
+                  variant="body"
+                  color={cat.id === selectedCategory?.id ? '#FFFFFF' : colors.text}
+                >
+                  {cat.name}
+                </AppText>
+              </View>
             </TouchableOpacity>
           ))}
           {filteredCategories.length === 0 && (

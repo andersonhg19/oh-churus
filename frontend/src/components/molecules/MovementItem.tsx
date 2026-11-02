@@ -5,7 +5,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { spacing } from '../../theme';
 import { formatCurrency, formatDate } from '../../utils/format';
 import { Movement } from '../../types';
-import { getIconEmoji } from '../../utils/iconMap';
+import CirculoCategoria from '../atoms/CirculoCategoria';
 
 interface MovementItemProps {
   movement: Movement;
@@ -87,11 +87,13 @@ const MovementItem: React.FC<MovementItemProps> = ({ movement, onPress, onConfir
             movement.confirmed ? 'confirmado' : 'pendiente',
           ].join(', ')}
         >
+          {/* El servidor siempre mando el icono de la categoria y aqui no se
+              usaba: las listas eran texto plano y costaba ubicar un gasto. */}
+          <View style={{ marginRight: 10 }}>
+            <CirculoCategoria icono={movement.categoryIcon} color={movement.categoryColor} tamano={34} />
+          </View>
           <View style={styles.left}>
             <AppText variant="body" numberOfLines={1}>
-              {/* El servidor siempre mando el icono de la categoria y aqui no se
-                  usaba: las listas eran texto plano y costaba ubicar un gasto. */}
-              {movement.categoryIcon ? `${getIconEmoji(movement.categoryIcon)} ` : ''}
               {movement.description || movement.categoryName || 'Movimiento'}
             </AppText>
             <AppText variant="caption">

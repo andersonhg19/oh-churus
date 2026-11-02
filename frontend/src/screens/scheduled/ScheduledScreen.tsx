@@ -14,7 +14,7 @@ import { scheduledService } from '../../services/scheduledService';
 import { ScheduledMovement, ProposedOccurrence } from '../../types';
 import { useCarga, exigir } from '../../hooks/useCarga';
 import { formatCurrency, formatDateShort, formatDate } from '../../utils/format';
-import { getIconEmoji } from '../../utils/iconMap';
+import CirculoCategoria from '../../components/atoms/CirculoCategoria';
 import { getFrequencyLabel } from '../../utils/labels';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -192,10 +192,11 @@ const ScheduledScreen: React.FC<Props> = ({ navigation }) => {
             onPress={() => navigation.navigate('ScheduledForm', { scheduled: item })}
           >
             <View style={styles.itemRow}>
+              <View style={{ marginRight: 10 }}>
+                <CirculoCategoria icono={item.categoryIcon} color={(item as any).categoryColor} tamano={34} />
+              </View>
               <View style={styles.itemInfo}>
-                <AppText variant="body" numberOfLines={1}>
-                  {item.categoryIcon ? `${getIconEmoji(item.categoryIcon)} ` : ''}{item.name}
-                </AppText>
+                <AppText variant="body" numberOfLines={1}>{item.name}</AppText>
                 <AppText variant="caption">
                   {getFrequencyLabel(item.frequency)} - {item.categoryName || 'Sin categoria'}
                   {item.dayOfMonth ? ` - día ${item.dayOfMonth}` : ''}

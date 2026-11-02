@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, StyleSheet, TouchableOpacity, ScrollView, TextInput } from 'react-native';
 import { useTheme } from '../../contexts/ThemeContext';
 import AppText from '../atoms/Text';
+import Icono from '../atoms/Icono';
 import { spacing } from '../../theme';
 
 interface IconOption {
@@ -156,7 +157,7 @@ const IconPicker: React.FC<IconPickerProps> = ({ value, onChange }) => {
       >
         {selectedIcon ? (
           <View style={styles.selectedRow}>
-            <AppText variant="subtitle">{selectedIcon.emoji}</AppText>
+            <Icono nombre={selectedIcon.key} color={colors.text} tamano={26} />
             <AppText variant="body" color={colors.text}>{selectedIcon.label}</AppText>
           </View>
         ) : (
@@ -197,7 +198,7 @@ const IconPicker: React.FC<IconPickerProps> = ({ value, onChange }) => {
                         setSearch('');
                       }}
                     >
-                      <AppText variant="subtitle">{ic.emoji}</AppText>
+                      <Icono nombre={ic.key} color={colors.text} tamano={24} />
                       <AppText variant="caption" color={colors.textSecondary} style={styles.iconLabel}>
                         {ic.label}
                       </AppText>

@@ -16,6 +16,7 @@ export interface PlanItem {
   categoryId: number;
   categoryName: string;
   categoryIcon?: string;
+  categoryColor?: string;
   shared: boolean;
   payerUserId: number;
   payerName?: string;

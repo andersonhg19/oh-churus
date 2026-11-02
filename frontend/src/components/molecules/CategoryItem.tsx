@@ -4,7 +4,7 @@ import AppText from '../atoms/Text';
 import { useTheme } from '../../contexts/ThemeContext';
 import { spacing } from '../../theme';
 import { CategoryTree } from '../../types';
-import { getIconEmoji } from '../../utils/iconMap';
+import CirculoCategoria from '../atoms/CirculoCategoria';
 import { getCategoryTypeLabel } from '../../utils/labels';
 
 interface CategoryItemProps {
@@ -56,21 +56,16 @@ const CategoryItem: React.FC<CategoryItemProps> = ({
             <AppText variant="body">{expanded ? '-' : '+'}</AppText>
           </TouchableOpacity>
         )}
-        <View
-          style={[
-            styles.colorDot,
-            { backgroundColor: category.color || colors.primary },
-          ]}
-        />
-        <AppText variant="body" style={styles.icon}>
-          {getIconEmoji(category.icon, category.type === 'INCOME' ? '💰' : '💸')}
-        </AppText>
+        <View style={styles.icon}>
+          <CirculoCategoria icono={category.icon || (category.type === 'INCOME' ? 'money' : 'wallet')}
+            color={category.color || colors.primary} tamano={36} />
+        </View>
         <View style={styles.info}>
           <AppText variant="body" numberOfLines={1}>{category.name}</AppText>
           <View style={styles.badges}>
             <AppText variant="caption">{getCategoryTypeLabel(category.type)}</AppText>
             <AppText variant="caption" color={category.shared ? colors.secondary : colors.textMuted}>
-              {category.shared ? ' · 🏠 Compartida' : ' · Personal'}
+              {category.shared ? ' · Compartida' : ' · Personal'}
             </AppText>
           </View>
         </View>

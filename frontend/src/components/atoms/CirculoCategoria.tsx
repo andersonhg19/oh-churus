@@ -1,6 +1,7 @@
 import React from 'react';
 import { View } from 'react-native';
 import Icono from './Icono';
+import { tintaSobre } from '../../utils/tinta';
 
 interface Props {
   icono?: string;
@@ -20,7 +21,7 @@ const CirculoCategoria: React.FC<Props> = ({ icono, color = '#6C5CE7', tamano = 
     style={{ width: tamano, height: tamano, borderRadius: tamano / 2, backgroundColor: color,
       alignItems: 'center', justifyContent: 'center' }}
   >
-    <Icono nombre={icono} color="#FFFFFF" tamano={Math.round(tamano * 0.55)} />
+    <Icono nombre={icono} color={tintaSobre(color)} tamano={Math.round(tamano * 0.55)} />
   </View>
 );
 

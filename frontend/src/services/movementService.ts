@@ -47,6 +47,12 @@ export const movementService = {
     return response.data;
   },
 
+  /** Deshace una liberacion: lo liberado vuelve a quedar por pagar. */
+  unrelease: async (id: string | number) => {
+    const response = await api.post<ResultDTO<{ pending: number }>>(`${BASE}/unrelease/${id}`, {});
+    return response.data;
+  },
+
   /** Confirma varios pendientes de una vez: todo o nada. */
   confirmBatch: async (items: { id: string | number; amount?: number }[]) => {
     const response = await api.post<ResultDTO<{ confirmed: number; total: number }>>(

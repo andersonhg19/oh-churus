@@ -2,6 +2,7 @@ import React from 'react';
 import { View, StyleSheet, TouchableOpacity, useWindowDimensions } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import Icono from '../atoms/Icono';
+import { tintaSobre } from '../../utils/tinta';
 import { useTheme } from '../../contexts/ThemeContext';
 import { formatCurrency } from '../../utils/format';
 
@@ -94,7 +95,7 @@ const DonaDeCategorias: React.FC<Props> = ({ categorias, centro, onCategoria, on
             accessibilityRole="button"
             accessibilityLabel={`Anotar en ${c.nombre}${c.valor > 0 ? `, llevan ${formatCurrency(c.valor)}` : ''}`}
           >
-            <Icono nombre={c.icono} color="#FFFFFF" tamano={22} />
+            <Icono nombre={c.icono} color={tintaSobre(c.color)} tamano={22} />
           </TouchableOpacity>
         );
       })}

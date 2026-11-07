@@ -14,6 +14,7 @@ import { useAlcance } from '../../contexts/AlcanceContext';
 import { useCarga, exigir } from '../../hooks/useCarga';
 import { estadoService, EstadoDelPeriodo } from '../../services/estadoService';
 import { budgetAllocationService } from '../../services/budgetAllocationService';
+import { movementService } from '../../services/movementService';
 import { formatCurrency, formatDateShort } from '../../utils/format';
 import { ESTADOS, ESTADOS_ELEMENTO, colorDeTono, fraseDelCierre } from '../../utils/estadoTextos';
 
@@ -31,6 +32,7 @@ const CategoriaScreen: React.FC<{ navigation: any; route: any }> = ({ navigation
   const id = Number(route.params?.categoryId);
   const [estado, setEstado] = useState<EstadoDelPeriodo | null>(null);
   const [fijando, setFijando] = useState(false);
+  const [abierto, setAbierto] = useState<number | null>(null);
 
   const traer = useCallback(async () => {
     setEstado(exigir(await estadoService.periodo(corte, periodo.inicio, alcance)) || null);
@@ -47,6 +49,18 @@ const CategoriaScreen: React.FC<{ navigation: any; route: any }> = ({ navigation
   /* Lo presupuestado se fija en el hogar (o en lo personal propio): en la vista
      de una persona, lo de una categoria comun es lo que le toca, no se edita. */
   const editable = !!c && (alcance.tipo === 'HOGAR' ? c.shared : !c.shared && alcance.userId === Number(user?.userId));
+
+  /* Liberar se puede deshacer: si se libero por error, o al final si se pudo
+     pagar, lo liberado vuelve a quedar por pagar. */
+  const deshacer = async (movementId: number, nombre: string) => {
+    try {
+      const r = await movementService.unrelease(movementId);
+      if (!r.correct) { showToast('error', 'No se pudo', r.message); return; }
+      showToast('success', 'Listo', `${nombre} vuelve a estar por pagar`);
+      setAbierto(null);
+      cargar();
+    } catch { showToast('error', 'Error', 'No se pudo deshacer la liberación'); }
+  };
 
   const fijar = async (monto: number) => {
     if (!user) return;
@@ -135,15 +149,36 @@ const CategoriaScreen: React.FC<{ navigation: any; route: any }> = ({ navigation
             <AppText variant="subtitle">Elementos</AppText>
             {c.items.map((it, i) => {
               const e = ESTADOS_ELEMENTO[it.status];
-              return (
-                <View key={`${it.scheduledMovementId}-${it.date}-${i}`} style={[styles.fila, { borderBottomColor: colors.border }]}>
+              const liberado = (it.released || 0) > 0 && !!it.movementId && it.status !== 'PAGADO';
+              const fila = (
+                <>
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <AppText variant="body" style={{ fontWeight: '700' }} numberOfLines={1}>{it.name}</AppText>
                     <AppText variant="caption" color={colors.textSecondary}>
                       {it.payerName ? `Paga ${it.payerName} · ` : ''}{formatDateShort(it.date)} · <AppText variant="caption" style={{ color: colorDeTono(e.tono, colors) }}>{e.texto}</AppText>
+                      {liberado ? ` · liberado ${formatCurrency(it.released || 0)}` : ''}
                     </AppText>
                   </View>
                   <AppText variant="body" style={{ fontWeight: '800' }}>{formatCurrency(it.amount)}</AppText>
+                </>
+              );
+              const clave = `${it.scheduledMovementId}-${it.date}-${i}`;
+              if (!liberado) return <View key={clave} style={[styles.fila, { borderBottomColor: colors.border }]}>{fila}</View>;
+              return (
+                <View key={clave} style={{ borderBottomWidth: 1, borderBottomColor: colors.border }}>
+                  <TouchableOpacity style={[styles.fila, { borderBottomWidth: 0 }]} onPress={() => setAbierto(abierto === it.movementId ? null : it.movementId!)}
+                    accessibilityRole="button" accessibilityLabel={`${it.name}: liberado ${formatCurrency(it.released || 0)}. Ver opciones`}>
+                    {fila}
+                  </TouchableOpacity>
+                  {abierto === it.movementId && (
+                    <TouchableOpacity style={[styles.enlace, { borderColor: colors.primary, justifyContent: 'center', marginBottom: 10 }]}
+                      onPress={() => deshacer(it.movementId!, it.name)}
+                      accessibilityRole="button" accessibilityLabel={`Deshacer la liberación de ${it.name}: vuelve a estar por pagar`}>
+                      <AppText variant="caption" style={{ color: colors.primary, fontWeight: '700' }}>
+                        {`Deshacer: vuelve a estar por pagar (${formatCurrency((it.released || 0) + (it.status === 'LIBERADO' ? 0 : it.amount))})`}
+                      </AppText>
+                    </TouchableOpacity>
+                  )}
                 </View>
               );
             })}

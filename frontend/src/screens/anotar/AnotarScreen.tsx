@@ -3,6 +3,7 @@ import { View, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal } from
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AppText from '../../components/atoms/Text';
 import Icono from '../../components/atoms/Icono';
+import { tintaSobre } from '../../utils/tinta';
 import Teclado from '../../components/molecules/Teclado';
 import { PALETA } from '../../components/molecules/DonaDeCategorias';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -168,7 +169,7 @@ const AnotarScreen: React.FC<Props> = ({ navigation, route }) => {
             accessibilityLabel={`Categoría ${c.name}`}
           >
             <View style={[styles.punto, { backgroundColor: colorDe[c.id] }]}>
-              <Icono nombre={c.icon} color="#FFFFFF" tamano={14} />
+              <Icono nombre={c.icon} color={tintaSobre(colorDe[c.id])} tamano={14} />
             </View>
             <AppText variant="caption" style={{ fontWeight: '700', color: categoria?.id === c.id ? '#1A1405' : colors.textSecondary }}>{c.name}</AppText>
           </TouchableOpacity>

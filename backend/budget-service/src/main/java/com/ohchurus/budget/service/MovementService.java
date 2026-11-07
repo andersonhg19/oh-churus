@@ -20,6 +20,7 @@ public interface MovementService {
 
     /** Suelta plata de un pendiente del plan (todo si monto es nulo) sin tocar el presupuesto. */
     ResultDTO liberar(Long id, java.math.BigDecimal monto);
+    ResultDTO deshacerLiberacion(Long id);
 
     /** Confirma varios pendientes; todo o nada. montos[i] nulo = el valor previsto. */
     ResultDTO confirmarVarios(java.util.List<Long> ids, java.util.List<java.math.BigDecimal> montos);

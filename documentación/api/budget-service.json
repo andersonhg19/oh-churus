@@ -2298,6 +2298,37 @@
         ]
       }
     },
+    "/v1/movements/unrelease/{id}" : {
+      "post" : {
+        "operationId" : "unrelease",
+        "parameters" : [
+          {
+            "in" : "path",
+            "name" : "id",
+            "required" : true,
+            "schema" : {
+              "format" : "int64",
+              "type" : "integer"
+            }
+          }
+        ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [
+          "movement-controller"
+        ]
+      }
+    },
     "/v1/plan/calendar" : {
       "post" : {
         "operationId" : "calendar",

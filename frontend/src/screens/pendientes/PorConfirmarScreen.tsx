@@ -3,6 +3,7 @@ import { View, StyleSheet, ScrollView, TouchableOpacity, Modal } from 'react-nat
 import { useFocusEffect } from '@react-navigation/native';
 import AppText from '../../components/atoms/Text';
 import Icono from '../../components/atoms/Icono';
+import { tintaSobre } from '../../utils/tinta';
 import Spinner from '../../components/atoms/Spinner';
 import Encabezado from '../../components/molecules/Encabezado';
 import EstadoError from '../../components/molecules/EstadoError';
@@ -186,7 +187,7 @@ const PorConfirmarScreen: React.FC<{ navigation: any; route?: any }> = ({ naviga
               <TouchableOpacity style={styles.cuerpo} onPress={() => setAbierto(m)} accessibilityRole="button"
                 accessibilityLabel={`${m.description || m.categoryName}, ${formatCurrency(valorDe(m))}. Ver opciones`}>
                 <View style={[styles.circulo, { backgroundColor: m.categoryColor || PALETA[i % PALETA.length] }]}>
-                  <Icono nombre={m.categoryIcon} color="#FFFFFF" tamano={18} />
+                  <Icono nombre={m.categoryIcon} color={tintaSobre(m.categoryColor || PALETA[i % PALETA.length])} tamano={18} />
                 </View>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <AppText variant="body" style={{ fontWeight: '700' }} numberOfLines={1}>{m.description || m.categoryName}</AppText>

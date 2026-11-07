@@ -418,6 +418,41 @@ public class MovementServiceImpl implements MovementService {
         return new ResultDTO(res);
     }
 
+    /**
+     * Deshace una liberacion: lo liberado vuelve a quedar por pagar, por lo que
+     * estaba planeado. Sirve cuando se libero por error (o al final si se pudo
+     * pagar). Solo sobre un pendiente que no se ha pagado.
+     */
+    @Override
+    @Transactional
+    public ResultDTO deshacerLiberacion(Long id) {
+        Optional<Movement> encontrado = movementRepository.findById(id);
+        if (encontrado.isEmpty() || !puedoTocar(encontrado.get())) {
+            return new ResultDTO(false, "Movement not found", 404);
+        }
+        Movement m = encontrado.get();
+        java.math.BigDecimal liberado = m.getReleasedAmount();
+        if (liberado == null || liberado.signum() <= 0) {
+            return new ResultDTO(false, "No tiene plata liberada", 400);
+        }
+        if (Boolean.TRUE.equals(m.getConfirmed())) {
+            return new ResultDTO(false, "Ya esta pagado: no hay liberacion que deshacer", 400);
+        }
+        /* Liberado del todo: quedo inactivo con el monto de antes y lo liberado
+           ya es todo lo planeado. Liberado en parte: sigue activo por el resto. */
+        boolean cerrado = !Boolean.TRUE.equals(m.getActive());
+        java.math.BigDecimal resto = m.getAmount() != null ? m.getAmount() : java.math.BigDecimal.ZERO;
+        m.setAmount(cerrado ? liberado : resto.add(liberado));
+        m.setActive(true);
+        m.setReleasedAmount(null);
+        Movement guardado = movementRepository.save(m);
+        repartos.recalcular(guardado);
+        log.info("Movement {} release undone: pending again {}", id, guardado.getAmount());
+        Map<String, Object> res = new java.util.LinkedHashMap<>();
+        res.put("pending", guardado.getAmount());
+        return new ResultDTO(res);
+    }
+
     @Override
     public ResultDTO confirmarVarios(java.util.List<Long> ids, java.util.List<java.math.BigDecimal> montos) {
         /* Se valida TODO antes de tocar nada: una lista con un pago ajeno o ya

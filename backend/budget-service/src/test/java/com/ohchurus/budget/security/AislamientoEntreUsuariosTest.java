@@ -289,6 +289,19 @@ class AislamientoEntreUsuariosTest {
         }
 
         @Test
+        @DisplayName("no puede deshacer la liberacion de un pendiente de Ana")
+        void deshacerLiberacionAjena() throws Exception {
+            Movement m = movimientos.findById(movimientoDeAna).orElseThrow();
+            m.setReleasedAmount(new BigDecimal("100000.00"));
+            movimientos.save(m);
+            atacar("/v1/movements/unrelease/" + movimientoDeAna, "{}");
+            assertThat(movimientos.findById(movimientoDeAna))
+                    .as("Bruno le deshizo la liberacion a Ana")
+                    .get().extracting(Movement::getReleasedAmount)
+                    .isNotNull();
+        }
+
+        @Test
         @DisplayName("no puede liberar la plata de un pendiente de Ana")
         void liberarAjeno() throws Exception {
             atacar("/v1/movements/release/" + movimientoDeAna, "{\"amount\":100000}");

@@ -3,6 +3,7 @@ import { View, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Modal }
 import { useFocusEffect } from '@react-navigation/native';
 import AppText from '../../components/atoms/Text';
 import Icono from '../../components/atoms/Icono';
+import { tintaSobre } from '../../utils/tinta';
 import Spinner from '../../components/atoms/Spinner';
 import Encabezado from '../../components/molecules/Encabezado';
 import EstadoError from '../../components/molecules/EstadoError';
@@ -112,7 +113,7 @@ const PresupuestoScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         onPress={() => navigation.navigate('Categoria', { categoryId: c.categoryId })}
         accessibilityRole="button"
         accessibilityLabel={`${c.categoryName}: ${formatCurrency(c.actual)} de ${formatCurrency(c.allocated)}, ${est.texto}. Ver el detalle`}>
-        <View style={[styles.circulo, { backgroundColor: color }]}><Icono nombre={c.categoryIcon} color="#FFFFFF" tamano={20} /></View>
+        <View style={[styles.circulo, { backgroundColor: color }]}><Icono nombre={c.categoryIcon} color={tintaSobre(color)} tamano={20} /></View>
         <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
           <View style={styles.entre}>
             <AppText variant="body" style={{ fontWeight: '700' }} numberOfLines={1}>{c.categoryName}</AppText>

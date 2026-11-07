@@ -445,6 +445,39 @@ class ElCierreDelMesCuadraTest {
     }
 
     @Test
+    @DisplayName("deshacer una liberacion: el pago vuelve a estar por pagar por lo planeado, entero o en parte")
+    void deshacerLiberacion() throws Exception {
+        Long todo = mov(ANDY, ahorro, "3000000", SEP, false, ahorroAndy);
+        BigDecimal libreAntes = num(estado(ANDY, null, null).path("totals").path("freeToSpend"));
+        pedir(ANDY, "/v1/movements/release/" + todo, "{}");
+        JsonNode r = pedir(ANDY, "/v1/movements/unrelease/" + todo, "{}");
+        assertThat(r.path("correct").asBoolean()).as(r.toString()).isTrue();
+        Movement m = movimientos.findById(todo).orElseThrow();
+        assertThat(m.getActive()).isTrue();
+        assertThat(m.getAmount()).isEqualByComparingTo("3000000");
+        assertThat(m.getReleasedAmount()).isNull();
+        JsonNode e = estado(ANDY, null, null);
+        assertThat(num(e.path("totals").path("freeToSpend"))).as("lo libre vuelve a lo de antes").isEqualByComparingTo(libreAntes);
+        assertThat(num(categoria(e, ahorro).path("committed"))).isEqualByComparingTo("3000000");
+
+        pedir(ANDY, "/v1/movements/release/" + todo, "{\"amount\":1000000}");
+        pedir(ANDY, "/v1/movements/release/" + todo, "{\"amount\":500000}");
+        assertThat(pedir(ANDY, "/v1/movements/unrelease/" + todo, "{}").path("correct").asBoolean()).isTrue();
+        assertThat(movimientos.findById(todo).orElseThrow().getAmount()).as("las dos partes vuelven").isEqualByComparingTo("3000000");
+
+        pedir(ANDY, "/v1/movements/release/" + todo, "{\"amount\":1000000}");
+        pedir(ANDY, "/v1/movements/release/" + todo, "{}");
+        assertThat(pedir(ANDY, "/v1/movements/unrelease/" + todo, "{}").path("correct").asBoolean()).isTrue();
+        assertThat(movimientos.findById(todo).orElseThrow().getAmount()).as("parte y luego el resto: vuelve todo").isEqualByComparingTo("3000000");
+
+        assertThat(pedir(ANDY, "/v1/movements/unrelease/" + todo, "{}").path("correct").asBoolean())
+                .as("sin nada liberado no hay que deshacer").isFalse();
+        pedir(ANDY, "/v1/movements/release/" + todo, "{}");
+        assertThat(pedir(99L, "/v1/movements/unrelease/" + todo, "{}").path("correct").asBoolean())
+                .as("alguien de otro hogar no lo toca").isFalse();
+    }
+
+    @Test
     @DisplayName("confirmar varios: todo o nada")
     void confirmarVariosEsTodoONada() throws Exception {
         Long otro = mov(ANDY, casa, "68000", SEP.withDayOfMonth(5), false, null);

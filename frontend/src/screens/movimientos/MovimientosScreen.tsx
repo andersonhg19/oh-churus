@@ -14,6 +14,7 @@ import { useAlcance } from '../../contexts/AlcanceContext';
 import { useCarga, exigir } from '../../hooks/useCarga';
 import { movementService } from '../../services/movementService';
 import { categoryService } from '../../services/categoryService';
+import { estadoService, ElementoDelPlan } from '../../services/estadoService';
 import { formatCurrency, formatDateShort } from '../../utils/format';
 import { Category, Movement } from '../../types';
 
@@ -26,6 +27,8 @@ interface Grupo {
   color: string;
   total: number;
   movimientos: Movement[];
+  /** Pagos del plan liberados del todo: no son movimientos, pero no deben desaparecer. */
+  liberados: ElementoDelPlan[];
 }
 
 /*
@@ -38,8 +41,9 @@ interface Grupo {
 const MovimientosScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation, route }) => {
   const { colors } = useTheme();
   const { user } = useAuth();
-  const { alcance, periodo, nombreDe } = useAlcance();
+  const { alcance, periodo, corte, nombreDe } = useAlcance();
   const [movs, setMovs] = useState<Movement[]>([]);
+  const [liberados, setLiberados] = useState<(ElementoDelPlan & { categoryId: number })[]>([]);
   const [categorias, setCategorias] = useState<Category[]>([]);
   const [tipo, setTipo] = useState<Tipo>(route?.params?.tipo || 'EXPENSE');
   const pedida = route?.params?.categoriaId ? String(route.params.categoriaId) : null;
@@ -47,13 +51,20 @@ const MovimientosScreen: React.FC<{ navigation: any; route?: any }> = ({ navigat
 
   const traer = useCallback(async () => {
     if (!user) return;
-    const [m, c] = await Promise.all([
+    const [m, c, e] = await Promise.all([
       movementService.getAll({ userId: user.userId, startDate: periodo.inicio, endDate: periodo.fin, page: 0, size: 500 }),
       categoryService.getAll({ userId: user.userId, page: 0, size: 200 }),
+      estadoService.periodo(corte, periodo.inicio, alcance).catch(() => null),
     ]);
     setMovs(exigir(m)?.list || []);
     setCategorias(exigir(c)?.list || []);
-  }, [user, periodo.inicio, periodo.fin]);
+    /* Lo liberado del todo ya no es un movimiento activo, pero tiene que
+       seguir viendose: si no, parece que el pago se perdio. */
+    const est = e && e.correct ? e.object : null;
+    setLiberados((est?.categories || []).flatMap((cat) => (cat.items || [])
+      .filter((it) => it.status === 'LIBERADO' && (alcance.tipo === 'HOGAR' || String(it.payerUserId) === String(alcance.userId)))
+      .map((it) => ({ ...it, categoryId: cat.categoryId }))));
+  }, [user, periodo.inicio, periodo.fin, corte, alcance]);
   const { cargando, refrescando, error, cargar, refrescar } = useCarga(traer);
   useFocusEffect(useCallback(() => { cargar(); }, [cargar]));
 
@@ -69,21 +80,23 @@ const MovimientosScreen: React.FC<{ navigation: any; route?: any }> = ({ navigat
       && (alcance.tipo === 'HOGAR' ? !!c.householdId : true));
     const mapa: Record<string, Grupo> = {};
     visibles.forEach((c, i) => {
-      mapa[String(c.id)] = { id: String(c.id), nombre: c.name, icono: c.icon, color: c.color || PALETA[i % PALETA.length], total: 0, movimientos: [] };
+      mapa[String(c.id)] = { id: String(c.id), nombre: c.name, icono: c.icon, color: c.color || PALETA[i % PALETA.length], total: 0, movimientos: [], liberados: [] };
     });
     delAlcance.filter((m) => m.categoryType === tipo || (!m.categoryType && mapa[String(m.categoryId)])).forEach((m) => {
       const k = String(m.categoryId);
-      if (!mapa[k]) mapa[k] = { id: k, nombre: m.categoryName || 'Sin categoría', icono: m.categoryIcon, color: m.categoryColor || PALETA[0], total: 0, movimientos: [] };
+      if (!mapa[k]) mapa[k] = { id: k, nombre: m.categoryName || 'Sin categoría', icono: m.categoryIcon, color: m.categoryColor || PALETA[0], total: 0, movimientos: [], liberados: [] };
       mapa[k].movimientos.push(m);
       if (m.confirmed) mapa[k].total += m.amount || 0;
     });
+    liberados.forEach((it) => { const g = mapa[String(it.categoryId)]; if (g) g.liberados.push(it); });
     Object.values(mapa).forEach((g) => g.movimientos.sort((a, b) => (b.date || '').localeCompare(a.date || '')));
-    return Object.values(mapa).sort((a, b) => b.total - a.total || b.movimientos.length - a.movimientos.length
+    const cuantos = (g: Grupo) => g.movimientos.length + g.liberados.length;
+    return Object.values(mapa).sort((a, b) => b.total - a.total || cuantos(b) - cuantos(a)
       || a.nombre.localeCompare(b.nombre));
-  }, [movs, categorias, alcance, tipo]);
+  }, [movs, categorias, alcance, tipo, liberados]);
 
   const total = grupos.reduce((t, g) => t + g.total, 0);
-  const conMovimientos = grupos.filter((g) => g.movimientos.length > 0);
+  const conMovimientos = grupos.filter((g) => g.movimientos.length + g.liberados.length > 0);
   const todasAbiertas = conMovimientos.length > 0 && conMovimientos.every((g) => abiertas[g.id]);
 
   const cabeza = <Encabezado titulo="Movimientos" atras />;
@@ -128,7 +141,7 @@ const MovimientosScreen: React.FC<{ navigation: any; route?: any }> = ({ navigat
 
         {grupos.map((g) => {
           const abierta = !!abiertas[g.id];
-          const vacia = g.movimientos.length === 0;
+          const vacia = g.movimientos.length + g.liberados.length === 0;
           const pct = total > 0 ? Math.round((g.total / total) * 100) : 0;
           return (
             <View key={g.id} style={[styles.grupo, { borderBottomColor: colors.border }]}>
@@ -140,7 +153,8 @@ const MovimientosScreen: React.FC<{ navigation: any; route?: any }> = ({ navigat
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <AppText variant="body" style={{ fontWeight: '700' }} numberOfLines={1}>{g.nombre}</AppText>
                   <AppText variant="caption" color={colors.textSecondary}>
-                    {vacia ? 'Sin movimientos' : `${g.movimientos.length} ${g.movimientos.length === 1 ? 'movimiento' : 'movimientos'} · ${pct}%`}
+                    {vacia ? 'Sin movimientos' : `${g.movimientos.length} ${g.movimientos.length === 1 ? 'movimiento' : 'movimientos'} · ${pct}%`
+                      + (g.liberados.length ? ` · ${g.liberados.length} liberado${g.liberados.length === 1 ? '' : 's'}` : '')}
                   </AppText>
                 </View>
                 <AppText variant="body" style={{ fontWeight: '800' }}>{formatCurrency(g.total)}</AppText>
@@ -160,6 +174,22 @@ const MovimientosScreen: React.FC<{ navigation: any; route?: any }> = ({ navigat
                   </View>
                   <AppText variant="body" style={{ fontWeight: '700', color: m.confirmed ? colors.text : colors.textMuted }}>
                     {formatCurrency(m.amount)}
+                  </AppText>
+                </TouchableOpacity>
+              ))}
+              {abierta && g.liberados.map((it) => (
+                <TouchableOpacity key={`lib-${it.movementId}`} style={[styles.movimiento, { borderTopColor: colors.border }]}
+                  onPress={() => navigation.navigate('Categoria', { categoryId: Number(g.id) })}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${it.name}, ${formatDateShort(it.date)}, liberado ${formatCurrency(it.released || 0)}. Ver en su presupuesto para deshacerlo`}>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <AppText variant="body" numberOfLines={1} color={colors.textSecondary}>{it.name}</AppText>
+                    <AppText variant="caption" color={colors.pending} numberOfLines={1}>
+                      {`${formatDateShort(it.date)} · liberado, no se pagó · toca para deshacer`}
+                    </AppText>
+                  </View>
+                  <AppText variant="body" style={{ fontWeight: '700', color: colors.textMuted, textDecorationLine: 'line-through' }}>
+                    {formatCurrency(it.released || 0)}
                   </AppText>
                 </TouchableOpacity>
               ))}

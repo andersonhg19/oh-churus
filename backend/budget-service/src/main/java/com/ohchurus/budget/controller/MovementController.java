@@ -77,6 +77,12 @@ public class MovementController {
         return ResponseEntity.ok(movementService.liberar(id, monto));
     }
 
+    /** Deshace una liberacion: lo liberado vuelve a quedar por pagar. */
+    @PostMapping(value = "/unrelease/{id}", produces = "application/json")
+    public ResponseEntity<ResultDTO> unrelease(@PathVariable Long id) {
+        return ResponseEntity.ok(movementService.deshacerLiberacion(id));
+    }
+
     /**
      * Confirma varios pendientes de una vez: el ahorro, el arriendo y las
      * cuotas de la tarjeta en un solo toque. Cuerpo:

@@ -149,15 +149,18 @@ public class PlanFinancieroService {
                     : (l.p().getAmount() != null ? l.p().getAmount() : BigDecimal.ZERO);
             BigDecimal liberado = m != null && m.getReleasedAmount() != null ? m.getReleasedAmount() : BigDecimal.ZERO;
             boolean cerradoSinPagar = m != null && !Boolean.TRUE.equals(m.getActive());
+            /* Si el pendiente ya existe, manda SU fecha: la factura que se movio
+               del 1 al 15 no esta vencida el 9. */
+            LocalDate cuando = m != null && m.getDate() != null ? m.getDate() : o.fecha();
             if (cerradoSinPagar) monto = BigDecimal.ZERO;
             String estado;
             if (l.clase() == ScheduledKind.PROVISION) estado = "PROVISION";
             else if (cerradoSinPagar) estado = "LIBERADO";
             else if (m != null && Boolean.TRUE.equals(m.getConfirmed())) estado = "PAGADO";
-            else if (o.fecha().isBefore(hoy)) estado = "VENCIDO";
+            else if (cuando.isBefore(hoy)) estado = "VENCIDO";
             else if (m != null) estado = "PENDIENTE";
             else estado = "PREVISTO";
-            out.add(new Fecha(l, o.fecha(), o.clave(), monto, estado, m != null ? m.getId() : null, liberado));
+            out.add(new Fecha(l, cuando, o.clave(), monto, estado, m != null ? m.getId() : null, liberado));
         }
         return out;
     }

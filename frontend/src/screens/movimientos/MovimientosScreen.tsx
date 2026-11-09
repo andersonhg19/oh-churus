@@ -168,7 +168,7 @@ const MovimientosScreen: React.FC<{ navigation: any; route?: any }> = ({ navigat
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <AppText variant="body" numberOfLines={1}>{m.description || g.nombre}</AppText>
                     <AppText variant="caption" color={m.confirmed ? colors.textSecondary : colors.pending} numberOfLines={1}>
-                      {formatDateShort(m.date)}{m.confirmed ? '' : ' · por pagar'}
+                      {formatDateShort(m.date)}{m.confirmed ? '' : ' · por pagar'}{m.fundedFromCategoryId ? ' · con el ahorro' : ''}
                       {alcance.tipo === 'HOGAR' ? ` · ${m.payerName || nombreDe(m.userId)}` : ''}
                     </AppText>
                   </View>

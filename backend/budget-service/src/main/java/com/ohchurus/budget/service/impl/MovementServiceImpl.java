@@ -148,6 +148,9 @@ public class MovementServiceImpl implements MovementService {
         ResultDTO repartoInvalido = repartos.validar(dto.getAmount(), dto.getSplitMode(), dto.getSplits());
         if (repartoInvalido != null) return repartoInvalido;
 
+        ResultDTO origenInvalido = validarOrigen(dto.getFundedFromCategoryId(), dto.getCategoryId());
+        if (origenInvalido != null) return origenInvalido;
+
         Long dueno = com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId();
         Movement movement = Movement.builder()
                 .userId(dueno)
@@ -159,6 +162,7 @@ public class MovementServiceImpl implements MovementService {
                 .scheduledMovementId(dto.getScheduledMovementId())
                 .parentMovementId(dto.getParentMovementId())
                 .confirmed(dto.getConfirmed() != null ? dto.getConfirmed() : true)
+                .fundedFromCategoryId(origen(dto.getFundedFromCategoryId()))
                 .active(true)
                 .build();
 
@@ -194,6 +198,11 @@ public class MovementServiceImpl implements MovementService {
         }
 
         Movement movement = existing.get();
+        Long categoriaFinal = esTransferencia(movement) ? movement.getCategoryId() : dto.getCategoryId();
+        Long origenPedido = dto.getFundedFromCategoryId() != null ? dto.getFundedFromCategoryId() : movement.getFundedFromCategoryId();
+        ResultDTO origenInvalido = validarOrigen(origenPedido, categoriaFinal);
+        if (origenInvalido != null) return origenInvalido;
+        if (dto.getFundedFromCategoryId() != null) movement.setFundedFromCategoryId(origen(dto.getFundedFromCategoryId()));
         /* El dueno NUNCA cambia en una actualizacion. Antes se reasignaba al
            userId que viniera en el cuerpo, asi que mandar el id de un
            movimiento ajeno bastaba para quedarse con el. */
@@ -250,6 +259,34 @@ public class MovementServiceImpl implements MovementService {
         propagarALaOtraPata(saved);
         log.info("Movement updated: id={}", saved.getId());
         return new ResultDTO(enrichWithCategory(movementMapper.toResultDTO(saved)));
+    }
+
+    /** 0 en el cuerpo es "ya no sale del ahorro". */
+    private static Long origen(Long pedido) {
+        return pedido == null || pedido == 0L ? null : pedido;
+    }
+
+    /**
+     * Un gasto puede decir que se pago con plata ahorrada, y de que ahorro:
+     * debe ser una categoria de gasto que yo vea, distinta de la del gasto (el
+     * ahorro no se paga con el ahorro), y el movimiento debe ser un gasto.
+     */
+    private ResultDTO validarOrigen(Long pedido, Long categoriaDelGasto) {
+        Long o = origen(pedido);
+        if (o == null) return null;
+        if (o.equals(categoriaDelGasto)) {
+            return new ResultDTO(false, "El ahorro no se paga con el mismo ahorro", 400);
+        }
+        Optional<com.ohchurus.budget.entity.Category> ahorro = categoryRepository.findByIdAndActiveTrue(o)
+                .filter(acceso::puedeVerCategoria);
+        if (ahorro.isEmpty() || ahorro.get().getType() != com.ohchurus.budget.enums.CategoryType.EXPENSE) {
+            return new ResultDTO(false, "Savings category not found", 404);
+        }
+        Optional<com.ohchurus.budget.entity.Category> delGasto = categoryRepository.findByIdAndActiveTrue(categoriaDelGasto);
+        if (delGasto.isPresent() && delGasto.get().getType() != com.ohchurus.budget.enums.CategoryType.EXPENSE) {
+            return new ResultDTO(false, "Solo un gasto se paga con el ahorro", 400);
+        }
+        return null;
     }
 
     private boolean esTransferencia(Movement m) {

@@ -428,6 +428,10 @@ export interface Movement {
   confirmed: boolean;
   scheduledMovementId?: string;
   active?: boolean;
+  /** Lo liberado de este pendiente del plan. */
+  releasedAmount?: number;
+  /** De que categoria de ahorro salio la plata (0 al guardar = ya no). */
+  fundedFromCategoryId?: string | number | null;
 }
 
 export interface MovementFilter {

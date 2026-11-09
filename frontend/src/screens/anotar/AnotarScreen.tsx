@@ -10,6 +10,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAlcance } from '../../contexts/AlcanceContext';
+import { useAhorros } from '../../hooks/useAhorros';
 import { categoryService } from '../../services/categoryService';
 import { accountService } from '../../services/accountService';
 import { movementService } from '../../services/movementService';
@@ -54,6 +55,9 @@ const AnotarScreen: React.FC<Props> = ({ navigation, route }) => {
   const [nota, setNota] = useState('');
   const [eligiendoFecha, setEligiendoFecha] = useState(false);
   const [guardando, setGuardando] = useState(false);
+  /* De donde salio la plata: del mes (null) o de un ahorro. */
+  const [delAhorro, setDelAhorro] = useState<string | null>(null);
+  const ahorros = useAhorros();
 
   useEffect(() => {
     if (!user) return;
@@ -104,6 +108,7 @@ const AnotarScreen: React.FC<Props> = ({ navigation, route }) => {
         description: nota.trim() || undefined,
         confirmed: pagado,
         ...(cuenta && { accountId: cuenta.id }),
+        ...(tipo === 'EXPENSE' && delAhorro && delAhorro !== String(categoria.id) && { fundedFromCategoryId: Number(delAhorro) }),
         ...(puedeRepartir && aMedias && {
           splitMode: 'EQUAL',
           splits: [Number(user.userId), ...companeros.map((c) => c.userId)].map((id) => ({ participantId: id })),
@@ -186,6 +191,13 @@ const AnotarScreen: React.FC<Props> = ({ navigation, route }) => {
           const i = cuentas.findIndex((a) => a.id === cuenta.id);
           setCuenta(cuentas[(i + 1) % cuentas.length]);
         }, `Cuenta ${cuenta.name}. Tocar para cambiar de cuenta`)}
+        {tipo === 'EXPENSE' && ahorros.length > 0 && (() => {
+          const opciones = [null, ...ahorros.filter((a) => a.id !== String(categoria?.id)).map((a) => a.id)];
+          const actual = ahorros.find((a) => a.id === delAhorro);
+          const texto = actual ? `Pagado con ${actual.nombre}` : 'Pagado con lo del mes';
+          return chip(texto, !!actual, () => setDelAhorro(opciones[(opciones.indexOf(delAhorro) + 1) % opciones.length]),
+            `${texto}. Tocar para cambiar de dónde salió la plata`);
+        })()}
         {chip('Más opciones', false, () => navigation.replace('MovementFormModal', {
           prefill: { amount: monto || undefined, categoryId: categoria?.id, type: tipo, date: fecha, description: nota, confirmed: pagado },
         }), 'Abrir el formulario completo con lo escrito')}

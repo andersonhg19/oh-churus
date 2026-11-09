@@ -191,6 +191,29 @@ const CategoriaScreen: React.FC<{ navigation: any; route: any }> = ({ navigation
           </>
         )}
 
+        {(c.fromSavings || 0) > 0 && (
+          <View style={[styles.fila, { borderBottomColor: colors.border }]}>
+            <Icono nombre="piggy-bank" color={colors.textSecondary} />
+            <AppText variant="body" style={{ flex: 1 }}>Pagado con el ahorro</AppText>
+            <AppText variant="body" style={{ fontWeight: '800' }}>{formatCurrency(c.fromSavings || 0)}</AppText>
+          </View>
+        )}
+
+        {!!c.withdrawals?.length && (
+          <>
+            <AppText variant="subtitle">Sacado del ahorro</AppText>
+            {c.withdrawals.map((w) => (
+              <View key={w.movementId} style={[styles.fila, { borderBottomColor: colors.border }]}>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <AppText variant="body" style={{ fontWeight: '700' }} numberOfLines={1}>{w.description || w.toCategoryName}</AppText>
+                  <AppText variant="caption" color={colors.textSecondary}>{`Para ${w.toCategoryName} · ${formatDateShort(w.date)}`}</AppText>
+                </View>
+                <AppText variant="body" style={{ fontWeight: '800', color: colors.expense }}>{`−${formatCurrency(w.amount)}`}</AppText>
+              </View>
+            ))}
+          </>
+        )}
+
         {c.byPerson.length > 0 && (
           <>
             <AppText variant="subtitle">Quién</AppText>

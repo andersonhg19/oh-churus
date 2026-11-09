@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useAhorros } from '../../hooks/useAhorros';
 import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useToast } from '../../contexts/ToastContext';
@@ -49,6 +50,9 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
   const [description, setDescription] = useState(existing?.description || prefill?.description || '');
   const [date, setDate] = useState(existing?.date || prefill?.date || fechaLocalISO());
   const [confirmed, setConfirmed] = useState(existing?.confirmed ?? prefill?.confirmed ?? true);
+  /* De donde salio la plata: del mes (null) o de un ahorro. */
+  const [delAhorro, setDelAhorro] = useState<string | null>(existing?.fundedFromCategoryId ? String(existing.fundedFromCategoryId) : null);
+  const ahorros = useAhorros();
 
   /* La cuenta donde ocurre. Si no se toca, el backend lo manda a la cuenta
      por defecto, asi que anotar rapido sigue siendo un gesto: no se obliga a
@@ -226,6 +230,9 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
           date,
           confirmed,
           ...(cuentaId && { accountId: cuentaId }),
+          ...(movementType === 'EXPENSE' && !parentMovement && {
+            fundedFromCategoryId: delAhorro && delAhorro !== String(selectedCategory!.id) ? Number(delAhorro) : (isEdit ? 0 : undefined),
+          }),
           /* Yo SIEMPRE voy en el reparto: el gasto es mio y una parte me
              toca. Sin esto, repartir con una persona significaria que el
              gasto entero es de la otra. */
@@ -249,7 +256,7 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
     } catch (err: any) {
       showToast('error', 'Error', err.message || 'No se pudo guardar');
     }
-  }, [selectedCategory, amount, date, description, confirmed, isTransfer, personalCategoryId, cuentaId, reparte, modoReparto, conQuien, valores, isEdit, existing, parentMovement, user, navigation, showToast]);
+  }, [selectedCategory, amount, date, description, confirmed, delAhorro, movementType, isTransfer, personalCategoryId, cuentaId, reparte, modoReparto, conQuien, valores, isEdit, existing, parentMovement, user, navigation, showToast]);
 
   const { ejecutando: guardando, ejecutar: handleSave } = useAccionUnica(guardarMovimiento);
 
@@ -309,6 +316,28 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
           selected={movementType}
           onChange={handleTypeChange}
         />
+      )}
+
+      {/* De donde salio la plata: la reparacion del carro pagada con el ahorro
+          es gasto del carro, pero no de lo del mes. */}
+      {movementType === 'EXPENSE' && !parentMovement && !isTransfer && ahorros.length > 0 && (
+        <View style={styles.statusSection}>
+          <AppText variant="label" style={styles.sectionLabel}>¿De dónde salió la plata?</AppText>
+          <View style={[styles.statusRow, { flexWrap: 'wrap' }]}>
+            {[{ id: null as string | null, nombre: 'De lo del mes' }, ...ahorros.filter((a) => a.id !== String(selectedCategory?.id))
+              .map((a) => ({ id: a.id as string | null, nombre: `Del ${a.nombre}` }))].map((o) => {
+              const activo = delAhorro === o.id;
+              return (
+                <TouchableOpacity key={o.id || 'mes'}
+                  style={[styles.statusChip, { backgroundColor: activo ? colors.primary + '20' : 'transparent', borderColor: activo ? colors.primary : colors.border }]}
+                  onPress={() => setDelAhorro(o.id)} accessibilityRole="radio" accessibilityState={{ selected: activo }}
+                  accessibilityLabel={o.id ? `La plata salió del ${o.nombre.slice(4)}` : 'La plata salió de lo del mes'}>
+                  <AppText variant="caption" style={{ color: activo ? colors.primary : colors.textMuted, fontWeight: activo ? '700' : '400' }}>{o.nombre}</AppText>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
       )}
 
       {/* Estado: Pagado / Por pagar - oculto en sub-gastos (siempre confirmado) */}

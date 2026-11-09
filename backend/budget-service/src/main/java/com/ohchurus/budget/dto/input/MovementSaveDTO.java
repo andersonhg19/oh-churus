@@ -66,4 +66,8 @@ public class MovementSaveDTO {
        como estaba. Con true por defecto, corregir el valor de un pendiente
        desde un cliente que no manda el campo lo daba por pagado. */
     private Boolean confirmed;
+
+    /* De que categoria de ahorro salio la plata. Nulo = no lo dije (al editar
+       se deja como estaba); 0 = ya no sale del ahorro. */
+    private Long fundedFromCategoryId;
 }

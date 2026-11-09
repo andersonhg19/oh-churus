@@ -26,8 +26,21 @@ export const colorDeTono = (tono: string, c: { income: string; pending: string; 
 
 /** La frase del cierre: "se esperaban 500.000 y se gastaron 700.000". */
 export function fraseDelCierre(
-  c: Pick<CategoriaDelPeriodo, 'kind' | 'allocated' | 'actual' | 'status'> & { released?: number }, cerrado: boolean,
+  c: Pick<CategoriaDelPeriodo, 'kind' | 'allocated' | 'actual' | 'status'> & { released?: number; fromSavings?: number; withdrawn?: number },
+  cerrado: boolean,
 ): string {
+  const base = fraseBase(c, cerrado);
+  const sacado = c.withdrawn && c.withdrawn > 0 ? ` Se sacaron ${formatCurrency(c.withdrawn)} del ahorro para pagar otras cosas.` : '';
+  const delAhorro = c.fromSavings && c.fromSavings > 0 ? ` Además, ${formatCurrency(c.fromSavings)} se pagaron con el ahorro.` : '';
+  return base + sacado + delAhorro;
+}
+
+function fraseBase(
+  c0: Pick<CategoriaDelPeriodo, 'kind' | 'allocated' | 'actual' | 'status'> & { released?: number; fromSavings?: number },
+  cerrado: boolean,
+): string {
+  /* Lo pagado con el ahorro no cuenta contra el presupuesto del mes. */
+  const c = { ...c0, actual: c0.actual - (c0.fromSavings || 0) };
   const plan = formatCurrency(c.allocated);
   const real = formatCurrency(c.actual);
   const liberado = c.released && c.released > 0 ? ` Se liberaron ${formatCurrency(c.released)} para otras cosas.` : '';

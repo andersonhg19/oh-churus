@@ -38,6 +38,8 @@ public class ResultMovementDTO {
     private Boolean isSettlement;
     /** Cuanto se libero de este pendiente del plan. */
     private java.math.BigDecimal releasedAmount;
+    /** De que ahorro salio la plata, si salio de uno. */
+    private Long fundedFromCategoryId;
 
     /**
      * Lo que este movimiento cuenta como gasto MIO.

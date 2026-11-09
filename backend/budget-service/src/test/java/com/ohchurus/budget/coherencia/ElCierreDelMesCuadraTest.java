@@ -478,6 +478,80 @@ class ElCierreDelMesCuadraTest {
     }
 
     @Test
+    @DisplayName("reparar el carro con el ahorro: es gasto de su categoria, lo libre no baja y el ahorro dice que se saco")
+    void gastoPagadoConElAhorro() throws Exception {
+        JsonNode antes = estado(ANDY, null, null);
+        BigDecimal libreAntes = num(antes.path("totals").path("freeToSpend"));
+        BigDecimal ahorradoAntes = num(antes.path("totals").path("saved"));
+        JsonNode mascAntes = categoria(antes, mascotas);
+
+        JsonNode r = pedir(ANDY, "/v1/movements/save", "{\"categoryId\":" + mascotas + ",\"amount\":800000,"
+                + "\"date\":\"2026-09-22\",\"description\":\"Cirugia\",\"fundedFromCategoryId\":" + ahorro + "}");
+        assertThat(r.path("correct").asBoolean()).as(r.toString()).isTrue();
+        Long id = r.path("object").path("id").asLong();
+        assertThat(r.path("object").path("fundedFromCategoryId").asLong()).isEqualTo(ahorro);
+
+        JsonNode e = estado(ANDY, null, null);
+        JsonNode masc = categoria(e, mascotas);
+        assertThat(num(masc.path("actual"))).as("si se gasto en mascotas")
+                .isEqualByComparingTo(num(mascAntes.path("actual")).add(new BigDecimal("800000")));
+        assertThat(num(masc.path("fromSavings"))).isEqualByComparingTo("800000");
+        assertThat(masc.path("status").asText()).as("el presupuesto del mes se mide sin lo del ahorro")
+                .isEqualTo(mascAntes.path("status").asText());
+        assertThat(num(masc.path("provisionLeft"))).as("la bolsa no se gasto con la cirugia")
+                .isEqualByComparingTo(num(mascAntes.path("provisionLeft")));
+        JsonNode a = categoria(e, ahorro);
+        assertThat(num(a.path("withdrawn"))).isEqualByComparingTo("800000");
+        assertThat(a.path("withdrawals").toString()).contains("Cirugia").contains("Mascotas");
+        assertThat(num(e.path("totals").path("fromSavings"))).isEqualByComparingTo("800000");
+        assertThat(num(e.path("totals").path("netSaved"))).isEqualByComparingTo(ahorradoAntes.subtract(new BigDecimal("800000")));
+        assertThat(num(e.path("totals").path("freeToSpend"))).as("no salio de lo del mes").isEqualByComparingTo(libreAntes);
+
+        // Lo mismo se ve en lo de Andy.
+        JsonNode suyo = estado(ANDY, "PERSONA", ANDY);
+        assertThat(num(categoria(suyo, ahorro).path("withdrawn"))).isEqualByComparingTo("800000");
+
+        // Editar sin decir nada lo deja; con 0 deja de salir del ahorro y lo libre baja.
+        pedir(ANDY, "/v1/movements/save", "{\"id\":" + id + ",\"categoryId\":" + mascotas + ",\"amount\":800000,\"date\":\"2026-09-22\",\"description\":\"Cirugia de Milo\"}");
+        assertThat(movimientos.findById(id).orElseThrow().getFundedFromCategoryId()).isEqualTo(ahorro);
+        pedir(ANDY, "/v1/movements/save", "{\"id\":" + id + ",\"categoryId\":" + mascotas + ",\"amount\":800000,\"date\":\"2026-09-22\",\"fundedFromCategoryId\":0}");
+        assertThat(movimientos.findById(id).orElseThrow().getFundedFromCategoryId()).isNull();
+        assertThat(num(estado(ANDY, null, null).path("totals").path("freeToSpend")))
+                .isEqualByComparingTo(libreAntes.subtract(new BigDecimal("800000")));
+    }
+
+    @Test
+    @DisplayName("pagar con el ahorro tiene reglas: no del mismo ahorro, no de un ingreso, no de lo privado ajeno, solo gastos")
+    void pagarConElAhorroTieneReglas() throws Exception {
+        String gasto = "{\"categoryId\":%d,\"amount\":100000,\"date\":\"2026-09-22\",\"fundedFromCategoryId\":%d}";
+        assertThat(pedir(ANDY, "/v1/movements/save", String.format(gasto, ahorro, ahorro)).path("correct").asBoolean()).isFalse();
+        assertThat(pedir(ANDY, "/v1/movements/save", String.format(gasto, delivery, salario)).path("correct").asBoolean()).isFalse();
+        assertThat(pedir(ANDY, "/v1/movements/save", String.format(gasto, delivery, personalSamy)).path("correct").asBoolean()).isFalse();
+        assertThat(pedir(ANDY, "/v1/movements/save", String.format(gasto, salario, ahorro)).path("correct").asBoolean()).isFalse();
+        assertThat(pedir(99L, "/v1/movements/save", String.format(gasto, delivery, ahorro)).path("correct").asBoolean()).isFalse();
+    }
+
+    @Test
+    @DisplayName("una factura movida del 1 al dia de manana no sale vencida")
+    void laFechaDelPendienteMandaSobreLaDelProgramado() throws Exception {
+        LocalDate hoy = LocalDate.now();
+        org.junit.jupiter.api.Assumptions.assumeTrue(hoy.getDayOfMonth() < hoy.lengthOfMonth());
+        Long energia = programar(ANDY, "Energia", casa, "170000", 1, "PAYMENT");
+        Movement m = base(ANDY, casa, "170000", hoy.plusDays(1), false, energia);
+        m.setPeriodStart(hoy.withDayOfMonth(1));
+        movimientos.save(m);
+        JsonNode r = pedir(ANDY, "/v1/estado/periodo", "{\"budgetStartDay\":1,\"referenceDate\":\"" + hoy + "\"}");
+        String items = categoria(r.path("object"), casa).path("items").toString();
+        assertThat(items).contains("Energia");
+        for (JsonNode it : categoria(r.path("object"), casa).path("items")) {
+            if ("Energia".equals(it.path("name").asText())) {
+                assertThat(it.path("status").asText()).isEqualTo("PENDIENTE");
+                assertThat(it.path("date").asText()).isEqualTo(hoy.plusDays(1).toString());
+            }
+        }
+    }
+
+    @Test
     @DisplayName("confirmar varios: todo o nada")
     void confirmarVariosEsTodoONada() throws Exception {
         Long otro = mov(ANDY, casa, "68000", SEP.withDayOfMonth(5), false, null);

@@ -195,6 +195,19 @@ describe('Anotar', () => {
     })));
   });
 
+  it('un gasto pagado con el ahorro dice de qué ahorro salió', async () => {
+    (movementService.save as jest.Mock).mockResolvedValue({ correct: true, object: {} });
+    const { findByLabelText, getByLabelText } = render(
+      <Envoltura><AnotarScreen navigation={nav()} route={{ params: { tipo: 'EXPENSE', categoriaId: '42' } }} /></Envoltura>);
+    fireEvent.press(await findByLabelText(/Pagado con lo del mes/));
+    expect(getByLabelText(/Pagado con Ahorro/)).toBeTruthy();
+    ['8', '0', '0', 'tres ceros'].forEach((t) => fireEvent.press(getByLabelText(t)));
+    fireEvent.press(getByLabelText('Anotar'));
+    await waitFor(() => expect(movementService.save).toHaveBeenCalledWith(expect.objectContaining({
+      categoryId: '42', amount: 800000, fundedFromCategoryId: 2,
+    })));
+  });
+
   it('sin monto no deja anotar', async () => {
     const { findByLabelText, getByLabelText } = render(
       <Envoltura><AnotarScreen navigation={nav()} route={{ params: { tipo: 'EXPENSE' } }} /></Envoltura>);
@@ -236,6 +249,10 @@ describe('La frase del cierre', () => {
       .toMatch(/Se quería ahorrar .*3.000.000 y se ahorró .*0: faltaron .*3.000.000/);
     expect(fraseDelCierre({ kind: 'EXPENSE', allocated: 0, actual: 75500, status: 'SIN_PRESUPUESTO' }, false))
       .toMatch(/No tenía presupuesto y se llevan .*75.500/);
+    expect(fraseDelCierre({ kind: 'EXPENSE', allocated: 510000, actual: 813100, fromSavings: 800000, status: 'DENTRO' }, true))
+      .toMatch(/Se esperaban .*510.000 y se gastaron .*13.100: sobraron .*496.900. Además, .*800.000 se pagaron con el ahorro/);
+    expect(fraseDelCierre({ kind: 'SAVING', allocated: 3000000, actual: 3000000, withdrawn: 800000, status: 'META_CUMPLIDA' }, true))
+      .toMatch(/se ahorró .*3.000.000. Se sacaron .*800.000 del ahorro/);
   });
 });
 

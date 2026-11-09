@@ -187,6 +187,12 @@ public class EstadoDelPeriodoService {
         BigDecimal planDeLineas = BigDecimal.ZERO;
         BigDecimal comprometidoSinElemento = BigDecimal.ZERO;
         BigDecimal liberado = BigDecimal.ZERO;
+        /* Gastado en esta categoria con plata ahorrada (no del mes). */
+        BigDecimal delAhorro = BigDecimal.ZERO;
+        BigDecimal comprometidoDelAhorro = BigDecimal.ZERO;
+        /* Sacado de esta categoria de ahorro para pagar otras cosas. */
+        BigDecimal retirado = BigDecimal.ZERO;
+        List<Map<String, Object>> retiros = new ArrayList<>();
         boolean tieneAsignacion;
         boolean ahorro;
         boolean pagoOFactura;
@@ -317,6 +323,7 @@ public class EstadoDelPeriodoService {
 
         BigDecimal ingresoRecibido = BigDecimal.ZERO;
         BigDecimal ingresoExtra = BigDecimal.ZERO;
+        BigDecimal totDelAhorro = BigDecimal.ZERO;
         int pendientesCount = 0;
         for (Movement m : confirmados) {
             if (!Computables.suma(m)) continue;
@@ -339,6 +346,26 @@ public class EstadoDelPeriodoService {
             c.real = c.real.add(v);
             c.porPersona.computeIfAbsent(m.getUserId(), k -> ceros(2))[0] =
                     c.porPersona.get(m.getUserId())[0].add(v);
+            /* Pagado con plata ya ahorrada: SI es gasto de su categoria (el
+               carro se reparo), pero no sale de lo que entro este mes, asi que
+               no baja lo libre; lo que baja es el ahorro de donde salio. */
+            Acum origen = m.getFundedFromCategoryId() != null ? acum(porCat, cache, m.getFundedFromCategoryId()) : null;
+            if (origen != null) {
+                c.delAhorro = c.delAhorro.add(v);
+                totDelAhorro = totDelAhorro.add(v);
+                origen.retirado = origen.retirado.add(v);
+                if (detalle) {
+                    Map<String, Object> x = new LinkedHashMap<>();
+                    x.put("movementId", m.getId());
+                    x.put("date", m.getDate() != null ? m.getDate().toString() : null);
+                    x.put("amount", v);
+                    x.put("description", m.getDescription());
+                    x.put("toCategoryId", cat.getId());
+                    x.put("toCategoryName", cat.getName());
+                    x.put("userId", m.getUserId());
+                    origen.retiros.add(x);
+                }
+            }
         }
         for (Movement m : pendientes) {
             if (!Computables.suma(m)) continue;
@@ -349,8 +376,11 @@ public class EstadoDelPeriodoService {
             Acum c = acum(porCat, cache, cat.getId());
             BigDecimal v = Computables.importe(m);
             c.comprometido = c.comprometido.add(v);
-            /* Un "por pagar" anotado a mano no esta en ningun elemento del plan. */
-            if (m.getScheduledMovementId() == null) {
+            /* Lo que se pagara con el ahorro tampoco sale de lo del mes. */
+            if (m.getFundedFromCategoryId() != null && acum(porCat, cache, m.getFundedFromCategoryId()) != null) {
+                c.comprometidoDelAhorro = c.comprometidoDelAhorro.add(v);
+            } else if (m.getScheduledMovementId() == null) {
+                /* Un "por pagar" anotado a mano no esta en ningun elemento del plan. */
                 porPagarDelPlan = porPagarDelPlan.add(v);
                 c.comprometidoSinElemento = c.comprometidoSinElemento.add(v);
             }
@@ -373,10 +403,15 @@ public class EstadoDelPeriodoService {
                le toca a una persona en una categoria comun: la asignacion de
                lo comun es del hogar, no de nadie en particular. */
             if (!c.tieneAsignacion) c.asignado = c.planDeLineas;
-            if (c.asignado.signum() == 0 && c.real.signum() == 0 && c.comprometido.signum() == 0 && c.elementos.isEmpty()) continue;
+            if (c.asignado.signum() == 0 && c.real.signum() == 0 && c.comprometido.signum() == 0 && c.elementos.isEmpty()
+                    && c.retirado.signum() == 0) continue;
             boolean esAhorro = c.ahorro && !c.pagoOFactura;
-            BigDecimal disponible = c.asignado.subtract(c.real).subtract(c.comprometido);
-            BigDecimal diferencia = c.asignado.subtract(c.real);
+            /* El presupuesto de la categoria se mide con lo que salio del mes:
+               lo pagado con el ahorro se ensena aparte, no la "pasa". */
+            BigDecimal realDelMes = c.real.subtract(c.delAhorro);
+            BigDecimal comprometidoDelMes = c.comprometido.subtract(c.comprometidoDelAhorro);
+            BigDecimal disponible = c.asignado.subtract(realDelMes).subtract(comprometidoDelMes);
+            BigDecimal diferencia = c.asignado.subtract(realDelMes);
             String estado;
             if (esAhorro) {
                 /* Una meta de 0 no se incumple: no habia nada que ahorrar. */
@@ -386,14 +421,14 @@ public class EstadoDelPeriodoService {
                 totAhorroMeta = totAhorroMeta.add(c.asignado);
                 totAhorrado = totAhorrado.add(c.real);
             } else {
-                if (c.asignado.signum() == 0 && c.real.signum() > 0) { estado = "SIN_PRESUPUESTO"; excedidas++; totSinPresupuesto = totSinPresupuesto.add(c.real); }
-                else if (c.real.compareTo(c.asignado) > 0) { estado = "EXCEDIDO"; excedidas++; }
-                else if (c.real.add(c.comprometido).compareTo(c.asignado) > 0) estado = "EN_RIESGO";
+                if (c.asignado.signum() == 0 && realDelMes.signum() > 0) { estado = "SIN_PRESUPUESTO"; excedidas++; totSinPresupuesto = totSinPresupuesto.add(realDelMes); }
+                else if (realDelMes.compareTo(c.asignado) > 0) { estado = "EXCEDIDO"; excedidas++; }
+                else if (realDelMes.add(comprometidoDelMes).compareTo(c.asignado) > 0) estado = "EN_RIESGO";
                 else { estado = "DENTRO"; dentro++; }
             }
             /* Lo que se gasto en la categoria por fuera de sus facturas
                consume primero la bolsa, si la tiene. */
-            BigDecimal otros = c.real.subtract(c.realDeElementos).max(BigDecimal.ZERO);
+            BigDecimal otros = realDelMes.subtract(c.realDeElementos).max(BigDecimal.ZERO);
             /* Una compra de la bolsa que quedo "por pagar" tambien la consume:
                si no, se restaba dos veces de lo libre (como pendiente y como
                bolsa intacta). */
@@ -417,7 +452,9 @@ public class EstadoDelPeriodoService {
             r.put("committed", c.comprometido);
             r.put("available", disponible);
             r.put("difference", diferencia);
-            r.put("executionPct", pct(c.real, c.asignado));
+            r.put("executionPct", pct(realDelMes, c.asignado));
+            r.put("fromSavings", c.delAhorro);
+            r.put("withdrawn", c.retirado);
             r.put("status", estado);
             r.put("hasAllocation", c.tieneAsignacion);
             r.put("plannedInItems", c.planDeLineas);
@@ -427,6 +464,7 @@ public class EstadoDelPeriodoService {
             r.put("otherSpending", otros);
             r.put("byPerson", personas(c.porPersona));
             if (detalle) r.put("items", c.elementos);
+            if (detalle && !c.retiros.isEmpty()) r.put("withdrawals", c.retiros);
             cats.add(r);
         }
         cats.sort(Comparator.comparing((Map<String, Object> m) -> ((BigDecimal) m.get("allocated")).max((BigDecimal) m.get("actual"))).reversed());
@@ -437,7 +475,9 @@ public class EstadoDelPeriodoService {
            ESPERADO y no solo lo recibido: si la quincena de Samy no ha llegado,
            el hogar no esta en rojo, esta esperando. Lo de hoy, con lo que ya
            llego, va aparte (freeNow). */
-        BigDecimal resto = totReal.add(totAhorrado).add(porPagarDelPlan).add(totBolsaRestante);
+        /* Lo pagado con el ahorro esta en lo gastado pero no salio de lo del
+           mes: se devuelve, y lo libre no baja por la reparacion del carro. */
+        BigDecimal resto = totReal.subtract(totDelAhorro).add(totAhorrado).add(porPagarDelPlan).add(totBolsaRestante);
         BigDecimal libre = ingresoEsperado.subtract(resto);
         BigDecimal libreHoy = ingresoRecibido.subtract(resto);
         Map<String, Object> t = new LinkedHashMap<>();
@@ -456,6 +496,8 @@ public class EstadoDelPeriodoService {
         t.put("provisionsLeft", totBolsaRestante);
         t.put("toPay", porPagarDelPlan);
         t.put("released", totLiberado);
+        t.put("fromSavings", totDelAhorro);
+        t.put("netSaved", totAhorrado.subtract(totDelAhorro));
         t.put("freeToSpend", libre);
         t.put("freeNow", libreHoy);
         t.put("executionPct", pct(totReal, totAsignado.subtract(totAhorroMeta)));

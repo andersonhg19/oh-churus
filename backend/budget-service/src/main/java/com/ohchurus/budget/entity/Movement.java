@@ -133,6 +133,12 @@ public class Movement {
      */
     private java.math.BigDecimal releasedAmount;
 
+    /**
+     * De que categoria de ahorro salio la plata de este gasto (V13): la
+     * reparacion del carro pagada con lo ahorrado. Nulo = del dia a dia.
+     */
+    private Long fundedFromCategoryId;
+
     @Column(nullable = false)
     @Builder.Default
     private Boolean isTransfer = false;

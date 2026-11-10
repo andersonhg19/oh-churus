@@ -123,16 +123,32 @@ describe('Deudas', () => {
     expect(getByText(/faltan \$1\.800\.000 · próxima 15 dic/)).toBeTruthy();
   });
 
-  it('pagar la tarjeta pide confirmación, llama al servicio y recarga', async () => {
+  it('pagar la tarjeta propone todo lo que se debe hoy, llama al servicio y recarga', async () => {
     (deudaService.pagarTarjeta as jest.Mock).mockResolvedValue({ correct: true, object: { paidItems: 1, paidTotal: 400000 } });
     const { findByLabelText, getByText, getByLabelText } = render(<Envoltura><DeudasScreen navigation={nav()} /></Envoltura>);
     fireEvent.press(await findByLabelText('Pagar tarjeta Visa'));
-    expect(getByText(/Quedan pagadas las compras hasta hoy: \$400\.000\. No es un gasto nuevo/)).toBeTruthy();
+    expect(getByText(/Hoy se deben \$400\.000\. Puedes pagar todo o una parte/)).toBeTruthy();
     expect(deudaService.pagarTarjeta).not.toHaveBeenCalled();
     fireEvent.press(getByLabelText('Pagar'));
-    await waitFor(() => expect(deudaService.pagarTarjeta).toHaveBeenCalledWith(1));
+    await waitFor(() => expect(deudaService.pagarTarjeta).toHaveBeenCalledWith(1, expect.objectContaining({ amount: 400000 })));
     await waitFor(() => expect(deudaService.todas).toHaveBeenCalledTimes(2));
-    expect(toast).toHaveBeenCalledWith('success', 'Tarjeta pagada', expect.stringContaining('400.000'));
+    expect(toast).toHaveBeenCalledWith('success', 'Pago anotado', expect.stringContaining('400.000'));
+  });
+
+  it('se puede pagar una parte, pero no cero ni más de lo que se debe hoy', async () => {
+    (deudaService.pagarTarjeta as jest.Mock).mockResolvedValue({ correct: true, object: { paidItems: 0, paidTotal: 150000 } });
+    const { findByLabelText, getByText, getByLabelText } = render(<Envoltura><DeudasScreen navigation={nav()} /></Envoltura>);
+    fireEvent.press(await findByLabelText('Pagar tarjeta Visa'));
+    fireEvent.changeText(getByLabelText(/^¿Cuánto pagaste/), '0');
+    fireEvent.press(getByLabelText('Pagar'));
+    expect(getByText(/mayor que cero/)).toBeTruthy();
+    fireEvent.changeText(getByLabelText(/^¿Cuánto pagaste/), '400.001');
+    fireEvent.press(getByLabelText('Pagar'));
+    expect(getByText(/no puedes pagar más que eso/)).toBeTruthy();
+    expect(deudaService.pagarTarjeta).not.toHaveBeenCalled();
+    fireEvent.changeText(getByLabelText(/^¿Cuánto pagaste/), '150.000');
+    fireEvent.press(getByLabelText('Pagar'));
+    await waitFor(() => expect(deudaService.pagarTarjeta).toHaveBeenCalledWith(1, expect.objectContaining({ amount: 150000 })));
   });
 
   it('si el servidor rechaza el pago lo dice', async () => {

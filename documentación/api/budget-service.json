@@ -57,6 +57,9 @@
       },
       "CardPayDTO" : {
         "properties" : {
+          "amount" : {
+            "type" : "number"
+          },
           "upTo" : {
             "format" : "date",
             "type" : "string"

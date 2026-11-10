@@ -738,10 +738,48 @@ class ElCierreDelMesCuadraTest {
         assertThat(num(t.path("dueNow"))).isEqualByComparingTo("30000");
         assertThat(num(t.path("currentCycle"))).isEqualByComparingTo(corte.isBefore(hoy) ? "20000" : "0");
         assertThat(t.path("nextPaymentDate").asText()).endsWith("-28");
-        // Pagar sin decir hasta cuando paga el extracto (hasta el corte), no lo de este ciclo.
+        // Pagar sin monto paga todo lo que se debe a hoy, extracto y ciclo.
         pedir(ANDY, "/v1/cards/pay/" + nu, "{}");
-        assertThat(num(pedir(ANDY, "/v1/cards/mine", "{}").path("object").get(0).path("owed")))
-                .isEqualByComparingTo(corte.isBefore(hoy) ? "20000" : "0");
+        assertThat(num(pedir(ANDY, "/v1/cards/mine", "{}").path("object").get(0).path("owed"))).isEqualByComparingTo("0");
+    }
+
+    @Test
+    @DisplayName("ola 7.2 · la tarjeta se paga con el monto que se quiera, hasta lo que se debe a la fecha del pago")
+    void pagoParcialDeLaTarjeta() throws Exception {
+        Long nu = pedir(ANDY, "/v1/cards/save", "{\"name\":\"Nu\"}").path("object").path("id").asLong();
+        String compra = "{\"categoryId\":" + delivery + ",\"amount\":%s,\"date\":\"%s\",\"cardId\":" + nu + "%s}";
+        pedir(ANDY, "/v1/movements/save", String.format(compra, "100000", "2026-09-05", ""));
+        pedir(ANDY, "/v1/movements/save", String.format(compra, "50000", "2026-09-20", ""));
+        // 3 cuotas de 30.000: solo la de septiembre se debe al 30 de septiembre.
+        pedir(ANDY, "/v1/movements/save", String.format(compra, "90000", "2026-09-25", ",\"installments\":3"));
+        String al30 = "{\"upTo\":\"2026-09-30\",\"amount\":%s}";
+
+        assertThat(pedir(ANDY, "/v1/cards/pay/" + nu, String.format(al30, "0")).path("correct").asBoolean()).isFalse();
+        assertThat(pedir(ANDY, "/v1/cards/pay/" + nu, String.format(al30, "-5")).path("correct").asBoolean()).isFalse();
+        JsonNode demas = pedir(ANDY, "/v1/cards/pay/" + nu, String.format(al30, "180001"));
+        assertThat(demas.path("correct").asBoolean()).as("al 30 de sep se deben 180.000, no mas").isFalse();
+        assertThat(demas.path("message").asText()).contains("180000");
+        assertThat(pedir(ANDY, "/v1/cards/pay/" + nu, "{\"upTo\":\"" + java.time.LocalDate.now().plusDays(3) + "\",\"amount\":1}")
+                .path("correct").asBoolean()).as("fecha futura").isFalse();
+
+        // Abono de 120.000: salda la de 100.000 y quedan 20.000 de abono.
+        JsonNode p = pedir(ANDY, "/v1/cards/pay/" + nu, String.format(al30, "120000"));
+        assertThat(p.path("correct").asBoolean()).as(p.toString()).isTrue();
+        assertThat(p.path("object").path("paidItems").asInt()).isEqualTo(1);
+        JsonNode t = p.path("object").path("card");
+        assertThat(num(t.path("owed"))).as("240.000 - 120.000").isEqualByComparingTo("120000");
+        assertThat(num(t.path("credit"))).isEqualByComparingTo("20000");
+        assertThat(t.path("lastPaymentDate").asText()).isEqualTo("2026-09-30");
+        assertThat(num(t.path("lastPaymentAmount"))).isEqualByComparingTo("120000");
+
+        // El resto al 30: 60.000 (50.000 + 30.000 - 20.000 de abono). Sin monto paga todo eso.
+        JsonNode resto = pedir(ANDY, "/v1/cards/pay/" + nu, "{\"upTo\":\"2026-09-30\"}");
+        assertThat(num(resto.path("object").path("paidTotal"))).isEqualByComparingTo("60000");
+        t = resto.path("object").path("card");
+        assertThat(num(t.path("credit"))).isEqualByComparingTo("0");
+        assertThat(num(t.path("owed"))).as("las 2 cuotas que faltan").isEqualByComparingTo("60000");
+        assertThat(pedir(ANDY, "/v1/cards/pay/" + nu, String.format(al30, "1")).path("correct").asBoolean())
+                .as("al 30 ya no se debe nada").isFalse();
     }
 
     @Test

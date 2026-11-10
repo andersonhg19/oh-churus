@@ -22,9 +22,9 @@ import { tintaSobre } from '../../utils/tinta';
 import { diaMes, mesAnio } from './fechas';
 import Hoja from './Hoja';
 import FormTarjeta, { DatosTarjeta } from './FormTarjeta';
+import FormPagoTarjeta, { pagableHoy } from './FormPagoTarjeta';
 
 type Accion =
-  | { tipo: 'pagar'; tarjeta: Tarjeta }
   | { tipo: 'borrar'; tarjeta: Tarjeta }
   | { tipo: 'adelantar'; deuda: DeudaEnCuotas };
 
@@ -40,6 +40,7 @@ const DeudasScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const [deudas, setDeudas] = useState<Deudas | null>(null);
   const [abierta, setAbierta] = useState<number | null>(null);
   const [accion, setAccion] = useState<Accion | null>(null);
+  const [pagando, setPagando] = useState<Tarjeta | null>(null);
   const [agregando, setAgregando] = useState(false);
   const [editando, setEditando] = useState<DatosTarjeta | null>(null);
   const [nuevaDeuda, setNuevaDeuda] = useState(false);
@@ -79,11 +80,7 @@ const DeudasScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
   const confirmar = () => {
     if (!accion) return;
-    if (accion.tipo === 'pagar') {
-      correr(() => deudaService.pagarTarjeta(accion.tarjeta.id),
-        (r) => ['Tarjeta pagada', `Quedaron saldados ${formatCurrency(r.object?.paidTotal ?? accion.tarjeta.dueNow)}`],
-        () => setAccion(null));
-    } else if (accion.tipo === 'borrar') {
+    if (accion.tipo === 'borrar') {
       correr(() => deudaService.borrarTarjeta(accion.tarjeta.id), () => ['Tarjeta borrada'], () => setAccion(null));
     } else {
       correr(() => deudaService.adelantarCuota(accion.deuda.scheduledMovementId),
@@ -91,6 +88,14 @@ const DeudasScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           ? `Faltan ${r.object.remainingInstallments} cuotas` : undefined],
         () => setAccion(null));
     }
+  };
+
+  const pagarTarjeta = (monto: number, fecha: string) => {
+    if (!pagando) return;
+    const t = pagando;
+    correr(() => deudaService.pagarTarjeta(t.id, { amount: monto, upTo: fecha }),
+      (r) => ['Pago anotado', `${formatCurrency(r.object?.paidTotal ?? monto)} a ${t.name}`],
+      () => setPagando(null));
   };
 
   const guardarTarjeta = (t: DatosTarjeta) =>
@@ -158,6 +163,12 @@ const DeudasScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             {t.upcoming > 0 && (
               <AppText variant="caption" color={colors.textSecondary}>{`Cuotas de los próximos meses: ${formatCurrency(t.upcoming)}`}</AppText>
             )}
+            {!!t.credit && t.credit > 0 && (
+              <AppText variant="caption" color={colors.textSecondary}>{`Abonado (ya descontado): ${formatCurrency(t.credit)}`}</AppText>
+            )}
+            {!!t.lastPaymentDate && t.lastPaymentAmount != null && (
+              <AppText variant="caption" color={colors.textMuted}>{`Último pago: ${formatCurrency(t.lastPaymentAmount)} el ${diaMes(t.lastPaymentDate)}`}</AppText>
+            )}
             {!t.cutoffDay && t.mine && (
               <AppText variant="caption" color={colors.textMuted}>Ponle el día de corte para saber qué entra en cada extracto.</AppText>
             )}
@@ -194,8 +205,8 @@ const DeudasScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
               accessibilityRole="button" accessibilityLabel={`Editar ${t.name}`}>
               <AppText variant="label" color={colors.text} style={{ fontWeight: '700' }}>Editar</AppText>
             </TouchableOpacity>
-            {t.dueNow > 0 && (
-              <TouchableOpacity style={[styles.boton, { backgroundColor: colors.primary }]} onPress={() => setAccion({ tipo: 'pagar', tarjeta: t })}
+            {pagableHoy(t) > 0 && (
+              <TouchableOpacity style={[styles.boton, { backgroundColor: colors.primary }]} onPress={() => setPagando(t)}
                 accessibilityRole="button" accessibilityLabel={`Pagar tarjeta ${t.name}`}>
                 <AppText variant="label" color={tintaSobre(colors.primary)} style={{ fontWeight: '700' }}>Pagar tarjeta</AppText>
               </TouchableOpacity>
@@ -249,12 +260,6 @@ const DeudasScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
   const hoja = (() => {
     if (!accion) return null;
-    if (accion.tipo === 'pagar') {
-      return {
-        titulo: `Pagar ${accion.tarjeta.name}`, boton: 'Pagar',
-        texto: `Quedan pagadas las compras ${accion.tarjeta.lastCutoff ? `hasta el corte del ${diaMes(accion.tarjeta.lastCutoff)}` : 'hasta hoy'}: ${formatCurrency(accion.tarjeta.dueNow)}. No es un gasto nuevo: ya contaron cuando compraste.`,
-      };
-    }
     if (accion.tipo === 'borrar') {
       return { titulo: `Borrar ${accion.tarjeta.name}`, boton: 'Borrar', texto: 'La tarjeta no debe nada. Deja de aparecer en "Pagado con".' };
     }
@@ -317,6 +322,7 @@ const DeudasScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         textoConfirmar={hoja?.boton} onConfirmar={confirmar} ocupado={ocupado}>
         <AppText variant="body" color={colors.textSecondary}>{hoja?.texto}</AppText>
       </Hoja>
+      <FormPagoTarjeta tarjeta={pagando} ocupado={ocupado} onCerrar={() => !ocupado && setPagando(null)} onPagar={pagarTarjeta} />
       <FormTarjeta visible={agregando || !!editando} inicial={editando} ocupado={ocupado}
         onCerrar={() => { if (!ocupado) { setAgregando(false); setEditando(null); } }} onGuardar={guardarTarjeta} />
       <FormDeuda visible={nuevaDeuda} ocupado={ocupado} categorias={categorias}

@@ -2,9 +2,11 @@ package com.ohchurus.budget.service.impl;
 
 import com.ohchurus.budget.dto.output.ResultDTO;
 import com.ohchurus.budget.entity.Card;
+import com.ohchurus.budget.entity.CardPayment;
 import com.ohchurus.budget.entity.Category;
 import com.ohchurus.budget.entity.Movement;
 import com.ohchurus.budget.enums.ScheduledKind;
+import com.ohchurus.budget.repository.CardPaymentRepository;
 import com.ohchurus.budget.repository.CardRepository;
 import com.ohchurus.budget.repository.CategoryRepository;
 import com.ohchurus.budget.repository.MovementRepository;
@@ -40,9 +42,12 @@ public class DeudasService {
     private final HouseholdServiceImpl hogares;
     private final PlanFinancieroService plan;
     private final ControlAcceso acceso;
+    private final CardPaymentRepository pagos;
 
     public DeudasService(CardRepository tarjetas, MovementRepository movimientos, CategoryRepository categorias,
-                         HouseholdServiceImpl hogares, PlanFinancieroService plan, ControlAcceso acceso) {
+                         HouseholdServiceImpl hogares, PlanFinancieroService plan, ControlAcceso acceso,
+                         CardPaymentRepository pagos) {
+        this.pagos = pagos;
         this.tarjetas = tarjetas;
         this.movimientos = movimientos;
         this.categorias = categorias;
@@ -84,25 +89,51 @@ public class DeudasService {
         return new ResultDTO(true, "Card deleted", 0);
     }
 
-    /** Pagar la tarjeta: queda saldado lo comprado (y las cuotas) hasta esa fecha. */
-    public ResultDTO pagarTarjeta(Long yo, Long id, LocalDate hasta) {
+    /**
+     * Pagar la tarjeta con el monto que se quiera: mayor que cero y hasta lo
+     * que se debe A LA FECHA DEL PAGO (las cuotas de meses que no han llegado
+     * no se pueden pagar todavia). Sin monto, se paga todo lo que se debe a
+     * esa fecha. Sin fecha, hoy.
+     *
+     * El pago salda las compras mas viejas primero; lo que no alcanza a cubrir
+     * una compra completa queda como abono (credit) y baja lo que se debe.
+     */
+    public ResultDTO pagarTarjeta(Long yo, Long id, LocalDate fecha, BigDecimal monto) {
         Optional<Card> t = tarjetas.findByIdAndActiveTrue(id).filter(c -> yo.equals(c.getUserId()));
         if (t.isEmpty()) return new ResultDTO(false, "Card not found", 404);
-        LocalDate corte = hasta != null ? hasta : ultimoCorte(t.get(), LocalDate.now());
-        BigDecimal total = BigDecimal.ZERO;
+        Card tarjeta = t.get();
+        LocalDate hoy = LocalDate.now();
+        LocalDate dia = fecha != null ? fecha : hoy;
+        if (dia.isAfter(hoy)) return new ResultDTO(false, "La fecha del pago no puede ser futura", 400);
+        BigDecimal abono = PlanFinancieroService.nz(tarjeta.getCredit());
+        List<Movement> pendientes = movimientos.findByCardIdAndActiveTrueOrderByDateAsc(id).stream()
+                .filter(m -> !Boolean.TRUE.equals(m.getCardPaid()) && !m.getDate().isAfter(dia)).toList();
+        BigDecimal maximo = pendientes.stream().map(Movement::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add)
+                .subtract(abono).max(BigDecimal.ZERO);
+        if (maximo.signum() == 0) return new ResultDTO(false, "A esa fecha no se debe nada en esta tarjeta", 400);
+        BigDecimal pago = monto != null ? monto : maximo;
+        if (pago.signum() <= 0) return new ResultDTO(false, "El pago debe ser mayor que cero", 400);
+        if (pago.compareTo(maximo) > 0) {
+            return new ResultDTO(false, "Al " + dia + " se deben " + maximo.stripTrailingZeros().toPlainString()
+                    + ": no se puede pagar mas que eso", 400);
+        }
+        BigDecimal bolsa = abono.add(pago);
         int n = 0;
-        for (Movement m : movimientos.findByCardIdAndActiveTrueOrderByDateAsc(id)) {
-            if (Boolean.TRUE.equals(m.getCardPaid()) || m.getDate().isAfter(corte)) continue;
+        for (Movement m : pendientes) {
+            if (bolsa.compareTo(m.getAmount()) < 0) break;
             m.setCardPaid(true);
             movimientos.save(m);
-            total = total.add(m.getAmount());
+            bolsa = bolsa.subtract(m.getAmount());
             n++;
         }
-        log.info("Card {} paid up to {}: {} items, {}", id, corte, n, total);
+        tarjeta.setCredit(bolsa);
+        tarjetas.save(tarjeta);
+        pagos.save(CardPayment.builder().cardId(id).userId(yo).amount(pago).paymentDate(dia).build());
+        log.info("Card {} paid {} on {}: {} items settled, credit {}", id, pago, dia, n, bolsa);
         Map<String, Object> r = new LinkedHashMap<>();
         r.put("paidItems", n);
-        r.put("paidTotal", total);
-        r.put("card", resumen(t.get(), yo, LocalDate.now()));
+        r.put("paidTotal", pago);
+        r.put("card", resumen(tarjeta, yo, hoy));
         return new ResultDTO(r);
     }
 
@@ -272,9 +303,28 @@ public class DeudasService {
             if (!m.getDate().isAfter(corte)) yaToca = yaToca.add(m.getAmount());
             else if (!m.getDate().isAfter(hoy)) esteCiclo = esteCiclo.add(m.getAmount());
         }
+        /* El abono (lo pagado que no alcanzo a cubrir una compra completa) baja
+           lo que se debe, empezando por lo mas viejo: primero el extracto, luego
+           este ciclo, luego las cuotas futuras; y en la lista, las compras mas
+           viejas. */
+        BigDecimal abono = PlanFinancieroService.nz(c.getCredit()).min(debe);
+        BigDecimal resto = abono;
+        BigDecimal deExtracto = resto.min(yaToca);
+        yaToca = yaToca.subtract(deExtracto);
+        resto = resto.subtract(deExtracto);
+        esteCiclo = esteCiclo.subtract(resto.min(esteCiclo));
+        debe = debe.subtract(abono);
+        resto = abono;
         List<Map<String, Object>> abiertas = new ArrayList<>();
         for (Map<String, Object> x : compras.values()) {
-            if (((BigDecimal) x.get("owed")).signum() > 0) abiertas.add(x);
+            BigDecimal o = (BigDecimal) x.get("owed");
+            BigDecimal quita = resto.min(o);
+            if (quita.signum() > 0) {
+                o = o.subtract(quita);
+                resto = resto.subtract(quita);
+                x.put("owed", o);
+            }
+            if (o.signum() > 0) abiertas.add(x);
         }
         Map<String, Object> r = new LinkedHashMap<>();
         r.put("id", c.getId());
@@ -290,7 +340,13 @@ public class DeudasService {
         r.put("mine", mia);
         r.put("owed", debe);
         r.put("dueNow", yaToca);
-        r.put("upcoming", debe.subtract(yaToca).subtract(esteCiclo));
+        r.put("upcoming", debe.subtract(yaToca).subtract(esteCiclo).max(BigDecimal.ZERO));
+        /* Lo que se puede pagar hoy: todo lo comprado hasta hoy, menos el abono. */
+        r.put("payableNow", yaToca.add(esteCiclo));
+        r.put("credit", abono);
+        Optional<CardPayment> ultimo = mia ? pagos.findFirstByCardIdOrderByPaymentDateDescIdDesc(c.getId()) : Optional.empty();
+        r.put("lastPaymentAmount", ultimo.map(CardPayment::getAmount).orElse(null));
+        r.put("lastPaymentDate", ultimo.map(p -> p.getPaymentDate().toString()).orElse(null));
         r.put("purchases", abiertas);
         return r;
     }

@@ -33,6 +33,12 @@ export interface Tarjeta {
   nextPaymentDate?: string | null;
   /** Lo comprado despues del ultimo corte: va en el siguiente extracto. */
   currentCycle?: number;
+  /** Lo que se puede pagar hoy (todo lo comprado hasta hoy, menos el abono). */
+  payableNow?: number;
+  /** Lo pagado que no alcanzo a cubrir una compra completa. */
+  credit?: number;
+  lastPaymentAmount?: number | null;
+  lastPaymentDate?: string | null;
   userId: number;
   ownerName?: string | null;
   mine: boolean;
@@ -98,10 +104,10 @@ export const deudaService = {
     return r.data;
   },
 
-  /** Deja saldado lo comprado con la tarjeta hasta esa fecha (hoy si no se dice). */
-  pagarTarjeta: async (id: number, upTo?: string) => {
+  /** Paga la tarjeta: el monto (todo lo que se debe si no se dice) con esa fecha (hoy si no se dice). */
+  pagarTarjeta: async (id: number, pago: { amount?: number; upTo?: string } = {}) => {
     const r = await api.post<ResultDTO<{ paidItems: number; paidTotal: number; card: Tarjeta }>>(
-      `${CARDS}/pay/${id}`, upTo ? { upTo } : {});
+      `${CARDS}/pay/${id}`, pago);
     return r.data;
   },
 

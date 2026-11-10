@@ -5,6 +5,7 @@ import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
@@ -47,6 +48,14 @@ public class Card {
 
     /** Dia de corte: lo comprado hasta ese dia entra en el extracto que se paga. */
     private Integer cutoffDay;
+
+    /**
+     * Abono: lo pagado que no alcanzo a cubrir completa la siguiente compra.
+     * Se descuenta de lo que se debe y se usa en el proximo pago.
+     */
+    @Column(nullable = false, precision = 15, scale = 2)
+    @Builder.Default
+    private BigDecimal credit = BigDecimal.ZERO;
 
     @Column(nullable = false)
     @Builder.Default

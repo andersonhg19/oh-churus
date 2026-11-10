@@ -38,7 +38,7 @@ public class CardController {
     @PostMapping(value = "/pay/{id}", produces = "application/json")
     public ResponseEntity<ResultDTO> pay(@PathVariable Long id, @RequestBody(required = false) CardPayDTO body) {
         return ResponseEntity.ok(deudas.pagarTarjeta(SecurityUtils.getAuthenticatedUserId(), id,
-                body != null ? body.getUpTo() : null));
+                body != null ? body.getUpTo() : null, body != null ? body.getAmount() : null));
     }
 
     @PostMapping(value = "/delete/{id}", produces = "application/json")

@@ -48,6 +48,8 @@ export interface CategoriaDelPeriodo {
   items?: ElementoDelPlan[];
   /** Gastado en esta categoria con plata ya ahorrada (no del mes). */
   fromSavings?: number;
+  /** En un ahorro: cuanto hay, sumando todos los meses (lo metido menos lo pagado con el). */
+  balance?: number;
   /** Sacado de esta categoria de ahorro para pagar otras cosas. */
   withdrawn?: number;
   withdrawals?: { movementId: number; date: string; amount: number; description?: string; toCategoryId: number; toCategoryName: string; userId: number }[];
@@ -71,6 +73,8 @@ export interface TotalesDelPeriodo {
   toPay: number;
   /** Lo gastado con plata ya ahorrada: esta en lo gastado pero no baja lo libre. */
   fromSavings?: number;
+  /** Cuanto hay en todos los ahorros, al cierre del periodo. */
+  savingsBalance?: number;
   /** Lo ahorrado menos lo que se saco del ahorro. */
   netSaved?: number;
   /** Lo liberado de compromisos del plan en el periodo. */
@@ -112,7 +116,6 @@ export interface EstadoDelPeriodo {
   incomeByPerson: { userId: number; name?: string; expected: number; received: number }[];
   incomeItems: ElementoDelPlan[];
   responsibilities: Responsabilidad[];
-  funds: { total: number; accounts: { accountId: number; name: string; balance: number }[] };
 }
 
 export interface PeriodoDelHistorial {

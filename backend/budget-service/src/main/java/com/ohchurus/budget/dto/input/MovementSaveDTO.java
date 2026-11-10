@@ -43,25 +43,6 @@ public class MovementSaveDTO {
 
     private Long parentMovementId;
 
-    /**
-     * En que cuenta ocurrio. Opcional a proposito: si no viene, el servicio la
-     * pone en la cuenta por defecto. Exigirlo dejaria de golpe sin poder
-     * guardar a cualquier cliente que aun no conozca las cuentas.
-     */
-    private Long accountId;
-
-    /**
-     * Como se reparte este gasto, si es que se reparte. Nulo = no se reparte.
-     *
-     * El `amount` de arriba SIGUE SIENDO EL TOTAL: los 120.000 que salieron
-     * del banco. El reparto no cambia lo que salio, cambia cuanto de eso
-     * cuenta como gasto tuyo.
-     */
-    private com.ohchurus.budget.enums.SplitMode splitMode;
-
-    /** Quien participa y con que valor. Ver SplitInputDTO. */
-    private java.util.List<SplitInputDTO> splits;
-
     /* Nulo = "no lo dije": al crear se toma como pagado, al editar se deja
        como estaba. Con true por defecto, corregir el valor de un pendiente
        desde un cliente que no manda el campo lo daba por pagado. */
@@ -70,4 +51,15 @@ public class MovementSaveDTO {
     /* De que categoria de ahorro salio la plata. Nulo = no lo dije (al editar
        se deja como estaba); 0 = ya no sale del ahorro. */
     private Long fundedFromCategoryId;
+
+    /* Con que tarjeta se pago. Nulo = no lo dije (al editar se deja como
+       estaba); 0 = ya no fue con tarjeta. */
+    private Long cardId;
+
+    /* A cuantas cuotas, si fue con tarjeta. Nulo o 1 = una sola. Solo al
+       crear: cambiar las cuotas de una compra ya anotada es borrarla y
+       anotarla de nuevo. */
+    @jakarta.validation.constraints.Min(1)
+    @jakarta.validation.constraints.Max(72)
+    private Integer installments;
 }

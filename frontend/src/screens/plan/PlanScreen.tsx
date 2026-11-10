@@ -145,7 +145,6 @@ const PlanScreen: React.FC = () => {
         />
       );
     }
-    const d = quincena.available;
     return (
       <>
         {quincena.alerts.length > 0 && (
@@ -160,19 +159,6 @@ const PlanScreen: React.FC = () => {
             ))}
           </Card>
         )}
-
-        <Card style={styles.tarjeta}
-          accessible
-          accessibilityLabel={`Libre para gastar hoy: ${formatCurrency(d.freeToSpend)}`}>
-          <AppText variant="caption" color={colors.textSecondary}>Libre para gastar hoy</AppText>
-          <AppText variant="title" color={color(d.freeToSpend)} testID="disponible-hoy">{formatCurrency(d.freeToSpend)}</AppText>
-          <AppText variant="caption" color={colors.textMuted} style={styles.rango}>
-            No es el saldo del banco: es lo confirmado en tus cuentas menos lo que aún tiene que salir antes del siguiente pago.
-          </AppText>
-          <Fila etiqueta="En tus cuentas (confirmado)" valor={d.accountsBalance} />
-          <Fila etiqueta="Falta pagar esta quincena" valor={d.stillToPay} signo="-" />
-          <Fila etiqueta="Separado en provisiones" valor={d.reservedInProvisions} signo="-" />
-        </Card>
 
         <Ventana v={quincena.current} titulo="Esta quincena" detalle />
         {quincena.overdueFromBefore.length > 0 && (

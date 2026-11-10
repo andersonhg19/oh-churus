@@ -94,7 +94,7 @@ jobs:
         run: >
           mvn -B dependency:copy-dependencies
           -DoutputDirectory=target/dependency
-          -pl auth-service,budget-service,fasting-service,discovery-service,gateway-service
+          -pl auth-service,budget-service,discovery-service,gateway-service
 
       # ---------- FRONTEND (React Native / Jest) ----------
       - name: Set up Node ${{ env.NODE_VERSION }}

@@ -73,7 +73,6 @@ export interface Quincena {
   current: PlanWindow;
   next: PlanWindow;
   overdueFromBefore: PlanItem[];
-  available: { accountsBalance: number; stillToPay: number; reservedInProvisions: number; freeToSpend: number };
   installments: Installment[];
   alerts: PlanAlert[];
 }

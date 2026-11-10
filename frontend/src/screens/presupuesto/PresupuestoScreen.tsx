@@ -203,10 +203,6 @@ const PresupuestoScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             accessibilityRole="button" accessibilityLabel="Copiar el presupuesto del periodo anterior">
             <AppText variant="caption" style={{ fontWeight: '700' }}>Copiar del periodo anterior</AppText>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.accion, { borderColor: colors.border }]} onPress={() => navigation.navigate('Envelopes')}
-            accessibilityRole="button" accessibilityLabel="Ver los sobres con lo que sobró del mes anterior">
-            <AppText variant="caption" style={{ fontWeight: '700' }}>Sobres y arrastre</AppText>
-          </TouchableOpacity>
         </View>
       </ScrollView>
 

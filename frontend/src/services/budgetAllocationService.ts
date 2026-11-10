@@ -16,13 +16,6 @@ export const budgetAllocationService = {
     return res.data;
   },
 
-  summary: async (userId: string, budgetStartDay: number, referenceDate?: string) => {
-    const res = await api.post<ResultDTO<any>>(`${BASE}/summary`, {
-      userId, budgetStartDay, referenceDate: referenceDate || undefined,
-    });
-    return res.data;
-  },
-
   /** Trae lo del periodo anterior a las categorias que aun no tienen nada. */
   copyPrevious: async (budgetStartDay: number, referenceDate?: string) => {
     const res = await api.post<ResultDTO<{ copied: number }>>(`${BASE}/copy-previous`, {

@@ -87,68 +87,6 @@ class MovementServiceImplTest {
 
 
 
-    /* Las cuentas entraron con la ola 3: todo movimiento tiene que caer en
-       alguna, y si el DTO no dice cual, el servicio pone la de por defecto.
-       Aqui se le da una cualquiera para poder seguir probando la LOGICA; que
-       no se pueda colar un movimiento en la cuenta de otra persona lo
-       demuestra la seccion "Cuentas" de AislamientoEntreUsuariosTest. */
-    @Mock
-    private com.ohchurus.budget.service.impl.AccountServiceImpl cuentas;
-
-    @Mock
-    private com.ohchurus.budget.repository.AccountRepository cuentaRepo;
-
-    @BeforeEach
-    void darleUnaCuentaALosMovimientos() {
-        com.ohchurus.budget.entity.Account cuenta = com.ohchurus.budget.entity.Account.builder()
-                .id(500L).userId(1L).name("Sin asignar")
-                .kind(com.ohchurus.budget.enums.AccountKind.OWN)
-                .isDefault(true).active(true).build();
-        org.mockito.Mockito.lenient().when(cuentas.porDefecto(org.mockito.ArgumentMatchers.any()))
-                .thenReturn(cuenta);
-        org.mockito.Mockito.lenient().when(cuentaRepo.findByIdAndActiveTrue(
-                org.mockito.ArgumentMatchers.any())).thenReturn(java.util.Optional.of(cuenta));
-    }
-
-    /* El reparto entre personas entro con la ola 3. Aqui se le dice "este
-       gasto no se reparte", que es el caso de la inmensa mayoria, para poder
-       seguir probando la LOGICA. Que la regla de oro se cumpla —120.000 en la
-       cuenta, 40.000 en la categoria— lo demuestra LaReglaDeOroDelRepartoTest,
-       que levanta la app entera con tres personas de verdad. */
-    @Mock
-    private com.ohchurus.budget.service.impl.RepartoDeGastos reparto;
-
-    @BeforeEach
-    void sinRepartoPorDefecto() {
-        org.mockito.Mockito.lenient().when(reparto.misPartes(
-                org.mockito.ArgumentMatchers.anyCollection(),
-                org.mockito.ArgumentMatchers.any())).thenAnswer(inv -> {
-            java.util.Collection<com.ohchurus.budget.entity.Movement> ms = inv.getArgument(0);
-            java.util.Map<Long, java.math.BigDecimal> partes = new java.util.HashMap<>();
-            ms.forEach(m -> partes.put(m.getId(),
-                    com.ohchurus.budget.util.Computables.importe(m)));
-            return partes;
-        });
-        org.mockito.Mockito.lenient().when(reparto.miParte(
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any())).thenAnswer(inv ->
-                com.ohchurus.budget.util.Computables.importe(inv.getArgument(0)));
-    }
-
-    @Mock
-    private com.ohchurus.budget.service.impl.RepartoServiceImpl repartos;
-
-    @BeforeEach
-    void elRepartoSiempreValida() {
-        org.mockito.Mockito.lenient().when(repartos.validar(
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any())).thenReturn(null);
-        org.mockito.Mockito.lenient().when(repartos.aplicar(
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any())).thenReturn(null);
-    }
 
     @InjectMocks
     private MovementServiceImpl movementService;
@@ -418,27 +356,6 @@ class MovementServiceImplTest {
             assertEquals(404, result.getErrorCode());
         }
 
-        @Test
-        @DisplayName("Should delete transfer pair when deleting a transfer movement")
-        void shouldDeleteTransferPair() {
-            Movement transfer = Movement.builder()
-                    .id(1L).userId(1L).categoryId(10L).date(LocalDate.now())
-                    .amount(new BigDecimal("100000")).isTransfer(true).transferPairId(2L)
-                    .confirmed(true).active(true).build();
-            Movement pair = Movement.builder()
-                    .id(2L).userId(1L).categoryId(20L).date(LocalDate.now())
-                    .amount(new BigDecimal("100000")).isTransfer(true).transferPairId(1L)
-                    .confirmed(true).active(true).build();
-
-            when(movementRepository.findByIdAndActiveTrue(1L)).thenReturn(Optional.of(transfer));
-            when(movementRepository.findByIdAndActiveTrue(2L)).thenReturn(Optional.of(pair));
-            when(movementRepository.save(any())).thenAnswer(i -> i.getArgument(0));
-
-            ResultDTO result = movementService.delete(1L);
-
-            assertTrue(result.isCorrect());
-            verify(movementRepository, times(2)).save(any(Movement.class));
-        }
     }
 
     @Nested

@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, TextInput } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import AppText from '../../components/atoms/Text';
 import Icono from '../../components/atoms/Icono';
@@ -20,6 +20,10 @@ import { Category, Movement } from '../../types';
 
 type Tipo = 'EXPENSE' | 'INCOME';
 
+/** Para buscar sin que importen mayusculas ni tildes: "credito" encuentra "Crédito". */
+const normalizar = (texto?: string) =>
+  (texto || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+
 interface Grupo {
   id: string;
   nombre: string;
@@ -37,6 +41,10 @@ interface Grupo {
  * Cada categoria se despliega para ver sus movimientos, y "Expandir todo" las
  * abre todas: con mirar la parte de arriba ya se ve todo lo que tuvo
  * movimiento, y las categorias sin movimientos quedan al final.
+ *
+ * La caja de busqueda reemplaza a la antigua pantalla "Buscar movimientos":
+ * filtra lo del periodo por la nota o por el nombre de la categoria, y deja a
+ * la vista solo las categorias con algo que coincida, ya desplegadas.
  */
 const MovimientosScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation, route }) => {
   const { colors } = useTheme();
@@ -48,6 +56,8 @@ const MovimientosScreen: React.FC<{ navigation: any; route?: any }> = ({ navigat
   const [tipo, setTipo] = useState<Tipo>(route?.params?.tipo || 'EXPENSE');
   const pedida = route?.params?.categoriaId ? String(route.params.categoriaId) : null;
   const [abiertas, setAbiertas] = useState<Record<string, boolean>>(pedida ? { [pedida]: true } : {});
+  const [busqueda, setBusqueda] = useState('');
+  const buscado = normalizar(busqueda);
 
   const traer = useCallback(async () => {
     if (!user) return;
@@ -69,10 +79,8 @@ const MovimientosScreen: React.FC<{ navigation: any; route?: any }> = ({ navigat
   useFocusEffect(useCallback(() => { cargar(); }, [cargar]));
 
   const grupos = useMemo(() => {
-    /* Lo que no es gasto ni ingreso (aperturas, liquidaciones, la otra pata de
-       una transferencia, el detalle de un sub-gasto) no va en esta cuenta. */
-    const validos = movs.filter((m: any) => m.active !== false && !m.isOpening && !m.isSettlement
-      && !m.isTransfer && !m.parentMovementId);
+    /* El detalle de un sub-gasto no va en esta cuenta: ya lo cuenta su padre. */
+    const validos = movs.filter((m: any) => m.active !== false && !m.parentMovementId);
     const delAlcance = validos.filter((m) => alcance.tipo === 'HOGAR'
       ? m.shared !== false
       : String(m.userId) === String(alcance.userId));
@@ -82,18 +90,24 @@ const MovimientosScreen: React.FC<{ navigation: any; route?: any }> = ({ navigat
     visibles.forEach((c, i) => {
       mapa[String(c.id)] = { id: String(c.id), nombre: c.name, icono: c.icon, color: c.color || PALETA[i % PALETA.length], total: 0, movimientos: [], liberados: [] };
     });
-    delAlcance.filter((m) => m.categoryType === tipo || (!m.categoryType && mapa[String(m.categoryId)])).forEach((m) => {
+    const coincide = (m: Movement) => !buscado
+      || normalizar(m.description).includes(buscado)
+      || normalizar(m.categoryName || mapa[String(m.categoryId)]?.nombre).includes(buscado);
+    delAlcance.filter((m) => m.categoryType === tipo || (!m.categoryType && mapa[String(m.categoryId)])).filter(coincide).forEach((m) => {
       const k = String(m.categoryId);
       if (!mapa[k]) mapa[k] = { id: k, nombre: m.categoryName || 'Sin categoría', icono: m.categoryIcon, color: m.categoryColor || PALETA[0], total: 0, movimientos: [], liberados: [] };
       mapa[k].movimientos.push(m);
       if (m.confirmed) mapa[k].total += m.amount || 0;
     });
-    liberados.forEach((it) => { const g = mapa[String(it.categoryId)]; if (g) g.liberados.push(it); });
+    liberados.forEach((it) => {
+      const g = mapa[String(it.categoryId)];
+      if (g && (!buscado || normalizar(it.name).includes(buscado) || normalizar(g.nombre).includes(buscado))) g.liberados.push(it);
+    });
     Object.values(mapa).forEach((g) => g.movimientos.sort((a, b) => (b.date || '').localeCompare(a.date || '')));
     const cuantos = (g: Grupo) => g.movimientos.length + g.liberados.length;
-    return Object.values(mapa).sort((a, b) => b.total - a.total || cuantos(b) - cuantos(a)
+    return Object.values(mapa).filter((g) => !buscado || cuantos(g) > 0).sort((a, b) => b.total - a.total || cuantos(b) - cuantos(a)
       || a.nombre.localeCompare(b.nombre));
-  }, [movs, categorias, alcance, tipo, liberados]);
+  }, [movs, categorias, alcance, tipo, liberados, buscado]);
 
   const total = grupos.reduce((t, g) => t + g.total, 0);
   const conMovimientos = grupos.filter((g) => g.movimientos.length + g.liberados.length > 0);
@@ -120,16 +134,36 @@ const MovimientosScreen: React.FC<{ navigation: any; route?: any }> = ({ navigat
           ))}
         </View>
 
+        <View style={[styles.buscador, { backgroundColor: colors.surfaceLight }]}>
+          <Icono nombre="search" color={colors.textSecondary} tamano={18} />
+          <TextInput
+            value={busqueda}
+            onChangeText={setBusqueda}
+            placeholder="Buscar por nota o categoría"
+            placeholderTextColor={colors.textMuted}
+            style={[styles.campoBusqueda, { color: colors.text }]}
+            accessibilityLabel="Buscar movimientos por nota o categoría"
+            autoCorrect={false}
+            returnKeyType="search"
+          />
+          {!!busqueda && (
+            <TouchableOpacity onPress={() => setBusqueda('')} style={styles.limpiar}
+              accessibilityRole="button" accessibilityLabel="Borrar la búsqueda">
+              <Icono nombre="close" color={colors.textSecondary} tamano={18} />
+            </TouchableOpacity>
+          )}
+        </View>
+
         <View style={styles.cabecera}>
           <View style={{ flex: 1 }}>
             <AppText variant="caption" color={colors.textSecondary}>
-              {tipo === 'EXPENSE' ? 'Pagado en el periodo (gastos y ahorros)' : 'Recibido en el periodo'}
+              {buscado ? 'Lo que coincide con la búsqueda' : tipo === 'EXPENSE' ? 'Pagado en el periodo (gastos y ahorros)' : 'Recibido en el periodo'}
             </AppText>
             <AppText variant="subtitle" style={{ fontWeight: '800', color: tipo === 'EXPENSE' ? colors.expense : colors.income }}>
               {formatCurrency(total)}
             </AppText>
           </View>
-          {conMovimientos.length > 0 && (
+          {conMovimientos.length > 0 && !buscado && (
             <TouchableOpacity style={styles.expandir} onPress={() => setAbiertas(todasAbiertas ? {} : Object.fromEntries(conMovimientos.map((g) => [g.id, true])))}
               accessibilityRole="button" accessibilityLabel={todasAbiertas ? 'Contraer todo' : 'Expandir todo'}>
               <AppText variant="caption" style={{ color: colors.primary, fontWeight: '700' }}>
@@ -139,8 +173,14 @@ const MovimientosScreen: React.FC<{ navigation: any; route?: any }> = ({ navigat
           )}
         </View>
 
+        {buscado && grupos.length === 0 && (
+          <AppText variant="body" color={colors.textSecondary} style={{ textAlign: 'center', marginTop: 24 }}>
+            Nada en este periodo coincide con «{busqueda.trim()}».
+          </AppText>
+        )}
         {grupos.map((g) => {
-          const abierta = !!abiertas[g.id];
+          /* Buscando, todo lo que coincide se ve sin tener que desplegarlo. */
+          const abierta = !!buscado || !!abiertas[g.id];
           const vacia = g.movimientos.length + g.liberados.length === 0;
           const pct = total > 0 ? Math.round((g.total / total) * 100) : 0;
           return (
@@ -168,7 +208,7 @@ const MovimientosScreen: React.FC<{ navigation: any; route?: any }> = ({ navigat
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <AppText variant="body" numberOfLines={1}>{m.description || g.nombre}</AppText>
                     <AppText variant="caption" color={m.confirmed ? colors.textSecondary : colors.pending} numberOfLines={1}>
-                      {formatDateShort(m.date)}{m.confirmed ? '' : ' · por pagar'}{m.fundedFromCategoryId ? ' · con el ahorro' : ''}
+                      {formatDateShort(m.date)}{m.confirmed ? '' : ' · por pagar'}{m.fundedFromCategoryId ? ' · con el ahorro' : ''}{m.cardId ? ((m.installmentTotal || 1) > 1 ? ` · tarjeta, cuota ${m.installmentNumber}/${m.installmentTotal}` : ' · con tarjeta') : ''}
                       {alcance.tipo === 'HOGAR' ? ` · ${m.payerName || nombreDe(m.userId)}` : ''}
                     </AppText>
                   </View>
@@ -208,6 +248,9 @@ const styles = StyleSheet.create({
   pestana: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 9, minHeight: 44, justifyContent: 'center' },
   cabecera: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
   expandir: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 8 },
+  buscador: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, paddingLeft: 12, marginBottom: 12, minHeight: 44 },
+  campoBusqueda: { flex: 1, fontSize: 16, paddingVertical: 10 },
+  limpiar: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   grupo: { borderBottomWidth: 1 },
   fila: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, minHeight: 60 },
   movimiento: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingLeft: 50, borderTopWidth: 1, minHeight: 52 },

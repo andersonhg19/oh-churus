@@ -1,14 +1,11 @@
 package com.ohchurus.budget.service.impl;
 
 import com.ohchurus.budget.dto.output.ResultDTO;
-import com.ohchurus.budget.entity.Account;
 import com.ohchurus.budget.entity.Category;
 import com.ohchurus.budget.entity.Movement;
 import com.ohchurus.budget.entity.ScheduledMovement;
-import com.ohchurus.budget.enums.AccountKind;
 import com.ohchurus.budget.enums.CategoryType;
 import com.ohchurus.budget.enums.ScheduledKind;
-import com.ohchurus.budget.repository.AccountRepository;
 import com.ohchurus.budget.repository.CategoryRepository;
 import com.ohchurus.budget.repository.MovementRepository;
 import com.ohchurus.budget.repository.ScheduledMovementRepository;
@@ -61,21 +58,15 @@ public class PlanFinancieroService {
     private final ScheduledMovementRepository programados;
     private final MovementRepository movimientos;
     private final CategoryRepository categorias;
-    private final AccountRepository cuentas;
-    private final SaldoDeCuenta saldos;
     private final HouseholdServiceImpl hogares;
 
     public PlanFinancieroService(ScheduledMovementRepository programados,
                                  MovementRepository movimientos,
                                  CategoryRepository categorias,
-                                 AccountRepository cuentas,
-                                 SaldoDeCuenta saldos,
                                  HouseholdServiceImpl hogares) {
         this.programados = programados;
         this.movimientos = movimientos;
         this.categorias = categorias;
-        this.cuentas = cuentas;
-        this.saldos = saldos;
         this.hogares = hogares;
     }
 
@@ -253,7 +244,6 @@ public class PlanFinancieroService {
             r.put("current", actual);
             r.put("next", proxima);
             r.put("overdueFromBefore", deAntes);
-            r.put("available", disponible(yo, mias, inicio, fin, hoy));
             r.put("installments", cuotas(mias, hoy));
             r.put("alerts", alertas(mias, hoy, actual));
             return new ResultDTO(r);
@@ -315,59 +305,11 @@ public class PlanFinancieroService {
     }
 
     /**
-     * CUANTO PUEDO GASTAR HOY sin tocar lo comprometido.
-     *
-     * Parte del saldo CONFIRMADO de mis cuentas propias —lo que el banco
-     * deberia decir— y le resta lo que todavia tiene que salir antes del
-     * siguiente pago: obligaciones y ahorro sin pagar, y lo que queda de cada
-     * provision (lo separado menos lo ya comprado en esa categoria). El saldo
-     * del banco no es plata disponible: esta cifra si.
-     *
-     * Las deducciones no se restan: ya las desconto la nomina.
-     */
-    private Map<String, Object> disponible(Long yo, List<Linea> mias, LocalDate inicio, LocalDate fin, LocalDate hoy) {
-        BigDecimal enCuentas = BigDecimal.ZERO;
-        for (Account a : cuentas.findByUserIdAndActiveTrueOrderByNameAsc(yo)) {
-            if (a.getKind() == AccountKind.OWN) enCuentas = enCuentas.add(saldos.confirmado(a.getId()));
-        }
-        BigDecimal porPagar = BigDecimal.ZERO;
-        Map<Long, BigDecimal> separadoPorCategoria = new HashMap<>();
-        for (Linea l : mias) {
-            if (l.ingreso() || l.clase() == ScheduledKind.DEDUCTION) continue;
-            for (Fecha f : fechas(l, inicio, fin, hoy)) {
-                if (l.clase() == ScheduledKind.PROVISION) {
-                    separadoPorCategoria.merge(l.cat().getId(), f.monto(), BigDecimal::add);
-                } else if (!"PAGADO".equals(f.estado())) {
-                    porPagar = porPagar.add(f.monto());
-                }
-            }
-        }
-        BigDecimal reservado = BigDecimal.ZERO;
-        if (!separadoPorCategoria.isEmpty()) {
-            Map<Long, BigDecimal> comprado = new HashMap<>();
-            for (Movement m : movimientos.findByUserIdAndDateBetweenAndConfirmedTrueAndActiveTrue(yo, inicio, fin)) {
-                if (m.getScheduledMovementId() != null || !Computables.suma(m)) continue;
-                comprado.merge(m.getCategoryId(), Computables.importe(m), BigDecimal::add);
-            }
-            for (Map.Entry<Long, BigDecimal> e : separadoPorCategoria.entrySet()) {
-                BigDecimal resto = e.getValue().subtract(comprado.getOrDefault(e.getKey(), BigDecimal.ZERO));
-                if (resto.signum() > 0) reservado = reservado.add(resto);
-            }
-        }
-        Map<String, Object> d = new LinkedHashMap<>();
-        d.put("accountsBalance", enCuentas);
-        d.put("stillToPay", porPagar);
-        d.put("reservedInProvisions", reservado);
-        d.put("freeToSpend", enCuentas.subtract(porPagar).subtract(reservado));
-        return d;
-    }
-
-    /**
      * Las financiaciones: lo que tiene fecha de fin. Cuantas cuotas faltan,
      * cuanto falta en total, cuando termina y cuanto se libera al mes.
      * Al terminar, el programado deja de generar y el historial se queda.
      */
-    private List<Map<String, Object>> cuotas(List<Linea> mias, LocalDate hoy) {
+    List<Map<String, Object>> cuotas(List<Linea> mias, LocalDate hoy) {
         List<Map<String, Object>> out = new ArrayList<>();
         for (Linea l : mias) {
             if (l.p().getEndDate() == null || l.ingreso()) continue;
@@ -387,11 +329,20 @@ public class PlanFinancieroService {
             c.put("endDate", l.p().getEndDate().toString());
             c.put("monthlyFreed", mensualizado(l.p()));
             c.put("kind", l.clase().name());
+            c.put("payerUserId", l.pagador());
+            c.put("payerName", hogares.apodoDe(l.pagador()));
+            c.put("categoryId", l.cat().getId());
+            c.put("categoryName", l.cat().getName());
+            c.put("categoryIcon", l.cat().getIcon());
+            c.put("categoryColor", l.cat().getColor());
+            c.put("shared", l.compartida());
             out.add(c);
         }
         out.sort(Comparator.comparing(m -> String.valueOf(m.get("endDate"))));
         return out;
     }
+
+    static BigDecimal nz(BigDecimal v) { return v != null ? v : BigDecimal.ZERO; }
 
     /** Lo que un programado pesa en un mes: un bimestral de 150.000 son 75.000. */
     static BigDecimal mensualizado(ScheduledMovement p) {

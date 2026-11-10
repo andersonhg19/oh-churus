@@ -14,8 +14,8 @@ import { estadoService } from '../../services/estadoService';
 import { dashboardService } from '../../services/dashboardService';
 import { movementService } from '../../services/movementService';
 import { categoryService } from '../../services/categoryService';
-import { accountService } from '../../services/accountService';
 import { budgetAllocationService } from '../../services/budgetAllocationService';
+import { deudaService } from '../../services/deudaService';
 import { fraseDelCierre } from '../../utils/estadoTextos';
 
 const mockNavegar = jest.fn();
@@ -32,10 +32,13 @@ jest.mock('../../services/estadoService', () => ({ estadoService: { periodo: jes
 jest.mock('../../services/dashboardService', () => ({ dashboardService: { getPending: jest.fn() } }));
 jest.mock('../../services/movementService', () => ({ movementService: { confirmBatch: jest.fn(), reassign: jest.fn(), save: jest.fn(), getAll: jest.fn(), release: jest.fn() } }));
 jest.mock('../../services/categoryService', () => ({ categoryService: { getAll: jest.fn() } }));
-jest.mock('../../services/accountService', () => ({ accountService: { getAll: jest.fn() } }));
 jest.mock('../../services/budgetAllocationService', () => ({
   budgetAllocationService: { save: jest.fn(), copyPrevious: jest.fn(), list: jest.fn(), delete: jest.fn() },
 }));
+jest.mock('../../services/deudaService', () => ({ deudaService: {
+  todas: jest.fn().mockResolvedValue({ correct: true, object: { totalOwed: 0, owedOnCards: 0, owedInInstallments: 0, monthlyInstallments: 0, cards: [], loans: [] } }),
+  misTarjetas: jest.fn().mockResolvedValue({ correct: true, object: [] }),
+} }));
 
 const toast = jest.fn();
 jest.spyOn(ToastContext, 'useToast').mockReturnValue({ showToast: toast } as any);
@@ -72,7 +75,6 @@ const estado = {
   compliance: { billsTotal: 24, billsPaid: 0, billsOverdue: 0, categoriesWithin: 5, categoriesOver: 1, savingsGoalsMet: 0, savingsGoalsMissed: 0 },
   categories: [categoria({}), categoria({ categoryId: 2, categoryName: 'Ahorro', kind: 'SAVING', allocated: 3000000, actual: 0, status: 'EN_CURSO', provision: 0, byPerson: [], items: [] })],
   pendingCount: 25, incomeByPerson: [], incomeItems: [], responsibilities: [],
-  funds: { total: 7875000, accounts: [] },
 };
 
 const pendiente = (id: string, userId: string, desc: string, amount: number) => ({
@@ -90,16 +92,16 @@ beforeEach(() => {
     { id: '42', name: 'Delivery', type: 'EXPENSE', householdId: 1, active: true },
     { id: '27', name: 'Casa', type: 'EXPENSE', householdId: 1, active: true },
   ] } });
-  (accountService.getAll as jest.Mock).mockResolvedValue({ correct: true, object: { list: [{ id: '1', name: 'Sin asignar', isDefault: true }] } });
 });
 
 describe('Inicio', () => {
   it('muestra lo gastado contra lo presupuestado de gasto, los recuadros y solo MIS pendientes', async () => {
-    const { findByText, getByLabelText } = render(<Envoltura><InicioScreen navigation={nav()} /></Envoltura>);
+    const { findByText, getByLabelText, queryByLabelText } = render(<Envoltura><InicioScreen navigation={nav()} /></Envoltura>);
     expect(await findByText('Tienes 2 pagos por confirmar')).toBeTruthy();
     expect(getByLabelText(/Gastado .*85.000 de .*7.945.000/)).toBeTruthy();
     expect(getByLabelText(/Ingresos recibidos .*7.960.000 de .*14.560.000/)).toBeTruthy();
-    expect(getByLabelText(/Fondos .*7.875.000/)).toBeTruthy();
+    /* Las cuentas se retiraron: ya no hay recuadro de fondos. */
+    expect(queryByLabelText(/Fondos/)).toBeNull();
     expect(getByLabelText(/Libre para gastar .*965.000/)).toBeTruthy();
   });
 
@@ -107,11 +109,13 @@ describe('Inicio', () => {
     const { findByLabelText, getByLabelText } = render(<Envoltura><InicioScreen navigation={nav()} /></Envoltura>);
     fireEvent.press(await findByLabelText('Anotar un gasto'));
     expect(mockNavegar).toHaveBeenCalledWith('Anotar', { tipo: 'EXPENSE' });
-    /* Tocar la categoria ofrece anotar, ver sus movimientos o su presupuesto. */
-    fireEvent.press(getByLabelText(/Anotar en Mascotas/));
-    fireEvent.press(getByLabelText('Ver los movimientos de Mascotas'));
+    /* La etiqueta de la porcion: mantener abre sus movimientos; tocarla la
+       elige, y el centro ofrece anotar en ella o ver su presupuesto. */
+    fireEvent(getByLabelText(/^Mascotas: .*700.000, 100% del gasto/), 'longPress');
     expect(mockNavegar).toHaveBeenCalledWith('Movimientos', { categoriaId: 1 });
-    fireEvent.press(getByLabelText(/Anotar en Mascotas/));
+    fireEvent.press(getByLabelText(/^Mascotas: .*700.000, 100% del gasto/));
+    fireEvent.press(getByLabelText('Ver el presupuesto de Mascotas'));
+    expect(mockNavegar).toHaveBeenCalledWith('Categoria', { categoryId: 1 });
     fireEvent.press(getByLabelText('Anotar un gasto en Mascotas'));
     expect(mockNavegar).toHaveBeenCalledWith('Anotar', { tipo: 'EXPENSE', categoriaId: 1 });
   });
@@ -187,32 +191,74 @@ describe('Anotar', () => {
     const navegacion = nav();
     const { findByLabelText, getByLabelText } = render(
       <Envoltura><AnotarScreen navigation={navegacion} route={{ params: { tipo: 'EXPENSE', categoriaId: '42' } }} /></Envoltura>);
-    await findByLabelText('Categoría Delivery');
+    await findByLabelText(/Categoría Delivery/);
     ['5', '0', 'tres ceros', 'más', '1', '5', '0', '0'].forEach((t) => fireEvent.press(getByLabelText(t)));
-    fireEvent.press(getByLabelText('Anotar'));
+    fireEvent.press(getByLabelText(/^Anotar/));
     await waitFor(() => expect(movementService.save).toHaveBeenCalledWith(expect.objectContaining({
       categoryId: '42', amount: 51500, confirmed: true, userId: '3',
     })));
+    /* Cuentas y repartos se retiraron: el movimiento ya no los lleva. */
+    const enviado = (movementService.save as jest.Mock).mock.calls[0][0];
+    expect(enviado).not.toHaveProperty('accountId');
+    expect(enviado).not.toHaveProperty('splitMode');
+    expect(enviado).not.toHaveProperty('splits');
   });
 
-  it('un gasto pagado con el ahorro dice de qué ahorro salió', async () => {
+  it('un gasto pagado con el ahorro dice de qué ahorro salió y no deja de ser del mes por error', async () => {
     (movementService.save as jest.Mock).mockResolvedValue({ correct: true, object: {} });
-    const { findByLabelText, getByLabelText } = render(
+    const { findByLabelText, getByLabelText, findByText } = render(
       <Envoltura><AnotarScreen navigation={nav()} route={{ params: { tipo: 'EXPENSE', categoriaId: '42' } }} /></Envoltura>);
-    fireEvent.press(await findByLabelText(/Pagado con lo del mes/));
-    expect(getByLabelText(/Pagado con Ahorro/)).toBeTruthy();
+    fireEvent.press(await findByLabelText(/Pagado con Fondos del mes/));
+    fireEvent.press(getByLabelText(/^Ahorro\. Hay/));
+    expect(getByLabelText(/Pagado con Del Ahorro/)).toBeTruthy();
     ['8', '0', '0', 'tres ceros'].forEach((t) => fireEvent.press(getByLabelText(t)));
-    fireEvent.press(getByLabelText('Anotar'));
+    expect(await findByText(/Ojo: en Ahorro hay .*0; quedaría en/)).toBeTruthy();
+    fireEvent.press(getByLabelText(/^Anotar/));
     await waitFor(() => expect(movementService.save).toHaveBeenCalledWith(expect.objectContaining({
       categoryId: '42', amount: 800000, fundedFromCategoryId: 2,
     })));
+    expect((movementService.save as jest.Mock).mock.calls[0][0]).not.toHaveProperty('cardId');
+  });
+
+  it('con tarjeta a 12 cuotas manda la tarjeta y las cuotas, y ya no pregunta si está pagado', async () => {
+    (movementService.save as jest.Mock).mockResolvedValue({ correct: true, object: {} });
+    (deudaService.misTarjetas as jest.Mock).mockResolvedValueOnce({ correct: true, object: [
+      { id: 7, name: 'NU', mine: true, owed: 0, dueNow: 0, upcoming: 0, purchases: [], userId: 3 },
+    ] });
+    const { findByLabelText, getByLabelText, queryByLabelText, findByText } = render(
+      <Envoltura><AnotarScreen navigation={nav()} route={{ params: { tipo: 'EXPENSE', categoriaId: '27' } }} /></Envoltura>);
+    fireEvent.press(await findByLabelText(/Pagado con Fondos del mes/));
+    fireEvent.press(await findByLabelText(/^NU\./));
+    fireEvent.press(getByLabelText('12 cuotas'));
+    expect(queryByLabelText('Por pagar')).toBeNull();
+    ['1', '2', '0', '0', 'tres ceros'].forEach((t) => fireEvent.press(getByLabelText(t)));
+    expect(await findByText(/12 cuotas de .*100.000 al mes/)).toBeTruthy();
+    fireEvent.press(getByLabelText(/^Anotar/));
+    await waitFor(() => expect(movementService.save).toHaveBeenCalledWith(expect.objectContaining({
+      categoryId: '27', amount: 1200000, cardId: 7, installments: 12, confirmed: true,
+    })));
+    expect((movementService.save as jest.Mock).mock.calls[0][0]).not.toHaveProperty('fundedFromCategoryId');
+  });
+
+  it('la categoría se elige de una lista con buscador', async () => {
+    (movementService.save as jest.Mock).mockResolvedValue({ correct: true, object: {} });
+    const { findByLabelText, getByLabelText, queryByLabelText } = render(
+      <Envoltura><AnotarScreen navigation={nav()} route={{ params: { tipo: 'EXPENSE' } }} /></Envoltura>);
+    fireEvent.press(await findByLabelText('Elegir la categoría'));
+    fireEvent.changeText(getByLabelText('Buscar categoría'), 'cAsá');
+    expect(queryByLabelText(/^Categoría Delivery$/)).toBeNull();
+    fireEvent.press(getByLabelText(/^Categoría Casa$/));
+    expect(getByLabelText(/Categoría Casa\. Cambiar/)).toBeTruthy();
+    ['5', '0', 'tres ceros'].forEach((t) => fireEvent.press(getByLabelText(t)));
+    fireEvent.press(getByLabelText(/^Anotar/));
+    await waitFor(() => expect(movementService.save).toHaveBeenCalledWith(expect.objectContaining({ categoryId: '27', amount: 50000 })));
   });
 
   it('sin monto no deja anotar', async () => {
     const { findByLabelText, getByLabelText } = render(
       <Envoltura><AnotarScreen navigation={nav()} route={{ params: { tipo: 'EXPENSE' } }} /></Envoltura>);
-    await findByLabelText('Categoría Casa');
-    fireEvent.press(getByLabelText('Anotar'));
+    await findByLabelText('Elegir la categoría');
+    fireEvent.press(getByLabelText(/^Anotar/));
     expect(movementService.save).not.toHaveBeenCalled();
   });
 });
@@ -280,5 +326,39 @@ describe('Movimientos del periodo, como en Monefy', () => {
     expect(getByText('Compra de helado')).toBeTruthy();
     expect(getByText('Pago Almuerzo')).toBeTruthy();
     expect(getByText('Sin movimientos')).toBeTruthy();
+  });
+
+  /* La busqueda reemplaza a la antigua pantalla "Buscar movimientos". */
+  it('busca por nota o categoría sin que importen mayúsculas ni tildes', async () => {
+    (movementService.getAll as jest.Mock).mockResolvedValue({ correct: true, object: { list: [
+      mov('58', '42', 'Delivery', 51500, 'Pago Almuerzo'), mov('60', '42', 'Delivery', 24000, 'Compra de helado'),
+      mov('59', '27', 'Casa', 9500, 'Crema de café'),
+    ] } });
+    (categoryService.getAll as jest.Mock).mockResolvedValue({ correct: true, object: { list: [
+      { id: '27', name: 'Casa', type: 'EXPENSE', householdId: 1, active: true },
+      { id: '42', name: 'Delivery', type: 'EXPENSE', householdId: 1, active: true },
+      { id: '34', name: 'Regalo', type: 'EXPENSE', householdId: 1, active: true },
+    ] } });
+    const { findByLabelText, getByLabelText, queryByText, getByText, queryByLabelText } = render(
+      <Envoltura><MovimientosScreen navigation={nav()} /></Envoltura>);
+    const caja = await findByLabelText('Buscar movimientos por nota o categoría');
+
+    /* Por la nota, sin tilde: "cafe" encuentra "café", y se ve sin desplegar. */
+    fireEvent.changeText(caja, 'CAFE');
+    expect(getByText('Crema de café')).toBeTruthy();
+    expect(queryByText('Pago Almuerzo')).toBeNull();
+    expect(queryByLabelText(/^Regalo:/)).toBeNull();
+
+    /* Por el nombre de la categoria: salen todos los suyos. */
+    fireEvent.changeText(caja, 'deliv');
+    expect(getByText('Pago Almuerzo')).toBeTruthy();
+    expect(getByText('Compra de helado')).toBeTruthy();
+    expect(queryByText('Crema de café')).toBeNull();
+
+    fireEvent.changeText(caja, 'nada parecido');
+    expect(getByText(/Nada en este periodo coincide/)).toBeTruthy();
+
+    fireEvent.press(getByLabelText('Borrar la búsqueda'));
+    expect(getByLabelText(/^Regalo:/)).toBeTruthy();
   });
 });

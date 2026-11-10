@@ -46,18 +46,10 @@ class ElEsquemaNoSeGeneraSoloTest {
     private static final String ESPERADO = "validate";
 
     /**
-     * El unico perfil que puede no decir "validate", con el motivo y la
-     * condicion que lo hace aceptable (se comprueba mas abajo).
+     * Perfiles que pueden no decir "validate", con el motivo. Hoy ninguno: la
+     * unica exencion era la del servicio de ayuno, que ya no existe.
      */
     private static final Map<String, Exencion> EXENTOS = new LinkedHashMap<>();
-    static {
-        EXENTOS.put("fasting-service/src/test/resources/application.properties", new Exencion(
-                "create-drop",
-                "en fasting-service casi todas las pruebas son unitarias o @WebMvcTest y "
-                        + "Flyway esta apagado a proposito; quien ejecuta las migraciones de "
-                        + "verdad es ElEsquemaCuadraConElCodigoTest, que se trae su propio "
-                        + "perfil con validate + flyway"));
-    }
 
     /** Valores que no se pueden usar ni con exencion: son los que corrompen en silencio. */
     private static final List<String> PROHIBIDOS = List.of("update", "create", "create-only");
@@ -103,30 +95,7 @@ class ElEsquemaNoSeGeneraSoloTest {
     }
 
     @Test
-    @DisplayName("la unica exencion sigue cumpliendo la condicion que la justifica")
-    void laExencionSigueSiendoCierta() {
-        /* La exencion de fasting no dice "aqui vale todo": dice "aqui el
-           esquema lo genera Hibernate PORQUE Flyway esta apagado y hay otra
-           prueba que si ejecuta las migraciones". Si alguna de las dos mitades
-           deja de ser verdad, la exencion deja de valer. */
-        String perfilDePruebas = contenido("fasting-service/src/test/resources/application.properties");
-        assertThat(perfilDePruebas)
-                .as("la exencion de fasting-service se apoya en que Flyway este apagado ahi; "
-                        + "si ya no lo esta, pon ddl-auto=validate y borra la exencion")
-                .contains("spring.flyway.enabled=false");
-
-        String pruebaDelEsquema = contenido(
-                "fasting-service/src/test/java/com/ohchurus/fasting/esquema/ElEsquemaCuadraConElCodigoTest.java");
-        assertThat(pruebaDelEsquema)
-                .as("la exencion de fasting-service se apoya en que ElEsquemaCuadraConElCodigoTest "
-                        + "si ejecute las migraciones con validate; si esa prueba desaparece o "
-                        + "afloja, las migraciones de ayuno dejan de comprobarse en la construccion")
-                .contains("spring.jpa.hibernate.ddl-auto=validate")
-                .contains("spring.flyway.enabled=true");
-    }
-
-    @Test
-    @DisplayName("se esta mirando de verdad a los tres servicios")
+    @DisplayName("se esta mirando de verdad a los servicios")
     void seMiranLosTresServicios() {
         /* Si el recorrido se rompe (otra estructura de carpetas, otro sitio
            desde donde se lanza Maven) esta prueba pasaria en verde sin haber
@@ -135,8 +104,7 @@ class ElEsquemaNoSeGeneraSoloTest {
                 .as("no encuentro los application.properties de los servicios: el recorrido "
                         + "del arbol dejo de funcionar y esta prueba no esta comprobando nada")
                 .anyMatch(f -> f.startsWith("auth-service/src/main"))
-                .anyMatch(f -> f.startsWith("budget-service/src/main"))
-                .anyMatch(f -> f.startsWith("fasting-service/src/main"));
+                .anyMatch(f -> f.startsWith("budget-service/src/main"));
     }
 
     // ========================================================================
@@ -209,8 +177,7 @@ class ElEsquemaNoSeGeneraSoloTest {
                 actual.resolve("backend"))) {
             if (candidato != null
                     && Files.isDirectory(candidato.resolve("auth-service/src"))
-                    && Files.isDirectory(candidato.resolve("budget-service/src"))
-                    && Files.isDirectory(candidato.resolve("fasting-service/src"))) {
+                    && Files.isDirectory(candidato.resolve("budget-service/src"))) {
                 return candidato;
             }
         }

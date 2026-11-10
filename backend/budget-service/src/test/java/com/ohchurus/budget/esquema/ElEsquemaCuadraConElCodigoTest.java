@@ -116,7 +116,7 @@ class ElEsquemaCuadraConElCodigoTest {
     private Movement movimiento(Long categoriaId, String importe) {
         return Movement.builder()
                 .userId(ANA).categoryId(categoriaId).date(LocalDate.now())
-                .amount(new BigDecimal(importe)).isTransfer(false).confirmed(true).active(true)
+                .amount(new BigDecimal(importe)).confirmed(true).active(true)
                 .build();
     }
 

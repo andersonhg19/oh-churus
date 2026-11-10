@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import AppText from '../../components/atoms/Text';
 import Icono from '../../components/atoms/Icono';
 import { tintaSobre } from '../../utils/tinta';
@@ -9,19 +10,28 @@ import { PALETA } from '../../components/molecules/DonaDeCategorias';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { useAlcance } from '../../contexts/AlcanceContext';
-import { useAhorros } from '../../hooks/useAhorros';
+import { useAhorros, useMisTarjetas } from '../../hooks/useAhorros';
 import { categoryService } from '../../services/categoryService';
-import { accountService } from '../../services/accountService';
 import { movementService } from '../../services/movementService';
 import { evaluar, mostrar, tieneOperacion } from '../../utils/calculadora';
 import { fechaLocalISO, formatCurrency, formatDateShort } from '../../utils/format';
-import { Account, Category, CategoryType, Movement } from '../../types';
+import { Category, CategoryType, Movement } from '../../types';
 
 interface Props {
   navigation: any;
-  route: { params?: { tipo?: CategoryType; categoriaId?: string | number } };
+  route: {
+    params?: {
+      tipo?: CategoryType;
+      categoriaId?: string | number;
+      /** Con que se paga de entrada: 'ahorro:<id>' o 'tarjeta:<id>'. */
+      pagadoCon?: string;
+    };
+  };
 }
+
+/** Verde del ahorro: distinto del verde de los ingresos, siempre con la alcancia. */
+export const VERDE_AHORRO = '#1FA67A';
+const CUOTAS_RAPIDAS = [1, 3, 6, 12, 24, 36];
 
 const desplazar = (iso: string, dias: number) => {
   const [y, m, d] = iso.split('-').map(Number);
@@ -29,35 +39,65 @@ const desplazar = (iso: string, dias: number) => {
   return fechaLocalISO(f);
 };
 
+const sinTildes = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+const claveRecientes = (tipo: CategoryType) => `oc.recientes.${tipo}`;
+
+async function leerRecientes(tipo: CategoryType): Promise<string[]> {
+  try {
+    const v = await AsyncStorage.getItem(claveRecientes(tipo));
+    const l = v ? JSON.parse(v) : [];
+    return Array.isArray(l) ? l.map(String) : [];
+  } catch {
+    return [];
+  }
+}
+
+async function recordarReciente(tipo: CategoryType, id: string) {
+  try {
+    const antes = await leerRecientes(tipo);
+    const nuevos = [id, ...antes.filter((x) => x !== id)].slice(0, 6);
+    await AsyncStorage.setItem(claveRecientes(tipo), JSON.stringify(nuevos));
+  } catch {
+    /* sin recientes no pasa nada */
+  }
+}
+
 /*
- * ANOTAR, como en Monefy: la categoria ya viene elegida, se escribe el monto
- * con el teclado de la app y listo. Son dos toques mas los numeros. Lo demas
- * (fecha, cuenta, reparto, pagado o por pagar) son botones chicos que ya traen
- * lo mas comun; y "Mas opciones" abre el formulario completo con lo escrito,
- * para los repartos por porcentaje o por montos.
+ * ANOTAR. La categoria puede venir elegida (desde la dona): entonces son el
+ * monto y un toque. Si no, se elige de una LISTA (con buscador y las
+ * recientes a mano), no de una fila de botones con todas.
+ *
+ * "Pagado con" dice de donde salio la plata: de los fondos del mes (lo de
+ * siempre), de un ahorro (no baja lo libre del mes, baja el ahorro) o de una
+ * tarjeta (y a cuantas cuotas: cada cuota cuenta en su mes). Meter plata a un
+ * ahorro es anotar en esa categoria, en verde.
  */
 const AnotarScreen: React.FC<Props> = ({ navigation, route }) => {
   const { colors } = useTheme();
   const { showToast } = useToast();
   const { user } = useAuth();
-  const { miembros } = useAlcance();
   const insets = useSafeAreaInsets();
   const tipo: CategoryType = route.params?.tipo || 'EXPENSE';
 
   const [categorias, setCategorias] = useState<Category[]>([]);
   const [categoria, setCategoria] = useState<Category | null>(null);
-  const [cuentas, setCuentas] = useState<Account[]>([]);
-  const [cuenta, setCuenta] = useState<Account | null>(null);
   const [expresion, setExpresion] = useState('');
   const [fecha, setFecha] = useState(fechaLocalISO());
   const [pagado, setPagado] = useState(true);
-  const [aMedias, setAMedias] = useState(false);
   const [nota, setNota] = useState('');
+  const [conNota, setConNota] = useState(false);
   const [eligiendoFecha, setEligiendoFecha] = useState(false);
+  const [eligiendoCategoria, setEligiendoCategoria] = useState(false);
+  const [eligiendoFuente, setEligiendoFuente] = useState(false);
+  const [busqueda, setBusqueda] = useState('');
+  const [recientes, setRecientes] = useState<string[]>([]);
   const [guardando, setGuardando] = useState(false);
-  /* De donde salio la plata: del mes (null) o de un ahorro. */
-  const [delAhorro, setDelAhorro] = useState<string | null>(null);
+  /* De donde sale la plata: null = fondos del mes; 'ahorro:<id>' o 'tarjeta:<id>'. */
+  const [fuente, setFuente] = useState<string | null>(route.params?.pagadoCon || null);
+  const [cuotas, setCuotas] = useState(1);
   const ahorros = useAhorros();
+  const tarjetas = useMisTarjetas();
 
   useEffect(() => {
     if (!user) return;
@@ -67,34 +107,34 @@ const AnotarScreen: React.FC<Props> = ({ navigation, route }) => {
         const lista: Category[] = (r.correct && r.object?.list) || [];
         const deEsteTipo = lista.filter((c) => c.type === tipo && c.active !== false)
           .sort((a, b) => a.name.localeCompare(b.name));
-        const pedida = deEsteTipo.find((c) => String(c.id) === String(route.params?.categoriaId));
-        setCategorias(pedida ? [pedida, ...deEsteTipo.filter((c) => c !== pedida)] : deEsteTipo);
+        setCategorias(deEsteTipo);
         /* Sin categoria pedida no se elige ninguna: con la primera por orden
            alfabetico ("Ahorro") un gasto podia quedar anotado como ahorro. */
-        setCategoria(pedida || null);
+        setCategoria(deEsteTipo.find((c) => String(c.id) === String(route.params?.categoriaId)) || null);
       } catch {
         setCategorias([]);
       }
-      try {
-        const r = await accountService.getAll();
-        const lista: Account[] = (r.correct && r.object?.list) || [];
-        setCuentas(lista);
-        setCuenta(lista.find((a: any) => a.isDefault) || lista[0] || null);
-      } catch {
-        setCuentas([]);
-      }
     })();
+    leerRecientes(tipo).then(setRecientes);
   }, [user, tipo, route.params?.categoriaId]);
 
   const monto = evaluar(expresion);
-  const color = tipo === 'INCOME' ? colors.income : colors.expense;
-  const companeros = miembros.filter((m) => String(m.userId) !== String(user?.userId));
-  const puedeRepartir = tipo === 'EXPENSE' && !!categoria?.householdId && companeros.length > 0;
+  const idsAhorro = useMemo(() => new Set(ahorros.map((a) => a.id)), [ahorros]);
+  const esDeposito = tipo === 'EXPENSE' && !!categoria && idsAhorro.has(String(categoria.id));
+  const color = tipo === 'INCOME' ? colors.income : esDeposito ? VERDE_AHORRO : colors.expense;
   const colorDe = useMemo(() => {
     const mapa: Record<string, string> = {};
     categorias.forEach((c, i) => { mapa[c.id] = c.color || PALETA[i % PALETA.length]; });
     return mapa;
   }, [categorias]);
+
+  const [claseFuente, idFuente] = (fuente || '').split(':');
+  const ahorroElegido = claseFuente === 'ahorro' ? ahorros.find((a) => a.id === idFuente) : undefined;
+  const tarjetaElegida = claseFuente === 'tarjeta' ? tarjetas.find((t) => String(t.id) === idFuente) : undefined;
+  /* Un deposito o un ingreso siempre sale de lo del mes; y el ahorro no se paga con el mismo ahorro. */
+  const puedeElegirFuente = tipo === 'EXPENSE' && !esDeposito;
+  const fuenteValida = puedeElegirFuente && (
+    (ahorroElegido && String(ahorroElegido.id) !== String(categoria?.id)) || tarjetaElegida);
 
   const guardar = async () => {
     if (!categoria || monto <= 0 || !user || guardando) return;
@@ -106,21 +146,21 @@ const AnotarScreen: React.FC<Props> = ({ navigation, route }) => {
         amount: monto,
         date: fecha,
         description: nota.trim() || undefined,
-        confirmed: pagado,
-        ...(cuenta && { accountId: cuenta.id }),
-        ...(tipo === 'EXPENSE' && delAhorro && delAhorro !== String(categoria.id) && { fundedFromCategoryId: Number(delAhorro) }),
-        ...(puedeRepartir && aMedias && {
-          splitMode: 'EQUAL',
-          splits: [Number(user.userId), ...companeros.map((c) => c.userId)].map((id) => ({ participantId: id })),
-        }),
+        confirmed: tarjetaElegida && fuenteValida ? true : pagado,
+        ...(fuenteValida && ahorroElegido && { fundedFromCategoryId: Number(ahorroElegido.id) }),
+        ...(fuenteValida && tarjetaElegida && { cardId: Number(tarjetaElegida.id), installments: cuotas }),
       };
       const r = await movementService.save(datos);
       if (!r.correct) {
         showToast('error', 'No se pudo anotar', r.message);
         return;
       }
-      showToast('success', tipo === 'INCOME' ? 'Ingreso anotado' : 'Gasto anotado',
-        `${categoria.name} · ${formatCurrency(monto)}`);
+      recordarReciente(tipo, String(categoria.id));
+      const titulo = tipo === 'INCOME' ? 'Ingreso anotado' : esDeposito ? 'Depositado en el ahorro' : 'Gasto anotado';
+      const detalle = tarjetaElegida && fuenteValida && cuotas > 1
+        ? `${categoria.name} · ${cuotas} cuotas de ${formatCurrency(Math.floor(monto / cuotas))}`
+        : `${categoria.name} · ${formatCurrency(monto)}`;
+      showToast('success', titulo, detalle);
       navigation.goBack();
     } catch (e: any) {
       showToast('error', 'Error', e?.message || 'No se pudo anotar');
@@ -129,7 +169,7 @@ const AnotarScreen: React.FC<Props> = ({ navigation, route }) => {
     }
   };
 
-  const chip = (texto: string, activo: boolean, onPress: () => void, etiqueta: string) => (
+  const chip = (texto: string, activo: boolean, onPress: () => void, etiqueta: string, icono?: string) => (
     <TouchableOpacity
       key={texto}
       style={[styles.chip, { backgroundColor: activo ? colors.primary : colors.surfaceLight }]}
@@ -137,12 +177,72 @@ const AnotarScreen: React.FC<Props> = ({ navigation, route }) => {
       accessibilityRole="button"
       accessibilityLabel={etiqueta}
     >
+      {!!icono && <Icono nombre={icono} color={activo ? '#1A1405' : colors.textSecondary} tamano={16} />}
       <AppText variant="caption" style={{ fontWeight: '700', color: activo ? '#1A1405' : colors.textSecondary }}>{texto}</AppText>
     </TouchableOpacity>
   );
 
+  const circulo = (c: Category, tam = 32) => {
+    const fondo = idsAhorro.has(String(c.id)) && tipo === 'EXPENSE' ? VERDE_AHORRO : colorDe[c.id];
+    return (
+      <View style={[styles.punto, { width: tam, height: tam, borderRadius: tam / 2, backgroundColor: fondo }]}>
+        <Icono nombre={c.icon} color={tintaSobre(fondo)} tamano={Math.round(tam * 0.55)} />
+      </View>
+    );
+  };
+
+  const elegir = (c: Category) => {
+    setCategoria(c);
+    setEligiendoCategoria(false);
+    setBusqueda('');
+  };
+
   const hoy = fechaLocalISO();
   const textoFecha = fecha === hoy ? 'Hoy' : fecha === desplazar(hoy, -1) ? 'Ayer' : formatDateShort(fecha);
+
+  const filtradas = categorias.filter((c) => !busqueda.trim() || sinTildes(c.name).includes(sinTildes(busqueda.trim())));
+  const gastos = filtradas.filter((c) => !(tipo === 'EXPENSE' && idsAhorro.has(String(c.id))));
+  const deAhorro = filtradas.filter((c) => tipo === 'EXPENSE' && idsAhorro.has(String(c.id)));
+  const recientesCat = recientes.map((id) => categorias.find((c) => String(c.id) === id)).filter(Boolean) as Category[];
+  const vinoElegida = !!route.params?.categoriaId;
+
+  const textoFuente = ahorroElegido && fuenteValida ? `Del ${ahorroElegido.nombre}`
+    : tarjetaElegida && fuenteValida ? `Tarjeta ${tarjetaElegida.name}` : 'Fondos del mes';
+  const saldoTras = ahorroElegido ? ahorroElegido.saldo - monto : 0;
+  const cuotaMes = cuotas > 0 ? Math.floor(monto / cuotas) : monto;
+
+  const fila = (c: Category) => {
+    const saldo = ahorros.find((a) => a.id === String(c.id))?.saldo;
+    return (
+      <TouchableOpacity key={c.id} style={[styles.fila, { borderBottomColor: colors.border }]} onPress={() => elegir(c)}
+        accessibilityRole="button" accessibilityLabel={`Categoría ${c.name}${saldo !== undefined ? `, hay ${formatCurrency(saldo)}` : ''}`}>
+        {circulo(c)}
+        <AppText variant="body" style={{ flex: 1, fontWeight: categoria?.id === c.id ? '800' : '500' }}>{c.name}</AppText>
+        {saldo !== undefined && (
+          <AppText variant="caption" style={{ color: VERDE_AHORRO, fontWeight: '700' }}>{`hay ${formatCurrency(saldo)}`}</AppText>
+        )}
+        {categoria?.id === c.id && <Icono nombre="check" color={colors.primary} />}
+      </TouchableOpacity>
+    );
+  };
+
+  const opcionFuente = (clave: string | null, titulo: string, detalle: string, icono: string, tono: string) => {
+    const activa = (fuente || null) === clave || (clave === null && !fuenteValida);
+    return (
+      <TouchableOpacity key={clave || 'mes'} style={[styles.fila, { borderBottomColor: colors.border }]}
+        onPress={() => { setFuente(clave); if (!clave || !clave.startsWith('tarjeta')) setCuotas(1); setEligiendoFuente(false); }}
+        accessibilityRole="radio" accessibilityState={{ selected: activa }} accessibilityLabel={`${titulo}. ${detalle}`}>
+        <View style={[styles.punto, { width: 32, height: 32, borderRadius: 16, backgroundColor: tono }]}>
+          <Icono nombre={icono} color={tintaSobre(tono)} tamano={18} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <AppText variant="body" style={{ fontWeight: activa ? '800' : '600' }}>{titulo}</AppText>
+          <AppText variant="caption" color={colors.textSecondary}>{detalle}</AppText>
+        </View>
+        {activa && <Icono nombre="check" color={colors.primary} />}
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <View style={[styles.pantalla, { backgroundColor: colors.background, paddingBottom: insets.bottom }]}>
@@ -152,8 +252,12 @@ const AnotarScreen: React.FC<Props> = ({ navigation, route }) => {
             <Icono nombre="close" color="#FFFFFF" />
           </TouchableOpacity>
           <AppText variant="caption" style={{ color: '#FFFFFF', fontWeight: '700', flex: 1 }}>
-            {tipo === 'INCOME' ? 'Ingreso' : 'Gasto'}{categoria ? ` · ${categoria.name}` : ' · elige la categoría'}
+            {tipo === 'INCOME' ? 'Ingreso' : esDeposito ? `Depositar en ${categoria?.name}` : 'Gasto'}
           </AppText>
+          <TouchableOpacity onPress={() => setEligiendoFecha(true)} style={styles.fechaCabecera}
+            accessibilityRole="button" accessibilityLabel={`Fecha ${textoFecha}. Cambiar la fecha`}>
+            <AppText variant="caption" style={{ color: '#FFFFFF', fontWeight: '800' }}>{textoFecha} ▾</AppText>
+          </TouchableOpacity>
         </View>
         <AppText variant="title" style={{ color: '#FFFFFF', textAlign: 'right' }} accessibilityLabel={`Monto ${formatCurrency(monto)}`}>
           {mostrar(expresion)}
@@ -163,73 +267,185 @@ const AnotarScreen: React.FC<Props> = ({ navigation, route }) => {
         )}
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filaChips} contentContainerStyle={styles.chips}>
-        {categorias.map((c) => (
-          <TouchableOpacity
-            key={c.id}
-            style={[styles.chip, { backgroundColor: categoria?.id === c.id ? colors.primary : colors.surfaceLight }]}
-            onPress={() => setCategoria(c)}
-            accessibilityRole="radio"
-            accessibilityState={{ selected: categoria?.id === c.id }}
-            accessibilityLabel={`Categoría ${c.name}`}
-          >
-            <View style={[styles.punto, { backgroundColor: colorDe[c.id] }]}>
-              <Icono nombre={c.icon} color={tintaSobre(colorDe[c.id])} tamano={14} />
+      <ScrollView style={{ flexGrow: 0, flexShrink: 1 }} contentContainerStyle={styles.campos} keyboardShouldPersistTaps="handled">
+        <AppText variant="caption" color={colors.textSecondary}>Categoría</AppText>
+        <TouchableOpacity style={[styles.campo, { backgroundColor: colors.surfaceLight, borderColor: categoria ? colors.border : colors.primary }]}
+          onPress={() => setEligiendoCategoria(true)} accessibilityRole="button"
+          accessibilityLabel={categoria ? `Categoría ${categoria.name}. Cambiar la categoría` : 'Elegir la categoría'}>
+          {categoria ? circulo(categoria, 28) : <Icono nombre="list" color={colors.textMuted} />}
+          <AppText variant="body" style={{ flex: 1, fontWeight: '700', color: categoria ? colors.text : colors.textMuted }}>
+            {categoria ? categoria.name : 'Elige la categoría'}
+          </AppText>
+          <AppText variant="body" color={colors.textMuted}>▾</AppText>
+        </TouchableOpacity>
+        {!vinoElegida && recientesCat.length > 0 && (
+          <View style={styles.recientes}>
+            {recientesCat.slice(0, 3).map((c) => (
+              <TouchableOpacity key={c.id} style={[styles.chip, { backgroundColor: categoria?.id === c.id ? colors.primary : colors.surfaceLight }]}
+                onPress={() => setCategoria(c)} accessibilityRole="button" accessibilityLabel={`Reciente ${c.name}`}>
+                {circulo(c, 22)}
+                <AppText variant="caption" style={{ fontWeight: '700', color: categoria?.id === c.id ? '#1A1405' : colors.textSecondary }}>{c.name}</AppText>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+        {puedeElegirFuente && (ahorros.length > 0 || tarjetas.length > 0) && (
+          <>
+            <AppText variant="caption" color={colors.textSecondary}>Pagado con</AppText>
+            <TouchableOpacity style={[styles.campo, { backgroundColor: colors.surfaceLight,
+              borderColor: ahorroElegido && fuenteValida ? VERDE_AHORRO : colors.border }]}
+              onPress={() => setEligiendoFuente(true)} accessibilityRole="button" accessibilityLabel={`Pagado con ${textoFuente}. Cambiar`}>
+              <Icono nombre={ahorroElegido && fuenteValida ? 'piggy-bank' : tarjetaElegida && fuenteValida ? 'credit-card' : 'wallet'}
+                color={ahorroElegido && fuenteValida ? VERDE_AHORRO : colors.textSecondary} />
+              <AppText variant="body" style={{ flex: 1, fontWeight: '700' }}>{textoFuente}</AppText>
+              <AppText variant="body" color={colors.textMuted}>▾</AppText>
+            </TouchableOpacity>
+            {ahorroElegido && fuenteValida && (
+              <AppText variant="caption" style={{ color: saldoTras < 0 ? colors.warning : VERDE_AHORRO }}>
+                {saldoTras < 0
+                  ? `Ojo: en ${ahorroElegido.nombre} hay ${formatCurrency(ahorroElegido.saldo)}; quedaría en ${formatCurrency(saldoTras)}.`
+                  : `No baja lo libre del mes. ${ahorroElegido.nombre} queda en ${formatCurrency(saldoTras)}.`}
+              </AppText>
+            )}
+            {tarjetaElegida && fuenteValida && (
+              <View style={{ gap: 6 }}>
+                <View style={styles.recientes}>
+                  <AppText variant="caption" color={colors.textSecondary}>Cuotas</AppText>
+                  {CUOTAS_RAPIDAS.map((n) => (
+                    <TouchableOpacity key={n} style={[styles.cuota, { backgroundColor: cuotas === n ? colors.primary : colors.surfaceLight }]}
+                      onPress={() => setCuotas(n)} accessibilityRole="radio" accessibilityState={{ selected: cuotas === n }}
+                      accessibilityLabel={`${n} ${n === 1 ? 'cuota' : 'cuotas'}`}>
+                      <AppText variant="caption" style={{ fontWeight: '800', color: cuotas === n ? '#1A1405' : colors.textSecondary }}>{n}</AppText>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <AppText variant="caption" color={colors.textSecondary}>
+                  {cuotas === 1
+                    ? 'A 1 cuota: cuenta completo este mes y queda en la tarjeta hasta que la pagues.'
+                    : `${cuotas} cuotas de ${formatCurrency(cuotaMes)} al mes; la primera cuenta este mes.`}
+                </AppText>
+              </View>
+            )}
+          </>
+        )}
+
+        <View style={styles.recientes}>
+          {!(tarjetaElegida && fuenteValida) && (
+            <View style={[styles.segmento, { backgroundColor: colors.surfaceLight }]}>
+              {[true, false].map((v) => (
+                <TouchableOpacity key={String(v)} style={[styles.opcion, pagado === v && { backgroundColor: colors.primary }]}
+                  onPress={() => setPagado(v)} accessibilityRole="radio" accessibilityState={{ selected: pagado === v }}
+                  accessibilityLabel={v ? 'Ya pagado' : 'Por pagar'}>
+                  <AppText variant="caption" style={{ fontWeight: '700', color: pagado === v ? '#1A1405' : colors.textSecondary }}>
+                    {v ? 'Ya pagado' : 'Por pagar'}
+                  </AppText>
+                </TouchableOpacity>
+              ))}
             </View>
-            <AppText variant="caption" style={{ fontWeight: '700', color: categoria?.id === c.id ? '#1A1405' : colors.textSecondary }}>{c.name}</AppText>
-          </TouchableOpacity>
-        ))}
+          )}
+          {!conNota && chip('Nota', false, () => setConNota(true), 'Agregar una nota', 'edit')}
+          {chip('Más', false, () => navigation.replace('MovementFormModal', {
+            prefill: { amount: monto || undefined, categoryId: categoria?.id, type: tipo, date: fecha, description: nota, confirmed: pagado },
+          }), 'Más opciones: abrir el formulario completo con lo escrito', 'more')}
+        </View>
+        {conNota && (
+          <TextInput
+            value={nota}
+            onChangeText={setNota}
+            autoFocus
+            placeholder="Nota (opcional)"
+            placeholderTextColor={colors.textMuted}
+            style={[styles.nota, { backgroundColor: colors.surfaceLight, color: colors.text }]}
+            accessibilityLabel="Nota del movimiento"
+          />
+        )}
       </ScrollView>
-
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filaChips} contentContainerStyle={[styles.chips, { paddingTop: 0 }]}>
-        {chip(textoFecha, false, () => setEligiendoFecha(true), `Fecha ${textoFecha}. Cambiar la fecha`)}
-        {chip(pagado ? 'Ya pagado' : 'Por pagar', !pagado, () => setPagado(!pagado),
-          pagado ? 'Marcado como ya pagado. Tocar para dejarlo por pagar' : 'Marcado por pagar. Tocar para marcarlo pagado')}
-        {puedeRepartir && chip(aMedias ? 'A medias' : 'Sin repartir', aMedias, () => setAMedias(!aMedias),
-          aMedias ? 'Repartido a medias. Tocar para no repartir' : 'Sin repartir. Tocar para repartir a medias')}
-        {cuentas.length > 1 && cuenta && chip(cuenta.name, false, () => {
-          const i = cuentas.findIndex((a) => a.id === cuenta.id);
-          setCuenta(cuentas[(i + 1) % cuentas.length]);
-        }, `Cuenta ${cuenta.name}. Tocar para cambiar de cuenta`)}
-        {tipo === 'EXPENSE' && ahorros.length > 0 && (() => {
-          const opciones = [null, ...ahorros.filter((a) => a.id !== String(categoria?.id)).map((a) => a.id)];
-          const actual = ahorros.find((a) => a.id === delAhorro);
-          const texto = actual ? `Pagado con ${actual.nombre}` : 'Pagado con lo del mes';
-          return chip(texto, !!actual, () => setDelAhorro(opciones[(opciones.indexOf(delAhorro) + 1) % opciones.length]),
-            `${texto}. Tocar para cambiar de dónde salió la plata`);
-        })()}
-        {chip('Más opciones', false, () => navigation.replace('MovementFormModal', {
-          prefill: { amount: monto || undefined, categoryId: categoria?.id, type: tipo, date: fecha, description: nota, confirmed: pagado },
-        }), 'Abrir el formulario completo con lo escrito')}
-      </ScrollView>
-
-      <TextInput
-        value={nota}
-        onChangeText={setNota}
-        placeholder="Nota (opcional)"
-        placeholderTextColor={colors.textMuted}
-        style={[styles.nota, { backgroundColor: colors.surfaceLight, color: colors.text }]}
-        accessibilityLabel="Nota del movimiento"
-      />
 
       <View style={{ flex: 1 }} />
       <Teclado
         expresion={expresion}
         onCambio={setExpresion}
         onListo={guardar}
-        textoListo={guardando ? 'Anotando…' : 'Anotar'}
+        textoListo={guardando ? 'Anotando…' : `${esDeposito ? 'Depositar' : 'Anotar'}${monto > 0 ? ` ${formatCurrency(monto)}` : ''}`}
         listoDeshabilitado={monto <= 0 || !categoria || guardando}
       />
 
+      <Modal visible={eligiendoCategoria} transparent animationType="slide" onRequestClose={() => setEligiendoCategoria(false)}>
+        <View style={styles.fondo}>
+          <TouchableOpacity style={{ flex: 1 }} onPress={() => setEligiendoCategoria(false)} accessibilityRole="button" accessibilityLabel="Cerrar la lista" />
+          <View style={[styles.hojaAlta, { backgroundColor: colors.surface, paddingBottom: insets.bottom + 12 }]}>
+            <AppText variant="subtitle">¿En qué?</AppText>
+            <TextInput
+              value={busqueda}
+              onChangeText={setBusqueda}
+              placeholder="Buscar categoría"
+              placeholderTextColor={colors.textMuted}
+              style={[styles.nota, { marginHorizontal: 0, backgroundColor: colors.surfaceLight, color: colors.text }]}
+              accessibilityLabel="Buscar categoría"
+            />
+            <ScrollView keyboardShouldPersistTaps="handled">
+              {!busqueda && recientesCat.length > 0 && (
+                <>
+                  <AppText variant="caption" color={colors.textSecondary} style={styles.seccion}>Recientes</AppText>
+                  {recientesCat.slice(0, 5).map((c) => fila(c))}
+                </>
+              )}
+              {gastos.length > 0 && (
+                <AppText variant="caption" color={colors.textSecondary} style={styles.seccion}>
+                  {tipo === 'INCOME' ? 'Ingresos' : 'Gastos'}
+                </AppText>
+              )}
+              {gastos.map((c) => fila(c))}
+              {deAhorro.length > 0 && (
+                <AppText variant="caption" style={[styles.seccion, { color: VERDE_AHORRO }]}>Ahorros (meter plata)</AppText>
+              )}
+              {deAhorro.map((c) => fila(c))}
+              {filtradas.length === 0 && (
+                <AppText variant="body" color={colors.textMuted} style={{ padding: 16, textAlign: 'center' }}>
+                  No hay categorías con ese nombre
+                </AppText>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={eligiendoFuente} transparent animationType="slide" onRequestClose={() => setEligiendoFuente(false)}>
+        <View style={styles.fondo}>
+          <TouchableOpacity style={{ flex: 1 }} onPress={() => setEligiendoFuente(false)} accessibilityRole="button" accessibilityLabel="Cerrar" />
+          <View style={[styles.hojaAlta, { backgroundColor: colors.surface, paddingBottom: insets.bottom + 12 }]}>
+            <AppText variant="subtitle">¿Con qué se pagó?</AppText>
+            <ScrollView>
+              {opcionFuente(null, 'Fondos del mes', 'Lo del salario: baja lo libre para gastar', 'wallet', colors.primary)}
+              {ahorros.filter((a) => a.id !== String(categoria?.id)).length > 0 && (
+                <AppText variant="caption" style={[styles.seccion, { color: VERDE_AHORRO }]}>Ahorros</AppText>
+              )}
+              {ahorros.filter((a) => a.id !== String(categoria?.id)).map((a) =>
+                opcionFuente(`ahorro:${a.id}`, a.nombre, `Hay ${formatCurrency(a.saldo)} · no baja lo del mes`, 'piggy-bank', VERDE_AHORRO))}
+              {tarjetas.length > 0 && (
+                <AppText variant="caption" color={colors.textSecondary} style={styles.seccion}>Tarjetas de crédito</AppText>
+              )}
+              {tarjetas.map((t) =>
+                opcionFuente(`tarjeta:${t.id}`, t.name, t.owed > 0 ? `Debes ${formatCurrency(t.owed)}` : 'Al día',
+                  'credit-card', t.color || colors.textSecondary))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
       <Modal visible={eligiendoFecha} transparent animationType="fade" onRequestClose={() => setEligiendoFecha(false)}>
-        <TouchableOpacity style={styles.fondo} activeOpacity={1} onPress={() => setEligiendoFecha(false)}
+        <TouchableOpacity style={[styles.fondo, { justifyContent: 'flex-end' }]} activeOpacity={1} onPress={() => setEligiendoFecha(false)}
           accessibilityRole="button" accessibilityLabel="Cerrar">
           <View style={[styles.hoja, { backgroundColor: colors.surface }]}>
             <AppText variant="subtitle">¿Cuándo fue?</AppText>
             <AppText variant="title" style={{ textAlign: 'center' }}>{formatDateShort(fecha)}</AppText>
             <View style={styles.filaFecha}>
-              {chip('− 1 día', false, () => setFecha(desplazar(fecha, -1)), 'Un día antes')}
               {chip('Hoy', fecha === hoy, () => setFecha(hoy), 'Hoy')}
+              {chip('Ayer', fecha === desplazar(hoy, -1), () => setFecha(desplazar(hoy, -1)), 'Ayer')}
+            </View>
+            <View style={styles.filaFecha}>
+              {chip('− 1 día', false, () => setFecha(desplazar(fecha, -1)), 'Un día antes')}
               {chip('+ 1 día', false, () => setFecha(desplazar(fecha, 1)), 'Un día después')}
             </View>
             {chip('Listo', true, () => setEligiendoFecha(false), 'Usar esta fecha')}
@@ -245,13 +461,21 @@ const styles = StyleSheet.create({
   monto: { paddingHorizontal: 16, paddingBottom: 14, gap: 2 },
   filaMonto: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   cerrar: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginLeft: -10 },
-  filaChips: { flexGrow: 0, flexShrink: 0 },
-  chips: { gap: 8, paddingHorizontal: 16, paddingVertical: 10, alignItems: 'center' },
+  fechaCabecera: { minHeight: 44, paddingHorizontal: 12, justifyContent: 'center', borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.18)' },
+  campos: { paddingHorizontal: 16, paddingTop: 12, gap: 8 },
+  campo: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52, paddingHorizontal: 12, borderRadius: 14, borderWidth: 1 },
+  recientes: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 40, paddingHorizontal: 12, borderRadius: 20 },
-  punto: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
-  nota: { marginHorizontal: 16, padding: 12, borderRadius: 12, fontSize: 16 },
-  fondo: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  cuota: { minWidth: 44, minHeight: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10 },
+  segmento: { flexDirection: 'row', borderRadius: 20, padding: 3 },
+  opcion: { minHeight: 36, paddingHorizontal: 12, borderRadius: 17, justifyContent: 'center' },
+  punto: { alignItems: 'center', justifyContent: 'center' },
+  nota: { marginHorizontal: 0, padding: 12, borderRadius: 12, fontSize: 16 },
+  fondo: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)' },
   hoja: { padding: 20, gap: 14, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
+  hojaAlta: { maxHeight: '80%', padding: 16, gap: 10, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
+  fila: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 52, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth },
+  seccion: { marginTop: 12, marginBottom: 4, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
   filaFecha: { flexDirection: 'row', justifyContent: 'center', gap: 8 },
 });
 

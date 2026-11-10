@@ -124,39 +124,6 @@ class ContratoDeErroresTest {
     }
 
     @Nested
-    @DisplayName("MovementController (transfer)")
-    class Transferencias {
-
-        @Test
-        @DisplayName("cuerpo vacio")
-        void cuerpoVacio() throws Exception {
-            exigeContrato("/v1/movements/transfer", "", "vacio");
-        }
-
-        @Test
-        @DisplayName("campo con tipo incorrecto")
-        void tipoIncorrecto() throws Exception {
-            exigeContrato("/v1/movements/transfer",
-                    "{\"fromCategoryId\":\"treinta\",\"toCategoryId\":20,\"amount\":50000}",
-                    "'fromCategoryId'");
-        }
-
-        @Test
-        @DisplayName("texto demasiado largo")
-        void textoDemasiadoLargo() throws Exception {
-            exigeContrato("/v1/movements/transfer",
-                    "{\"fromCategoryId\":30,\"toCategoryId\":20,\"amount\":50000,"
-                            + "\"description\":\"" + TEXTO_QUE_NO_CABE + "\"}", "'description'");
-        }
-
-        @Test
-        @DisplayName("faltan los ids obligatorios y se dice cuales")
-        void faltanLosIds() throws Exception {
-            exigeContrato("/v1/movements/transfer", "{}", "'fromCategoryId'");
-        }
-    }
-
-    @Nested
     @DisplayName("ExportController")
     class Exportacion {
 

@@ -17,12 +17,6 @@ describe('scheduledService', () => {
     expect(mockPost).toHaveBeenCalledWith('/BUDGET-SERVICE/oh-churus/v1/scheduled/save', expect.objectContaining({ name: 'Rent' }));
   });
 
-  it('getById posts to get endpoint', async () => {
-    mockPost.mockResolvedValueOnce({ data: { correct: true, object: { id: '1' } } });
-    await scheduledService.getById('1');
-    expect(mockPost).toHaveBeenCalledWith('/BUDGET-SERVICE/oh-churus/v1/scheduled/get/1');
-  });
-
   it('getAll posts with filter', async () => {
     mockPost.mockResolvedValueOnce({ data: { correct: true, object: { list: [] } } });
     await scheduledService.getAll({ userId: '1', page: 0, size: 10 });
@@ -65,12 +59,5 @@ describe('scheduledService', () => {
       '/BUDGET-SERVICE/oh-churus/v1/scheduled/materialize',
       { occurrences: [{ scheduledMovementId: '9', periodStart: '2026-07-01' }] },
     );
-  });
-
-  it('frequencyList posts to frequency-list endpoint', async () => {
-    mockPost.mockResolvedValueOnce({ data: { correct: true, object: [{ key: 'MONTHLY', name: 'Mensual' }] } });
-    const result = await scheduledService.frequencyList();
-    expect(mockPost).toHaveBeenCalledWith('/BUDGET-SERVICE/oh-churus/v1/scheduled/frequency-list');
-    expect(result.correct).toBe(true);
   });
 });

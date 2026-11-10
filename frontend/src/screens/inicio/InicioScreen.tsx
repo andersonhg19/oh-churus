@@ -1,6 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Modal } from 'react-native';
-import CirculoCategoria from '../../components/atoms/CirculoCategoria';
+import { View, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import AppText from '../../components/atoms/Text';
 import Icono from '../../components/atoms/Icono';
@@ -14,30 +13,29 @@ import { useAlcance } from '../../contexts/AlcanceContext';
 import { useCarga, exigir } from '../../hooks/useCarga';
 import { estadoService, EstadoDelPeriodo } from '../../services/estadoService';
 import { dashboardService } from '../../services/dashboardService';
-import { categoryService } from '../../services/categoryService';
+import { deudaService } from '../../services/deudaService';
 import { formatCurrency, formatCompacto } from '../../utils/format';
-import { Category } from '../../types';
 
 /*
- * INICIO. Una sola pregunta por zona, como en Monefy:
- *   · la dona: en que se fue la plata, contra lo presupuestado;
- *   · tres recuadros: cuanto entro, cuanto falta por pagar, cuanto hay;
- *   · un aviso: lo que me toca confirmar a mi;
+ * INICIO. Tres zonas, una pregunta cada una:
+ *   · la dona: cuanto queda libre y en que se fue la plata;
+ *   · cuatro recuadros: lo que entro, lo que falta pagar, lo ahorrado y lo
+ *     que se debe (y el aviso de lo que me toca confirmar, si hay);
  *   · dos botones: anotar un gasto o un ingreso.
- * Todo sale de /v1/estado/periodo, la misma fuente que Presupuesto y
- * Responsabilidades: las cifras no pueden decir cosas distintas.
+ * Todo sale de /v1/estado/periodo, la misma fuente que Presupuesto: las
+ * cifras no pueden decir cosas distintas. Las deudas salen de /v1/debts.
  */
 const InicioScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { colors } = useTheme();
   const { user } = useAuth();
-  const { alcance, corte, periodo } = useAlcance();
+  const { alcance, corte, periodo, anterior, siguiente, puedeSeguir } = useAlcance();
   const [estado, setEstado] = useState<EstadoDelPeriodo | null>(null);
   const [misPendientes, setMisPendientes] = useState({ n: 0, monto: 0 });
   /* Lo por pagar del recuadro sale de la MISMA lista que se abre al tocarlo:
      antes el recuadro decia "20 pagos" y la lista ensenaba otros 9. */
   const [porPagar, setPorPagar] = useState({ n: 0, monto: 0 });
-  const [otras, setOtras] = useState<Category[]>([]);
-  const [elegida, setElegida] = useState<CategoriaEnDona | null>(null);
+  /* null: no se pudieron traer. Un fallo aqui no tumba el Inicio. */
+  const [deudas, setDeudas] = useState<{ total: number; mes: number } | null>(null);
 
   const traer = useCallback(async () => {
     if (!user) return;
@@ -56,9 +54,12 @@ const InicioScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       : pagos.filter((m) => String(m.userId) === String(alcance.userId));
     setPorPagar({ n: delAlcance.length, monto: delAlcance.reduce((t, m) => t + (m.amount || 0), 0) });
     try {
-      const c = await categoryService.getAll({ userId: user.userId, page: 0, size: 200 });
-      setOtras(((c.correct && c.object?.list) || []).filter((x: Category) => x.type === 'EXPENSE' && x.active !== false));
-    } catch { setOtras([]); }
+      const d = await deudaService.todas();
+      setDeudas(d?.correct && d.object ? { total: d.object.totalOwed || 0, mes: d.object.monthlyInstallments || 0 } : null);
+    } catch (err) {
+      console.warn('Inicio: no se pudieron traer las deudas', err);
+      setDeudas(null);
+    }
   }, [user, corte, periodo.inicio, alcance]);
 
   const { cargando, refrescando, error, cargar, refrescar } = useCarga(traer);
@@ -74,34 +75,35 @@ const InicioScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     );
   }
   const t = estado?.totals;
-  const gastos = (estado?.categories || []).filter((c) => c.kind === 'EXPENSE');
   const presupuestoDeGasto = (t?.budgeted || 0) - (t?.savingsGoal || 0);
 
-  /* En la dona van primero las categorias con plan o con gasto, y despues las
-     demas, hasta llenar el anillo. */
-  const enDona: CategoriaEnDona[] = gastos.map((c, i) => ({
-    id: c.categoryId, nombre: c.categoryName, icono: c.categoryIcon,
-    color: c.categoryColor || PALETA[i % PALETA.length], valor: c.actual,
-  }));
-  (estado?.categories || []).filter((c) => c.kind === 'SAVING').forEach((c, i) => enDona.push({
-    id: c.categoryId, nombre: c.categoryName, icono: c.categoryIcon,
-    color: c.categoryColor || PALETA[(gastos.length + i) % PALETA.length], valor: 0,
-  }));
-  /* TODAS las categorias de gasto alrededor, como en Monefy: antes solo salian
-     las que tenian plan o gasto y se completaba hasta 8, asi que Regalo, Obra
-     social y las demas no aparecian para anotar en ellas. */
-  otras.filter((o) => !enDona.some((d) => String(d.id) === String(o.id)))
-    .forEach((o, i) => enDona.push({ id: Number(o.id), nombre: o.name, icono: o.icon,
-      color: o.color || PALETA[(enDona.length + i) % PALETA.length], valor: 0 }));
+  /* En la dona solo va lo GASTADO: los ahorros no se dibujan, y la dona misma
+     deja fuera lo que no tiene gasto y junta lo chico en "Otros". */
+  const enDona: CategoriaEnDona[] = (estado?.categories || [])
+    .filter((c) => c.kind === 'EXPENSE')
+    .map((c, i) => ({
+      id: c.categoryId, nombre: c.categoryName, icono: c.categoryIcon,
+      color: c.categoryColor || PALETA[i % PALETA.length], valor: c.actual || 0, presupuesto: c.allocated || 0,
+    }));
 
-  const recuadro = (titulo: string, valor: number, detalle: string, destino: () => void, etiqueta: string) => (
-    <TouchableOpacity style={[styles.kpi, { backgroundColor: colors.surfaceLight }]} onPress={destino}
-      accessibilityRole="button" accessibilityLabel={etiqueta}>
-      <AppText variant="caption" color={colors.textSecondary}>{titulo}</AppText>
-      <AppText variant="body" style={{ fontWeight: '800' }} numberOfLines={1}>{formatCompacto(valor)}</AppText>
-      <AppText variant="caption" color={colors.textMuted} numberOfLines={1}>{detalle}</AppText>
+  const recuadro = (o: {
+    titulo: string; icono?: string; valor: string; colorValor?: string; detalle: string;
+    destino: () => void; etiqueta: string;
+  }) => (
+    <TouchableOpacity style={[styles.kpi, { backgroundColor: colors.surfaceLight }]} onPress={o.destino}
+      accessibilityRole="button" accessibilityLabel={o.etiqueta}>
+      <View style={styles.tituloKpi}>
+        {o.icono && <Icono nombre={o.icono} color={colors.textSecondary} tamano={16} />}
+        <AppText variant="caption" color={colors.textSecondary} numberOfLines={1}>{o.titulo}</AppText>
+      </View>
+      <AppText variant="body" style={{ fontWeight: '800', color: o.colorValor || colors.text }} numberOfLines={1} adjustsFontSizeToFit>
+        {o.valor}
+      </AppText>
+      <AppText variant="caption" color={colors.textMuted} numberOfLines={1}>{o.detalle}</AppText>
     </TouchableOpacity>
   );
+
+  const ahorros = t?.savingsBalance || 0;
 
   return (
     <View style={[styles.pantalla, { backgroundColor: colors.background }]}>
@@ -110,32 +112,47 @@ const InicioScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         refreshControl={<RefreshControl refreshing={refrescando} onRefresh={refrescar} tintColor={colors.primary} />}>
         <DonaDeCategorias
           categorias={enDona}
-          onCategoria={(c) => setElegida(c)}
+          libre={t?.freeToSpend || 0}
+          gastado={t?.spent || 0}
+          presupuestado={presupuestoDeGasto}
           onCentro={() => navigation.navigate('Presupuesto')}
-          onMas={() => navigation.navigate('Anotar', { tipo: 'EXPENSE' })}
-          etiquetaCentro={`Gastado ${formatCurrency(t?.spent || 0)} de ${formatCurrency(presupuestoDeGasto)}. Ver el presupuesto`}
-          centro={
-            <>
-              <AppText variant="caption" color={colors.textSecondary}>Gastado</AppText>
-              <AppText variant="subtitle" style={{ fontWeight: '800', color: colors.expense }} numberOfLines={1} adjustsFontSizeToFit>
-                {formatCurrency(t?.spent || 0)}
-              </AppText>
-              <AppText variant="caption" color={colors.textSecondary} numberOfLines={1} adjustsFontSizeToFit>
-                de {formatCurrency(presupuestoDeGasto)}
-              </AppText>
-            </>
-          }
+          onAnotar={(c) => navigation.navigate('Anotar', { tipo: 'EXPENSE', categoriaId: c.id })}
+          onVerMovimientos={(c) => navigation.navigate('Movimientos', { categoriaId: c.id })}
+          onVerCategoria={(c) => navigation.navigate('Categoria', { categoryId: c.id })}
+          onAnterior={anterior}
+          onSiguiente={puedeSeguir ? siguiente : undefined}
+          claveAnimacion={`${periodo.inicio}|${alcance.tipo === 'HOGAR' ? 'HOGAR' : alcance.userId}`}
         />
 
         <View style={styles.kpis}>
-          {recuadro('Ingresos', t?.incomeReceived || 0, `de ${formatCompacto(t?.incomeExpected || 0)}`,
-            () => navigation.navigate('Ingresos'),
-            `Ingresos recibidos ${formatCurrency(t?.incomeReceived || 0)} de ${formatCurrency(t?.incomeExpected || 0)}. Ver el detalle`)}
-          {recuadro('Por pagar', porPagar.monto, `${porPagar.n} ${porPagar.n === 1 ? 'pago' : 'pagos'}`,
-            () => navigation.navigate('PorConfirmar', { quien: alcance.tipo === 'HOGAR' ? 'DOS' : alcance.userId }),
-            `Por pagar ${formatCurrency(porPagar.monto)} en ${porPagar.n} pagos. Ver cuáles son`)}
-          {recuadro('Fondos', estado?.funds.total || 0, 'en cuentas',
-            () => navigation.navigate('AccountsList'), `Fondos ${formatCurrency(estado?.funds.total || 0)}. Ver las cuentas`)}
+          {recuadro({
+            titulo: 'Ingresos', valor: formatCompacto(t?.incomeReceived || 0),
+            detalle: `de ${formatCompacto(t?.incomeExpected || 0)}`,
+            destino: () => navigation.navigate('Ingresos'),
+            etiqueta: `Ingresos recibidos ${formatCurrency(t?.incomeReceived || 0)} de ${formatCurrency(t?.incomeExpected || 0)}. Ver el detalle`,
+          })}
+          {recuadro({
+            titulo: 'Por pagar', valor: formatCompacto(porPagar.monto),
+            detalle: `${porPagar.n} ${porPagar.n === 1 ? 'pago' : 'pagos'}`,
+            destino: () => navigation.navigate('PorConfirmar', { quien: alcance.tipo === 'HOGAR' ? 'DOS' : alcance.userId }),
+            etiqueta: `Por pagar ${formatCurrency(porPagar.monto)} en ${porPagar.n} pagos. Ver cuáles son`,
+          })}
+        </View>
+        <View style={styles.kpis}>
+          {recuadro({
+            titulo: 'Ahorros', icono: 'piggy-bank', valor: formatCompacto(ahorros), colorValor: colors.income,
+            detalle: 'en todos los ahorros',
+            destino: () => navigation.navigate('Ahorros'),
+            etiqueta: `Ahorros: hay ${formatCurrency(ahorros)}. Ver los ahorros`,
+          })}
+          {recuadro({
+            titulo: 'Deudas', icono: 'credit-card', valor: deudas ? formatCompacto(deudas.total) : '—',
+            detalle: deudas ? `este mes ${formatCompacto(deudas.mes)}` : 'No se pudieron cargar',
+            destino: () => navigation.navigate('Deudas'),
+            etiqueta: deudas
+              ? `Deudas: se deben ${formatCurrency(deudas.total)}, este mes ${formatCurrency(deudas.mes)}. Ver las deudas`
+              : 'Deudas: no se pudieron cargar. Ver las deudas',
+          })}
         </View>
 
         {misPendientes.n > 0 && (
@@ -150,59 +167,7 @@ const InicioScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             <Icono nombre="right" color={colors.textSecondary} tamano={18} />
           </TouchableOpacity>
         )}
-
-        <TouchableOpacity style={[styles.libre, { borderColor: colors.border }]} onPress={() => navigation.navigate('Movimientos')}
-          accessibilityRole="button" accessibilityLabel="Ver los movimientos del periodo por categoría">
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <Icono nombre="list" color={colors.textSecondary} />
-            <AppText variant="body" color={colors.textSecondary}>Movimientos del periodo</AppText>
-          </View>
-          <Icono nombre="right" color={colors.textSecondary} tamano={18} />
-        </TouchableOpacity>
-
-        <TouchableOpacity style={[styles.libre, { borderColor: colors.border }]} onPress={() => navigation.navigate('Responsabilidades')}
-          accessibilityRole="button" accessibilityLabel={`Libre para gastar ${formatCurrency(t?.freeToSpend || 0)}. Ver de dónde sale`}>
-          <AppText variant="body" color={colors.textSecondary}>Libre para gastar</AppText>
-          <AppText variant="body" style={{ fontWeight: '800', color: (t?.freeToSpend || 0) >= 0 ? colors.income : colors.expense }}>
-            {formatCurrency(t?.freeToSpend || 0)}
-          </AppText>
-        </TouchableOpacity>
       </ScrollView>
-
-      <Modal visible={!!elegida} transparent animationType="slide" onRequestClose={() => setElegida(null)}>
-        <TouchableOpacity style={styles.fondo} activeOpacity={1} onPress={() => setElegida(null)}
-          accessibilityRole="button" accessibilityLabel="Cerrar">
-          {elegida && (
-            <View style={[styles.hoja, { backgroundColor: colors.surface }]}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 4 }}>
-                <CirculoCategoria icono={elegida.icono} color={elegida.color} tamano={40} />
-                <View>
-                  <AppText variant="subtitle">{elegida.nombre}</AppText>
-                  <AppText variant="caption" color={colors.textSecondary}>Van {formatCurrency(elegida.valor)} este periodo</AppText>
-                </View>
-              </View>
-              <TouchableOpacity style={[styles.opcion, { backgroundColor: colors.expense }]}
-                onPress={() => { const c = elegida; setElegida(null); navigation.navigate('Anotar', { tipo: 'EXPENSE', categoriaId: c.id }); }}
-                accessibilityRole="button" accessibilityLabel={`Anotar un gasto en ${elegida.nombre}`}>
-                <Icono nombre="minus" color="#FFFFFF" />
-                <AppText variant="body" style={{ color: '#FFFFFF', fontWeight: '800' }}>Anotar un gasto</AppText>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.opcion, { backgroundColor: colors.surfaceLight }]}
-                onPress={() => { const c = elegida; setElegida(null); navigation.navigate('Movimientos', { categoriaId: c.id }); }}
-                accessibilityRole="button" accessibilityLabel={`Ver los movimientos de ${elegida.nombre}`}>
-                <Icono nombre="list" color={colors.text} />
-                <AppText variant="body" style={{ fontWeight: '700' }}>Ver sus movimientos</AppText>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.opcion, { backgroundColor: colors.surfaceLight }]}
-                onPress={() => { const c = elegida; setElegida(null); navigation.navigate('Categoria', { categoryId: c.id }); }}
-                accessibilityRole="button" accessibilityLabel={`Ver el presupuesto de ${elegida.nombre}`}>
-                <Icono nombre="chart" color={colors.text} />
-                <AppText variant="body" style={{ fontWeight: '700' }}>Ver su presupuesto</AppText>
-              </TouchableOpacity>
-            </View>
-          )}
-        </TouchableOpacity>
-      </Modal>
 
       <View style={styles.botones}>
         <TouchableOpacity style={[styles.grande, { backgroundColor: colors.expense }]}
@@ -224,14 +189,11 @@ const styles = StyleSheet.create({
   pantalla: { flex: 1 },
   contenido: { padding: 16, gap: 12, paddingBottom: 24 },
   kpis: { flexDirection: 'row', gap: 8 },
-  kpi: { flex: 1, minWidth: 0, borderRadius: 14, padding: 10, gap: 2 },
+  kpi: { flex: 1, minWidth: 0, borderRadius: 14, padding: 10, gap: 2, minHeight: 64 },
+  tituloKpi: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   aviso: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: 14, minHeight: 52 },
   punto: { width: 10, height: 10, borderRadius: 5 },
-  libre: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, borderRadius: 14, borderWidth: 1, minHeight: 52 },
   botones: { flexDirection: 'row', gap: 12, padding: 16, paddingTop: 8 },
-  fondo: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  hoja: { padding: 20, gap: 10, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
-  opcion: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 54, borderRadius: 14, paddingHorizontal: 16 },
   grande: { flex: 1, height: 60, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   textoGrande: { color: '#FFFFFF', fontWeight: '800' },
 });

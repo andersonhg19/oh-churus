@@ -15,14 +15,11 @@ import { CategoryTree } from '../../types';
 type SettingsStackParamList = {
   SettingsMain: undefined;
   CategoriesList: undefined;
-  AccountsList: undefined;
-  Balances: undefined;
   CategoryForm: { category?: CategoryTree };
   ExportImport: undefined;
   PeriodConfig: undefined;
   CurrencyConfig: undefined;
   Household: undefined;
-  Consolidated: undefined;
   AdminUsers: undefined;
   AdminRoles: undefined;
   AdminModules: undefined;
@@ -71,11 +68,11 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
       {/* Menu items */}
       <Card
         style={styles.menuItem}
-        accessibilityLabel="Exportar o importar tus datos"
+        accessibilityLabel="Exportar tus datos a Excel"
         onPress={() => navigation.navigate('ExportImport')}
       >
         <View style={styles.menuRow}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}><Icono nombre="upload" color={colors.primary} /><AppText variant="body">Exportar / Importar</AppText></View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}><Icono nombre="upload" color={colors.primary} /><AppText variant="body">Exportar a Excel</AppText></View>
           <AppText variant="body" color={colors.textMuted}>›</AppText>
         </View>
       </Card>
@@ -115,44 +112,11 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
 
       <Card
         style={styles.menuItem}
-        accessibilityLabel="Cuentas y saldos"
-        onPress={() => navigation.navigate('AccountsList')}
-      >
-        <View style={styles.menuRow}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}><Icono nombre="wallet" color={colors.primary} /><AppText variant="body">Cuentas y saldos</AppText></View>
-          <AppText variant="body" color={colors.textMuted}>›</AppText>
-        </View>
-      </Card>
-
-      <Card
-        style={styles.menuItem}
-        accessibilityLabel="Cuentas entre nosotros"
-        onPress={() => navigation.navigate('Balances')}
-      >
-        <View style={styles.menuRow}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}><Icono nombre="swap-horizontal" color={colors.primary} /><AppText variant="body">Cuentas entre nosotros</AppText></View>
-          <AppText variant="body" color={colors.textMuted}>›</AppText>
-        </View>
-      </Card>
-
-      <Card
-        style={styles.menuItem}
         accessibilityLabel="Gestionar las categorías"
         onPress={() => navigation.navigate('CategoriesList')}
       >
         <View style={styles.menuRow}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}><Icono nombre="list" color={colors.primary} /><AppText variant="body">Categorías</AppText></View>
-          <AppText variant="body" color={colors.textMuted}>›</AppText>
-        </View>
-      </Card>
-
-      <Card
-        style={styles.menuItem}
-        accessibilityLabel="Consolidado mensual"
-        onPress={() => navigation.navigate('Consolidated')}
-      >
-        <View style={styles.menuRow}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}><Icono nombre="bar-chart" color={colors.primary} /><AppText variant="body">Consolidado del mes</AppText></View>
           <AppText variant="body" color={colors.textMuted}>›</AppText>
         </View>
       </Card>

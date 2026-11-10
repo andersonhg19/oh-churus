@@ -35,12 +35,4 @@ export const authService = {
     );
     return response.data;
   },
-
-  getAllUsers: async (filter: UserFilter) => {
-    const response = await api.post<ResultDTO<PageDTO<ResultUserDTO>>>(
-      `${USERS_BASE}/all`,
-      filter,
-    );
-    return response.data;
-  },
 };

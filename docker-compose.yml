@@ -131,32 +131,6 @@ services:
       timeout: 5s
       retries: 10
 
-  fasting-service:
-    image: oh-churus-fasting
-    build:
-      context: ./backend/fasting-service
-    ports:
-      - "127.0.0.1:8825:8825"
-    depends_on:
-      discovery-service:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-    environment:
-      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75 -Xss512k -XX:+UseSerialGC"
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/fasting_db
-      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-OhChurus2026}
-      SECRET: ${SECRET:-ohchurus@secret.key}
-    mem_limit: 448m
-    networks:
-      - oh-churus-network
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8825/oh-churus/actuator/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-
   # ==================== FRONTEND ====================
   frontend:
     image: oh-churus-frontend

@@ -171,7 +171,6 @@ class DTOTest {
         dto.setDescription("desc");
         dto.setScheduledMovementId(4L);
         dto.setParentMovementId(5L);
-        dto.setAccountId(7L);
         dto.setConfirmed(true);
         assertEquals(1L, dto.getId());
         assertEquals(2L, dto.getUserId());
@@ -292,193 +291,6 @@ class DTOTest {
     }
 
     @Test
-    @DisplayName("DashboardSummaryDTO builder, all-args, no-args, setters and getters with budgetTotal")
-    void testDashboardSummary() {
-        LocalDate start = LocalDate.of(2026, 3, 1);
-        LocalDate end = LocalDate.of(2026, 3, 31);
-        DashboardSummaryDTO dto = DashboardSummaryDTO.builder()
-                .totalIncome(new BigDecimal("1000"))
-                .totalExpense(new BigDecimal("500"))
-                .balance(new BigDecimal("500"))
-                .budgetTotal(new BigDecimal("800"))
-                .pendingCount(3)
-                .pendingAmount(new BigDecimal("200"))
-                .periodStart(start)
-                .periodEnd(end)
-                .build();
-        assertEquals(new BigDecimal("1000"), dto.getTotalIncome());
-        assertEquals(new BigDecimal("500"), dto.getTotalExpense());
-        assertEquals(new BigDecimal("500"), dto.getBalance());
-        assertEquals(new BigDecimal("800"), dto.getBudgetTotal());
-        assertEquals(3, dto.getPendingCount());
-        assertEquals(new BigDecimal("200"), dto.getPendingAmount());
-        assertEquals(start, dto.getPeriodStart());
-        assertEquals(end, dto.getPeriodEnd());
-
-        // Test setters
-        DashboardSummaryDTO dto2 = new DashboardSummaryDTO();
-        dto2.setTotalIncome(new BigDecimal("2000"));
-        dto2.setTotalExpense(new BigDecimal("1000"));
-        dto2.setBudgetTotal(new BigDecimal("1500"));
-        dto2.setPendingCount(5);
-        dto2.setPendingAmount(new BigDecimal("300"));
-        dto2.setBalance(new BigDecimal("700"));
-        dto2.setPeriodStart(start);
-        dto2.setPeriodEnd(end);
-        assertEquals(new BigDecimal("2000"), dto2.getTotalIncome());
-
-        // Test all-args
-        DashboardSummaryDTO dto3 = new DashboardSummaryDTO(
-                new BigDecimal("3000"), new BigDecimal("1500"), new BigDecimal("1500"),
-                new BigDecimal("2000"), null, 2, new BigDecimal("100"), null, null, start, end);
-        assertEquals(new BigDecimal("3000"), dto3.getTotalIncome());
-    }
-
-    @Test
-    @DisplayName("DashboardSummaryDTO.CategorySummary with categoryType field")
-    void testCategorySummary() {
-        DashboardSummaryDTO.CategorySummary cs = DashboardSummaryDTO.CategorySummary.builder()
-                .categoryId(1L).categoryName("Food").categoryType("EXPENSE").icon("utensils").color("#FF0000")
-                .total(new BigDecimal("500")).count(5).build();
-        assertEquals(1L, cs.getCategoryId());
-        assertEquals("Food", cs.getCategoryName());
-        assertEquals("EXPENSE", cs.getCategoryType());
-        assertEquals("utensils", cs.getIcon());
-        assertEquals("#FF0000", cs.getColor());
-        assertEquals(new BigDecimal("500"), cs.getTotal());
-        assertEquals(5, cs.getCount());
-
-        // NoArgs + setters
-        DashboardSummaryDTO.CategorySummary cs2 = new DashboardSummaryDTO.CategorySummary();
-        cs2.setCategoryId(2L);
-        cs2.setCategoryName("Transport");
-        cs2.setCategoryType("EXPENSE");
-        cs2.setIcon("car");
-        cs2.setColor("#00FF00");
-        cs2.setTotal(new BigDecimal("300"));
-        cs2.setCount(3);
-        assertEquals(2L, cs2.getCategoryId());
-
-        // AllArgs
-        DashboardSummaryDTO.CategorySummary cs3 = new DashboardSummaryDTO.CategorySummary(
-                3L, "Health", "INCOME", "heart", "#0000FF", new BigDecimal("200"), 2);
-        assertEquals("Health", cs3.getCategoryName());
-    }
-
-    @Test
-    @DisplayName("DashboardSummaryDTO.SplitSummary all fields")
-    void testSplitSummary() {
-        LocalDate start = LocalDate.of(2026, 3, 1);
-        LocalDate end = LocalDate.of(2026, 3, 31);
-
-        DashboardSummaryDTO.SplitSummary ss = DashboardSummaryDTO.SplitSummary.builder()
-                .personalIncome(new BigDecimal("1000"))
-                .personalExpense(new BigDecimal("500"))
-                .personalBalance(new BigDecimal("500"))
-                .sharedIncome(new BigDecimal("2000"))
-                .sharedExpense(new BigDecimal("1500"))
-                .sharedBalance(new BigDecimal("500"))
-                .totalIncome(new BigDecimal("3000"))
-                .totalExpense(new BigDecimal("2000"))
-                .totalBalance(new BigDecimal("1000"))
-                .personalPendingCount(2)
-                .sharedPendingCount(3)
-                .periodStart(start)
-                .periodEnd(end)
-                .build();
-
-        assertEquals(new BigDecimal("1000"), ss.getPersonalIncome());
-        assertEquals(new BigDecimal("500"), ss.getPersonalExpense());
-        assertEquals(new BigDecimal("500"), ss.getPersonalBalance());
-        assertEquals(new BigDecimal("2000"), ss.getSharedIncome());
-        assertEquals(new BigDecimal("1500"), ss.getSharedExpense());
-        assertEquals(new BigDecimal("500"), ss.getSharedBalance());
-        assertEquals(new BigDecimal("3000"), ss.getTotalIncome());
-        assertEquals(new BigDecimal("2000"), ss.getTotalExpense());
-        assertEquals(new BigDecimal("1000"), ss.getTotalBalance());
-        assertEquals(2, ss.getPersonalPendingCount());
-        assertEquals(3, ss.getSharedPendingCount());
-        assertEquals(start, ss.getPeriodStart());
-        assertEquals(end, ss.getPeriodEnd());
-
-        // NoArgs + setters
-        DashboardSummaryDTO.SplitSummary ss2 = new DashboardSummaryDTO.SplitSummary();
-        ss2.setPersonalIncome(BigDecimal.ZERO);
-        ss2.setPersonalExpense(BigDecimal.ZERO);
-        ss2.setPersonalBalance(BigDecimal.ZERO);
-        ss2.setSharedIncome(BigDecimal.ZERO);
-        ss2.setSharedExpense(BigDecimal.ZERO);
-        ss2.setSharedBalance(BigDecimal.ZERO);
-        ss2.setTotalIncome(BigDecimal.ZERO);
-        ss2.setTotalExpense(BigDecimal.ZERO);
-        ss2.setTotalBalance(BigDecimal.ZERO);
-        ss2.setPersonalPendingCount(0);
-        ss2.setSharedPendingCount(0);
-        ss2.setPeriodStart(start);
-        ss2.setPeriodEnd(end);
-        assertEquals(BigDecimal.ZERO, ss2.getPersonalIncome());
-
-        // AllArgs
-        DashboardSummaryDTO.SplitSummary ss3 = new DashboardSummaryDTO.SplitSummary(
-                new BigDecimal("100"), new BigDecimal("50"), new BigDecimal("50"),
-                new BigDecimal("200"), new BigDecimal("100"), new BigDecimal("100"),
-                new BigDecimal("300"), new BigDecimal("150"), new BigDecimal("150"),
-                1, 2, null, null, null, null, null, null, start, end);
-        assertEquals(new BigDecimal("100"), ss3.getPersonalIncome());
-    }
-
-    @Test
-    @DisplayName("DashboardSummaryDTO.TrendDTO with 4 income/expense fields")
-    void testTrendDTO() {
-        LocalDate cs = LocalDate.of(2026, 3, 1);
-        LocalDate ce = LocalDate.of(2026, 3, 31);
-        LocalDate ps = LocalDate.of(2026, 2, 1);
-        LocalDate pe = LocalDate.of(2026, 2, 28);
-
-        DashboardSummaryDTO.TrendDTO trend = DashboardSummaryDTO.TrendDTO.builder()
-                .currentIncome(new BigDecimal("1000"))
-                .currentExpense(new BigDecimal("400"))
-                .previousIncome(new BigDecimal("800"))
-                .previousExpense(new BigDecimal("300"))
-                .changePercentage(new BigDecimal("25.0"))
-                .currentPeriodStart(cs)
-                .currentPeriodEnd(ce)
-                .previousPeriodStart(ps)
-                .previousPeriodEnd(pe)
-                .build();
-        assertEquals(new BigDecimal("1000"), trend.getCurrentIncome());
-        assertEquals(new BigDecimal("400"), trend.getCurrentExpense());
-        assertEquals(new BigDecimal("800"), trend.getPreviousIncome());
-        assertEquals(new BigDecimal("300"), trend.getPreviousExpense());
-        assertEquals(new BigDecimal("25.0"), trend.getChangePercentage());
-        assertEquals(cs, trend.getCurrentPeriodStart());
-        assertEquals(ce, trend.getCurrentPeriodEnd());
-        assertEquals(ps, trend.getPreviousPeriodStart());
-        assertEquals(pe, trend.getPreviousPeriodEnd());
-
-        // NoArgs + setters
-        DashboardSummaryDTO.TrendDTO t2 = new DashboardSummaryDTO.TrendDTO();
-        t2.setCurrentIncome(new BigDecimal("2000"));
-        t2.setCurrentExpense(new BigDecimal("1000"));
-        t2.setPreviousIncome(new BigDecimal("1500"));
-        t2.setPreviousExpense(new BigDecimal("700"));
-        t2.setChangePercentage(new BigDecimal("33.3"));
-        t2.setCurrentPeriodStart(cs);
-        t2.setCurrentPeriodEnd(ce);
-        t2.setPreviousPeriodStart(ps);
-        t2.setPreviousPeriodEnd(pe);
-        assertEquals(new BigDecimal("2000"), t2.getCurrentIncome());
-
-        // AllArgs
-        DashboardSummaryDTO.TrendDTO t3 = new DashboardSummaryDTO.TrendDTO(
-                new BigDecimal("3000"), new BigDecimal("1200"),
-                new BigDecimal("2500"), new BigDecimal("1000"),
-                new BigDecimal("20.0"),
-                cs, ce, ps, pe);
-        assertEquals(new BigDecimal("3000"), t3.getCurrentIncome());
-    }
-
-    @Test
     @DisplayName("ResultCategoryDTO all getters/setters including householdId and shared")
     void testResultCategory() {
         ResultCategoryDTO dto = new ResultCategoryDTO();
@@ -511,7 +323,7 @@ class DTOTest {
     }
 
     @Test
-    @DisplayName("ResultMovementDTO all getters/setters including parentMovementId, isTransfer, transferPairId")
+    @DisplayName("ResultMovementDTO all getters/setters including parentMovementId")
     void testResultMovement() {
         LocalDate now = LocalDate.now();
         ResultMovementDTO dto = new ResultMovementDTO();
@@ -523,8 +335,6 @@ class DTOTest {
         dto.setDescription("test");
         dto.setScheduledMovementId(4L);
         dto.setParentMovementId(5L);
-        dto.setIsTransfer(true);
-        dto.setTransferPairId(6L);
         dto.setConfirmed(true);
         dto.setActive(true);
         assertEquals(1L, dto.getId());
@@ -535,8 +345,6 @@ class DTOTest {
         assertEquals("test", dto.getDescription());
         assertEquals(4L, dto.getScheduledMovementId());
         assertEquals(5L, dto.getParentMovementId());
-        assertTrue(dto.getIsTransfer());
-        assertEquals(6L, dto.getTransferPairId());
         assertTrue(dto.getConfirmed());
         assertTrue(dto.getActive());
         // Enrichment fields
@@ -680,7 +488,7 @@ class DTOTest {
     }
 
     @Test
-    @DisplayName("Entity - Movement all constructors, builder, setters, getters including parentMovementId, isTransfer, transferPairId")
+    @DisplayName("Entity - Movement all constructors, builder, setters, getters including parentMovementId")
     void testMovementEntity() {
         LocalDate date = LocalDate.now();
         LocalDateTime now = LocalDateTime.now();
@@ -689,7 +497,6 @@ class DTOTest {
                 .date(date).amount(new BigDecimal("100"))
                 .description("test").scheduledMovementId(4L)
                 .parentMovementId(5L)
-                .isTransfer(true).transferPairId(6L)
                 .confirmed(true).active(true).build();
         assertEquals(1L, m.getId());
         assertEquals(2L, m.getUserId());
@@ -699,8 +506,6 @@ class DTOTest {
         assertEquals("test", m.getDescription());
         assertEquals(4L, m.getScheduledMovementId());
         assertEquals(5L, m.getParentMovementId());
-        assertTrue(m.getIsTransfer());
-        assertEquals(6L, m.getTransferPairId());
         assertTrue(m.getConfirmed());
         assertTrue(m.getActive());
 
@@ -714,16 +519,12 @@ class DTOTest {
         m2.setDescription("d");
         m2.setScheduledMovementId(40L);
         m2.setParentMovementId(50L);
-        m2.setIsTransfer(false);
-        m2.setTransferPairId(60L);
         m2.setConfirmed(false);
         m2.setActive(false);
         m2.setCreatedAt(now);
         m2.setUpdatedAt(now);
         assertEquals(10L, m2.getId());
         assertEquals(50L, m2.getParentMovementId());
-        assertFalse(m2.getIsTransfer());
-        assertEquals(60L, m2.getTransferPairId());
         assertNotNull(m2.getCreatedAt());
         assertNotNull(m2.getUpdatedAt());
 
@@ -755,17 +556,11 @@ class DTOTest {
         Movement m3 = Movement.builder()
                 .id(1L).userId(2L).categoryId(3L).date(date).amount(new BigDecimal("50"))
                 .description("d").scheduledMovementId(4L).periodStart(date).parentMovementId(5L)
-                .accountId(7L).isOpening(false).isTransfer(true).transferPairId(6L)
                 .confirmed(true).active(true).createdAt(now).updatedAt(now)
                 .build();
         assertEquals(new BigDecimal("50"), m3.getAmount());
         assertEquals(date, m3.getPeriodStart());
         assertEquals(5L, m3.getParentMovementId());
-        assertTrue(m3.getIsTransfer());
-        assertEquals(6L, m3.getTransferPairId());
-        assertEquals(7L, m3.getAccountId());
-        assertFalse(m3.getIsOpening());
-        assertFalse(m3.getIsSettlement());
     }
 
     @Test

@@ -10,13 +10,11 @@ import com.ohchurus.budget.entity.Household;
 import com.ohchurus.budget.entity.HouseholdMember;
 import com.ohchurus.budget.entity.Movement;
 import com.ohchurus.budget.enums.CategoryType;
-import com.ohchurus.budget.repository.AccountRepository;
 import com.ohchurus.budget.repository.BudgetAllocationRepository;
 import com.ohchurus.budget.repository.CategoryRepository;
 import com.ohchurus.budget.repository.HouseholdMemberRepository;
 import com.ohchurus.budget.repository.HouseholdRepository;
 import com.ohchurus.budget.repository.MovementRepository;
-import com.ohchurus.budget.repository.MovementSplitRepository;
 import com.ohchurus.budget.repository.ScheduledMovementRepository;
 import com.ohchurus.budget.util.PeriodUtils;
 import org.junit.jupiter.api.BeforeEach;
@@ -57,9 +55,7 @@ abstract class EscenarioFinanciero {
 
     @Autowired WebApplicationContext contexto;
     @Autowired MovementRepository movimientos;
-    @Autowired MovementSplitRepository partes;
     @Autowired CategoryRepository categorias;
-    @Autowired AccountRepository cuentas;
     @Autowired HouseholdRepository hogares;
     @Autowired HouseholdMemberRepository miembros;
     @Autowired BudgetAllocationRepository asignaciones;
@@ -73,11 +69,9 @@ abstract class EscenarioFinanciero {
     @BeforeEach
     void montarBase() {
         mvc = MockMvcBuilders.webAppContextSetup(contexto).apply(springSecurity()).build();
-        partes.deleteAll();
         movimientos.deleteAll();
         asignaciones.deleteAll();
         programados.deleteAll();
-        cuentas.deleteAll();
         categorias.deleteAll();
         miembros.deleteAll();
         hogares.deleteAll();

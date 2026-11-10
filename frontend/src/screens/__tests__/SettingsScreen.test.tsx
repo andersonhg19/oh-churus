@@ -25,7 +25,7 @@ describe('SettingsScreen', () => {
     );
     expect(getByText('Anderson')).toBeTruthy();
     expect(getByText('a@b.com')).toBeTruthy();
-    expect(getByText(/Exportar \/ Importar/)).toBeTruthy();
+    expect(getByText(/Exportar a Excel/)).toBeTruthy();
     expect(getByText('Oh Churus! v3.0.0')).toBeTruthy();
   });
 

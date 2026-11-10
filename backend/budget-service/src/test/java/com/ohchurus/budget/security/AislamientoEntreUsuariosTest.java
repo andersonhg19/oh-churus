@@ -10,9 +10,6 @@ import com.ohchurus.budget.entity.Movement;
 import com.ohchurus.budget.entity.ScheduledMovement;
 import com.ohchurus.budget.enums.CategoryType;
 import com.ohchurus.budget.enums.Frequency;
-import com.ohchurus.budget.entity.Account;
-import com.ohchurus.budget.enums.AccountKind;
-import com.ohchurus.budget.repository.AccountRepository;
 import com.ohchurus.budget.repository.BudgetAllocationRepository;
 import com.ohchurus.budget.repository.CategoryRepository;
 import com.ohchurus.budget.repository.HouseholdMemberRepository;
@@ -104,16 +101,12 @@ class AislamientoEntreUsuariosTest {
     private Long programadoDeAna;
     private Long asignacionDeAna;
     private Long hogarDeAna;
-    private Long cuentaDeAna;
-
-    @Autowired private AccountRepository cuentas;
 
     @BeforeEach
     void prepararEscenario() {
         mvc = MockMvcBuilders.webAppContextSetup(contexto).apply(springSecurity()).build();
 
         movimientos.deleteAll();
-        cuentas.deleteAll();
         asignaciones.deleteAll();
         programados.deleteAll();
         categorias.deleteAll();
@@ -129,14 +122,10 @@ class AislamientoEntreUsuariosTest {
                 .userId(ANA).name("Arriendo de Ana").type(CategoryType.EXPENSE).active(true).build());
         categoriaDeAna = cat.getId();
 
-        cuentaDeAna = cuentas.save(Account.builder()
-                .userId(ANA).name("Ahorros de Ana").kind(AccountKind.OWN)
-                .isDefault(true).active(true).build()).getId();
-
         Movement mov = movimientos.save(Movement.builder()
-                .userId(ANA).accountId(cuentaDeAna).categoryId(categoriaDeAna).date(LocalDate.now())
+                .userId(ANA).categoryId(categoriaDeAna).date(LocalDate.now())
                 .amount(new BigDecimal("1500000")).description("Arriendo de Ana")
-                .confirmed(true).active(true).isTransfer(false).build());
+                .confirmed(true).active(true).build());
         movimientoDeAna = mov.getId();
 
         ScheduledMovement prog = programados.save(ScheduledMovement.builder()
@@ -214,7 +203,7 @@ class AislamientoEntreUsuariosTest {
                     .userId(ANA).categoryId(categoriaDeAna).date(LocalDate.now())
                     .amount(new BigDecimal("500000")).description("Detalle privado de Ana")
                     .parentMovementId(movimientoDeAna).confirmed(true).active(true)
-                    .isTransfer(false).build());
+                    .build());
             noFiltraDatosDeAna(atacar("/v1/movements/children/" + movimientoDeAna, null),
                     "Detalle privado de Ana");
         }
@@ -393,41 +382,6 @@ class AislamientoEntreUsuariosTest {
         }
 
         @Test
-        @DisplayName("no puede sacar plata del bote comun del hogar de Ana")
-        void transferirDesdeElBoteAjeno() throws Exception {
-            /*
-             * Este caso faltaba, y lo delato el guardarrail: la comprobacion
-             * se arreglo en la ronda de control (transfer exige ahora que el
-             * hogar de la categoria de origen sea tuyo) pero nadie escribio la
-             * prueba, asi que la ruta seguia figurando como deuda pendiente y
-             * NingunEndpointSinDueno dejaba de exigirle un caso. Arreglo sin
-             * prueba es arreglo que se puede deshacer sin enterarse.
-             *
-             * El ataque: Bruno tiene un token valido y conoce el id de la
-             * categoria compartida del hogar de Ana —basta con que alguna vez
-             * se la hayan compartido, o con probar ids—. Antes bastaba con que
-             * la categoria de origen fuera COMPARTIDA; nadie miraba de quien
-             * era el hogar. Bruno se pasaba el bote comun de otra pareja a su
-             * bolsillo.
-             */
-            Long boteDeAna = categorias.save(Category.builder()
-                    .userId(ANA).name("Bote comun de Ana").type(CategoryType.EXPENSE)
-                    .householdId(hogarDeAna).active(true).build()).getId();
-            Long bolsilloDeBruno = categorias.save(Category.builder()
-                    .userId(BRUNO).name("Bolsillo de Bruno").type(CategoryType.INCOME)
-                    .active(true).build()).getId();
-            long antes = movimientos.count();
-
-            atacar("/v1/movements/transfer",
-                    "{\"fromCategoryId\":" + boteDeAna + ",\"toCategoryId\":" + bolsilloDeBruno
-                            + ",\"amount\":400000,\"description\":\"robo\"}");
-
-            assertThat(movimientos.count())
-                    .as("Bruno se llevo plata del bote comun de la pareja de Ana")
-                    .isEqualTo(antes);
-        }
-
-        @Test
         @DisplayName("no puede presupuestar sobre una categoria de Ana")
         void asignacion() throws Exception {
             /* Ana ya tiene 2.000.000 presupuestados en esta categoria. Como el
@@ -447,6 +401,50 @@ class AislamientoEntreUsuariosTest {
     }
 
     // ========================================================================
+    @Nested
+    @DisplayName("Tarjetas y deudas")
+    class TarjetasYDeudas {
+
+        @Autowired private com.ohchurus.budget.repository.CardRepository tarjetas;
+
+        private Long tarjetaDeAna() {
+            return tarjetas.save(com.ohchurus.budget.entity.Card.builder()
+                    .userId(ANA).householdId(hogarDeAna).name("Visa de Ana").active(true).build()).getId();
+        }
+
+        @Test
+        @DisplayName("no puede ver la tarjeta de Ana ni lo que debe en ella")
+        void verTarjetaAjena() throws Exception {
+            tarjetaDeAna();
+            noFiltraDatosDeAna(atacar("/v1/cards/mine", "{}"), "Visa de Ana");
+            noFiltraDatosDeAna(atacar("/v1/debts/all", "{}"), "Visa de Ana");
+        }
+
+        @Test
+        @DisplayName("no puede pagar, renombrar ni borrar la tarjeta de Ana")
+        void tocarTarjetaAjena() throws Exception {
+            Long visa = tarjetaDeAna();
+            atacar("/v1/cards/pay/" + visa, "{}");
+            atacar("/v1/cards/save", "{\"id\":" + visa + ",\"name\":\"Robada\"}");
+            atacar("/v1/cards/delete/" + visa, null);
+            com.ohchurus.budget.entity.Card t = tarjetas.findById(visa).orElseThrow();
+            assertThat(t.getName()).isEqualTo("Visa de Ana");
+            assertThat(t.getActive()).isTrue();
+        }
+
+        @Test
+        @DisplayName("no puede adelantar una cuota de una deuda de Ana")
+        void adelantarCuotaAjena() throws Exception {
+            ScheduledMovement credito = programados.save(ScheduledMovement.builder()
+                    .userId(ANA).categoryId(categoriaDeAna).name("Credito de Ana")
+                    .amount(new BigDecimal("700000")).frequency(Frequency.MONTHLY)
+                    .startDate(LocalDate.now()).endDate(LocalDate.now().plusMonths(6)).active(true).build());
+            long antes = movimientos.count();
+            atacar("/v1/debts/advance/" + credito.getId(), "{}");
+            assertThat(movimientos.count()).as("no se creo ningun pago a nombre de Ana").isEqualTo(antes);
+        }
+    }
+
     @Nested
     @DisplayName("Nucleo familiar")
     class NucleoFamiliar {
@@ -494,9 +492,9 @@ class AislamientoEntreUsuariosTest {
            de Ana. Ahora el userId del cuerpo se ignora y manda el token. */
 
         @Test
-        @DisplayName("el panel de Ana no se puede pedir con su userId")
+        @DisplayName("el estado del mes de Ana no se puede pedir con su userId")
         void panel() throws Exception {
-            noFiltraDatosDeAna(atacar("/v1/dashboard/summary",
+            noFiltraDatosDeAna(atacar("/v1/estado/periodo",
                     "{\"userId\":" + ANA + ",\"budgetStartDay\":1}"), "1500000");
         }
 
@@ -527,230 +525,6 @@ class AislamientoEntreUsuariosTest {
             noFiltraDatosDeAna(atacar("/v1/movements/by-period",
                     "{\"userId\":" + ANA + ",\"startDate\":\"" + LocalDate.now().minusDays(30)
                             + "\",\"endDate\":\"" + LocalDate.now().plusDays(1) + "\"}"),
-                    "Arriendo de Ana");
-        }
-    }
-
-    // ========================================================================
-    @Nested
-    @DisplayName("Cuentas")
-    class Cuentas {
-
-        /*
-         * La superficie mas nueva y la mas golosa: la cuenta dice CUANTA PLATA
-         * tiene alguien. Leer el saldo de otra persona es peor que leerle un
-         * gasto suelto, porque es el resumen de todos.
-         */
-
-        @Test
-        @DisplayName("no puede ver el saldo de la cuenta de Ana")
-        void leerCuenta() throws Exception {
-            noFiltraDatosDeAna(atacar("/v1/accounts/get/" + cuentaDeAna, null), "Ahorros de Ana");
-        }
-
-        @Test
-        @DisplayName("el listado de cuentas no incluye las de Ana")
-        void listarCuentas() throws Exception {
-            noFiltraDatosDeAna(atacar("/v1/accounts/all", "{}"), "Ahorros de Ana");
-        }
-
-        @Test
-        @DisplayName("no puede renombrar ni reclasificar la cuenta de Ana")
-        void editarCuenta() throws Exception {
-            atacar("/v1/accounts/save",
-                    "{\"id\":" + cuentaDeAna + ",\"name\":\"Secuestrada\",\"kind\":\"LIABILITY\"}");
-
-            Account cuenta = cuentas.findById(cuentaDeAna).orElseThrow();
-            assertThat(cuenta.getName())
-                    .as("le renombraron la cuenta a Ana")
-                    .isEqualTo("Ahorros de Ana");
-            assertThat(cuenta.getUserId())
-                    .as("la cuenta cambio de dueno")
-                    .isEqualTo(ANA);
-        }
-
-        @Test
-        @DisplayName("no puede borrar la cuenta de Ana")
-        void borrarCuenta() throws Exception {
-            atacar("/v1/accounts/delete/" + cuentaDeAna, null);
-            assertThat(cuentas.findById(cuentaDeAna).orElseThrow().getActive())
-                    .as("le desactivaron la cuenta a Ana y sus movimientos se quedan sin sitio")
-                    .isTrue();
-        }
-
-        @Test
-        @DisplayName("no puede conciliar la cuenta de Ana: eso le inventaria un movimiento")
-        void conciliarCuenta() throws Exception {
-            long antes = movimientos.count();
-            atacar("/v1/accounts/reconcile",
-                    "{\"accountId\":" + cuentaDeAna + ",\"realBalance\":1,\"apply\":true}");
-
-            assertThat(movimientos.count())
-                    .as("conciliar la cuenta de otro le mete un ajuste dentro de sus cifras")
-                    .isEqualTo(antes);
-        }
-
-        @Test
-        @DisplayName("no puede meter un movimiento suyo dentro de la cuenta de Ana")
-        void colarMovimientoEnCuentaAjena() throws Exception {
-            /* La variante de cuentas del agujero que costo dos olas: ya no se
-               puede mandar un userId ajeno, pero mandar un accountId ajeno
-               conseguiria lo mismo por otra columna — descuadrarle el saldo a
-               otra persona con un gasto que no hizo. */
-            atacar("/v1/movements/save",
-                    "{\"categoryId\":" + categoriaDeAna + ",\"accountId\":" + cuentaDeAna
-                            + ",\"date\":\"" + LocalDate.now() + "\",\"amount\":99999,"
-                            + "\"description\":\"colado\"}");
-
-            assertThat(movimientos.findByAccountIdAndActiveTrue(cuentaDeAna))
-                    .as("a Ana le aparecio en su cuenta un movimiento que no hizo")
-                    .noneMatch(m -> "colado".equals(m.getDescription()));
-        }
-    }
-
-    // ========================================================================
-    @Nested
-    @DisplayName("Reparto")
-    class Reparto {
-
-        /*
-         * El reparto abre una puerta que las demas funcionalidades no tenian:
-         * hasta ahora todo se resumia en "no toques lo de otro". Aqui hay algo
-         * peor de lo que se puede hacer con un id ajeno, y es METERLE una
-         * deuda a alguien que no ha hecho nada. Por eso repartir exige
-         * compartir hogar.
-         */
-
-        @Test
-        @DisplayName("no puede meterle una deuda a un desconocido usando su id")
-        void noSeInventanDeudasAjenas() throws Exception {
-            /* Bruno no comparte hogar con Ana. Si esto pasara, a Ana le
-               apareceria en su pantalla que le debe 999.999 a un extrano. */
-            Long suya = categorias.save(Category.builder()
-                    .userId(BRUNO).name("De Bruno").type(CategoryType.EXPENSE).active(true).build())
-                    .getId();
-
-            String r = atacar("/v1/movements/save",
-                    "{\"categoryId\":" + suya + ",\"date\":\"" + LocalDate.now()
-                            + "\",\"amount\":999999,\"splitMode\":\"EQUAL\",\"splits\":["
-                            + "{\"participantId\":" + BRUNO + "},{\"participantId\":" + ANA + "}]}");
-
-            assertThat(r)
-                    .as("le planto una deuda a Ana sin que ella hiciera nada")
-                    .contains("\"correct\":false");
-        }
-
-        @Test
-        @DisplayName("los balances que ve son los suyos, no los de Ana")
-        void balancesPropios() throws Exception {
-            noFiltraDatosDeAna(atacar("/v1/splits/balances", "{\"userId\":" + ANA + "}"),
-                    "Arriendo de Ana");
-        }
-
-        @Test
-        @DisplayName("no puede liquidar con alguien de fuera de su hogar")
-        void noLiquidaConExtranos() throws Exception {
-            long antes = movimientos.count();
-            atacar("/v1/splits/settle", "{\"withUserId\":" + ANA + ",\"amount\":500000}");
-
-            assertThat(movimientos.count())
-                    .as("liquidar con un extrano le escribe un movimiento a nombre de la "
-                            + "relacion que no existe, y le mueve el balance a la otra persona")
-                    .isEqualTo(antes);
-        }
-    }
-
-    // ========================================================================
-    @Nested
-    @DisplayName("Sobres")
-    class Sobres {
-
-        @Test
-        @DisplayName("no puede sacar plata del sobre de Ana")
-        void moverDesdeElSobreAjeno() throws Exception {
-            /*
-             * Mover entre sobres toca DOS categorias, y ahi esta la trampa: es
-             * facil acordarse de comprobar el destino —"que sea mia"— y
-             * olvidarse del origen. Con solo esa mitad, Bruno vaciaria el
-             * presupuesto de Ana hacia el suyo sin tocar un solo movimiento:
-             * a ella le desapareceria la plata de Arriendo sin ninguna
-             * explicacion en la lista de gastos.
-             */
-            Long suya = categorias.save(Category.builder()
-                    .userId(BRUNO).name("Bolsillo de Bruno").type(CategoryType.EXPENSE)
-                    .active(true).build()).getId();
-
-            atacar("/v1/budget-allocation/move",
-                    "{\"fromCategoryId\":" + categoriaDeAna + ",\"toCategoryId\":" + suya
-                            + ",\"amount\":500000,\"budgetStartDay\":1}");
-
-            assertThat(asignaciones.findById(asignacionDeAna).orElseThrow().getAllocatedAmount())
-                    .as("le movieron el presupuesto a Ana desde fuera")
-                    .isEqualByComparingTo("2000000.00");
-        }
-
-        @Test
-        @DisplayName("los sobres que ve son los suyos, no los de Ana")
-        void sobresPropios() throws Exception {
-            noFiltraDatosDeAna(
-                    atacar("/v1/budget-allocation/envelopes",
-                            "{\"userId\":" + ANA + ",\"budgetStartDay\":1}"),
-                    "Arriendo de Ana");
-        }
-    }
-
-    // ========================================================================
-    @Nested
-    @DisplayName("Importacion")
-    class Importacion {
-
-        @Test
-        @DisplayName("no puede meter movimientos importados en la categoria de Ana")
-        void importarADondeNoDebe() throws Exception {
-            /*
-             * Importar escribe movimientos de golpe, y ahi esta el peligro: una
-             * sola peticion con la categoria de otra persona le mete sesenta
-             * gastos que no hizo. No hay que adivinar el id de cada movimiento,
-             * basta uno de categoria.
-             */
-            long antes = movimientos.count();
-
-            atacar("/v1/import/confirm",
-                    "{\"csv\":\"fecha,concepto,valor\\n2026-08-01,Colado,-99999\\n\","
-                            + "\"dateColumn\":0,\"descriptionColumn\":1,\"amountColumn\":2,"
-                            + "\"hasHeader\":true,\"rows\":[{\"row\":1,\"categoryId\":"
-                            + categoriaDeAna + "}]}");
-
-            assertThat(movimientos.count())
-                    .as("le importo un gasto dentro de la categoria de Ana")
-                    .isEqualTo(antes);
-        }
-
-        @Test
-        @DisplayName("no puede confirmar un pendiente de Ana haciendolo pasar por suyo")
-        void confirmarPendienteAjeno() throws Exception {
-            /* Confirmar un pendiente ajeno le convierte a Ana en gasto real algo
-               que ella todavia no habia dado por pagado, y le descuadra el mes
-               sin que aparezca ningun movimiento nuevo que lo explique. */
-            atacar("/v1/import/confirm",
-                    "{\"csv\":\"fecha,concepto,valor\\n2026-08-01,Arriendo,-1500000\\n\","
-                            + "\"dateColumn\":0,\"descriptionColumn\":1,\"amountColumn\":2,"
-                            + "\"hasHeader\":true,\"rows\":[{\"row\":1,"
-                            + "\"confirmsMovementId\":" + movimientoDeAna + "}]}");
-
-            assertThat(movimientos.findById(movimientoDeAna).orElseThrow().getConfirmed())
-                    .as("le confirmaron a Ana un movimiento desde fuera")
-                    .isTrue();
-        }
-
-        @Test
-        @DisplayName("la vista previa no le ensena los movimientos de Ana")
-        void laVistaPreviaNoFiltra() throws Exception {
-            noFiltraDatosDeAna(
-                    atacar("/v1/import/preview",
-                            "{\"csv\":\"fecha,concepto,valor\\n2026-08-01,Arriendo,-1500000\\n\","
-                                    + "\"dateColumn\":0,\"descriptionColumn\":1,"
-                                    + "\"amountColumn\":2,\"hasHeader\":true}"),
                     "Arriendo de Ana");
         }
     }

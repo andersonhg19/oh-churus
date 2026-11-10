@@ -52,7 +52,7 @@ class LasFechasSeCumplenTest extends EscenarioFinanciero {
     }
 
     @Test
-    @DisplayName("corte 28: el 27 es del periodo anterior y el 28 abre el nuevo, en estado y panel")
+    @DisplayName("corte 28: el 27 es del periodo anterior y el 28 abre el nuevo")
     void elDia28AbreElPeriodo() throws Exception {
         mov(ANDY, casa, "27000", LocalDate.of(2026, 10, 27), true);
         mov(ANDY, casa, "28000", LocalDate.of(2026, 10, 28), true);
@@ -62,8 +62,6 @@ class LasFechasSeCumplenTest extends EscenarioFinanciero {
         assertThat(t(antes, "spent")).isEqualByComparingTo("27000");
         assertThat(despues.path("periodStart").asText()).isEqualTo("2026-10-28");
         assertThat(t(despues, "spent")).isEqualByComparingTo("28000");
-        JsonNode panel = ok(pedir(ANDY, "/v1/dashboard/summary", periodo(28, LocalDate.of(2026, 10, 27))));
-        assertThat(num(panel.path("totalExpense"))).isEqualByComparingTo("27000");
     }
 
     @Test

@@ -81,12 +81,12 @@ class ParametrosInvalidosTest extends EscenarioFinanciero {
     }
 
     @Test
-    @DisplayName("BUG · /dashboard/summary con budgetStartDay null explicito revienta en vez de usar el 1")
+    @DisplayName("/dashboard/pending con budgetStartDay null explicito usa el 1 en vez de reventar")
     void corteNuloEnElPanel() throws Exception {
         /* Esperado: como AsignacionPeriodoDTO, null = 1. Real:
            DashboardRequestDTO no tiene el getter defensivo; PeriodUtils
            recibe null y la respuesta es el error 500 generico. */
-        JsonNode r = pedir(ANDY, "/v1/dashboard/summary", "{\"budgetStartDay\":null,\"referenceDate\":\"2026-10-10\"}");
+        JsonNode r = pedir(ANDY, "/v1/dashboard/pending", "{\"budgetStartDay\":null,\"referenceDate\":\"2026-10-10\"}");
         assertThat(r.path("correct").asBoolean()).as(r.toString()).isTrue();
     }
 

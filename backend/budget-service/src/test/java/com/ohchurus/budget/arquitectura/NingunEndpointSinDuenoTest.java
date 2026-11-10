@@ -78,71 +78,40 @@ class NingunEndpointSinDuenoTest {
                 "catalogo de tipos de categoria: constantes del enum, no hay datos de nadie", null));
         EXENTAS.put("/v1/scheduled/frequency-list", new Exencion(
                 "catalogo de frecuencias: constantes del enum, no hay datos de nadie", null));
-        EXENTAS.put("/v1/accounts/kind-list", new Exencion(
-                "catalogo de clases de cuenta: constantes del enum, no hay datos de nadie", null));
 
         // --- No reciben ningun id ajeno: el userId sale del token y el cuerpo se ignora ---
-        // El panel es el representante de esta familia porque fue el caso real:
-        // enviar {"userId": 1} devolvia el resumen financiero completo de Ana.
-        EXENTAS.put("/v1/dashboard/by-category", new Exencion(
-                "no recibe ningun id: el userId sale del token y el del cuerpo se ignora",
-                "/v1/dashboard/summary"));
-        EXENTAS.put("/v1/dashboard/trend", new Exencion(
-                "no recibe ningun id: el userId sale del token y el del cuerpo se ignora",
-                "/v1/dashboard/summary"));
+        // El estado del mes es el representante de esta familia: el caso real
+        // fue el panel, que con {"userId": 1} devolvia el resumen completo de Ana.
         EXENTAS.put("/v1/dashboard/pending", new Exencion(
                 "no recibe ningun id: el userId sale del token y el del cuerpo se ignora",
-                "/v1/dashboard/summary"));
-        EXENTAS.put("/v1/dashboard/split-summary", new Exencion(
-                "no recibe ningun id: el userId sale del token y el del cuerpo se ignora",
-                "/v1/dashboard/summary"));
-        EXENTAS.put("/v1/dashboard/consolidated", new Exencion(
-                "no recibe ningun id: el userId sale del token y el del cuerpo se ignora",
-                "/v1/dashboard/summary"));
+                "/v1/estado/periodo"));
         // --- Ola 5: el plan y la copia del presupuesto. Ninguno recibe un id:
         //     de quien es lo dice el token, igual que el panel. ---
         EXENTAS.put("/v1/plan/quincena", new Exencion(
                 "no recibe ningun id: el plan es de quien pide y solo lee lo suyo y lo compartido",
-                "/v1/dashboard/summary"));
+                "/v1/estado/periodo"));
         EXENTAS.put("/v1/plan/calendar", new Exencion(
                 "no recibe ningun id: fechas de lo propio y lo compartido de quien pide",
-                "/v1/dashboard/summary"));
+                "/v1/estado/periodo"));
         EXENTAS.put("/v1/plan/responsibilities", new Exencion(
                 "no recibe ningun id: de los demas solo suma lo de categorias compartidas",
-                "/v1/dashboard/summary"));
+                "/v1/estado/periodo"));
         EXENTAS.put("/v1/plan/projection", new Exencion(
                 "no recibe ningun id: proyecta lo que paga quien pide",
-                "/v1/dashboard/summary"));
-        EXENTAS.put("/v1/estado/periodo", new Exencion(
-                "la identidad sale del token; personUserId solo puede ser alguien del hogar (ElCierreDelMesCuadraTest.nadieDeFuera) y de el solo se ve lo comun",
-                "/v1/dashboard/summary"));
+                "/v1/estado/periodo"));
         EXENTAS.put("/v1/estado/historial", new Exencion(
                 "misma regla que /v1/estado/periodo, repetida por periodos",
-                "/v1/dashboard/summary"));
+                "/v1/estado/periodo"));
         EXENTAS.put("/v1/budget-allocation/copy-previous", new Exencion(
                 "no recibe ningun id: copia las asignaciones visibles de quien pide",
-                "/v1/dashboard/summary"));
+                "/v1/estado/periodo"));
 
         EXENTAS.put("/v1/export/excel", new Exencion(
-                "mismo cuerpo y misma identidad que el panel: exporta el periodo de quien pide",
-                "/v1/dashboard/summary"));
+                "misma identidad que el estado: exporta el periodo de quien pide",
+                "/v1/estado/periodo"));
         EXENTAS.put("/v1/budget-allocation/list", new Exencion(
                 "no recibe ningun id: el userId sale del token y el del cuerpo se ignora",
-                "/v1/dashboard/summary"));
-        EXENTAS.put("/v1/budget-allocation/summary", new Exencion(
-                "no recibe ningun id: el userId sale del token y el del cuerpo se ignora",
-                "/v1/dashboard/summary"));
-        EXENTAS.put("/v1/import/preview", new Exencion(
-                "no recibe ningun id ajeno: lee el CSV que le mandan y lo coteja contra los "
-                        + "movimientos de quien pide, que salen del token. No escribe nada",
-                "/v1/dashboard/summary"));
-        EXENTAS.put("/v1/import/profiles", new Exencion(
-                "devuelve los perfiles de banco de quien pide: el userId sale del token",
-                "/v1/dashboard/summary"));
-        EXENTAS.put("/v1/budget-allocation/envelopes", new Exencion(
-                "no recibe ningun id: los sobres son los de quien pide, y del cuerpo solo "
-                        + "se miran el dia de corte y la fecha",
-                "/v1/dashboard/summary"));
+                "/v1/estado/periodo"));
         EXENTAS.put("/v1/categories/all", new Exencion(
                 "el controller pisa el userId del filtro con el del token antes de consultar",
                 "/v1/categories/tree"));
@@ -151,7 +120,7 @@ class NingunEndpointSinDuenoTest {
                 "/v1/scheduled/all"));
         EXENTAS.put("/v1/household/by-user", new Exencion(
                 "devuelve los hogares de quien pide: el userId del cuerpo se ignora",
-                "/v1/dashboard/summary"));
+                "/v1/estado/periodo"));
         EXENTAS.put("/v1/household/create", new Exencion(
                 "crea un hogar nuevo cuyo OWNER es quien llama; no toca nada existente", null));
 

@@ -20,13 +20,6 @@ export const scheduledService = {
     return response.data;
   },
 
-  getById: async (id: string) => {
-    const response = await api.post<ResultDTO<ScheduledMovement>>(
-      `${BASE}/get/${id}`,
-    );
-    return response.data;
-  },
-
   getAll: async (filter: ScheduledFilter) => {
     const response = await api.post<ResultDTO<PageDTO<ScheduledMovement>>>(
       `${BASE}/all`,
@@ -59,13 +52,6 @@ export const scheduledService = {
     const response = await api.post<ResultDTO<Movement[]>>(
       `${BASE}/materialize`,
       { occurrences },
-    );
-    return response.data;
-  },
-
-  frequencyList: async () => {
-    const response = await api.post<ResultDTO<Array<{ key: string; name: string }>>>(
-      `${BASE}/frequency-list`,
     );
     return response.data;
   },

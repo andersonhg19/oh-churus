@@ -3,10 +3,8 @@ package com.ohchurus.budget.controller;
 import com.ohchurus.budget.dto.input.MovementFilterDTO;
 import com.ohchurus.budget.dto.input.MovementSaveDTO;
 import com.ohchurus.budget.dto.input.PeriodRequestDTO;
-import com.ohchurus.budget.dto.input.TransferenciaDTO;
 import com.ohchurus.budget.dto.output.ResultDTO;
 import com.ohchurus.budget.service.MovementService;
-import com.ohchurus.budget.service.impl.BudgetAllocationServiceImpl;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -25,12 +23,9 @@ public class MovementController {
      */
 
     private final MovementService movementService;
-    private final BudgetAllocationServiceImpl budgetAllocationService;
 
-    public MovementController(MovementService movementService,
-                               BudgetAllocationServiceImpl budgetAllocationService) {
+    public MovementController(MovementService movementService) {
         this.movementService = movementService;
-        this.budgetAllocationService = budgetAllocationService;
     }
 
     @PostMapping(value = "/save", produces = "application/json")
@@ -131,12 +126,5 @@ public class MovementController {
     @PostMapping(value = "/children/{parentId}", produces = "application/json")
     public ResponseEntity<ResultDTO> getChildren(@PathVariable Long parentId) {
         return ResponseEntity.ok(movementService.getChildren(parentId));
-    }
-
-    @PostMapping(value = "/transfer", produces = "application/json")
-    public ResponseEntity<ResultDTO> transfer(@Valid @RequestBody TransferenciaDTO body) {
-        Long userId = com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId();
-        return ResponseEntity.ok(budgetAllocationService.transfer(userId, body.getFromCategoryId(),
-                body.getToCategoryId(), body.getAmount(), body.getDescription()));
     }
 }

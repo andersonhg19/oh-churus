@@ -1,52 +1,6 @@
 {
   "components" : {
     "schemas" : {
-      "AccountSaveDTO" : {
-        "properties" : {
-          "color" : {
-            "maxLength" : 7,
-            "minLength" : 0,
-            "type" : "string"
-          },
-          "householdId" : {
-            "format" : "int64",
-            "type" : "integer"
-          },
-          "icon" : {
-            "maxLength" : 50,
-            "minLength" : 0,
-            "type" : "string"
-          },
-          "id" : {
-            "format" : "int64",
-            "type" : "integer"
-          },
-          "kind" : {
-            "enum" : [
-              "OWN",
-              "LIABILITY"
-            ],
-            "type" : "string"
-          },
-          "name" : {
-            "maxLength" : 100,
-            "minLength" : 0,
-            "type" : "string"
-          },
-          "openingBalance" : {
-            "type" : "number"
-          },
-          "openingDate" : {
-            "format" : "date",
-            "type" : "string"
-          }
-        },
-        "required" : [
-          "kind",
-          "name"
-        ],
-        "type" : "object"
-      },
       "AsignacionGuardarDTO" : {
         "properties" : {
           "amount" : {
@@ -99,6 +53,42 @@
             "type" : "integer"
           }
         },
+        "type" : "object"
+      },
+      "CardPayDTO" : {
+        "properties" : {
+          "upTo" : {
+            "format" : "date",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "CardSaveDTO" : {
+        "properties" : {
+          "color" : {
+            "pattern" : "^#[0-9A-Fa-f]{6}$",
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "name" : {
+            "maxLength" : 60,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "paymentDay" : {
+            "format" : "int32",
+            "maximum" : 31,
+            "minimum" : 1,
+            "type" : "integer"
+          }
+        },
+        "required" : [
+          "name"
+        ],
         "type" : "object"
       },
       "CategoryFilterDTO" : {
@@ -246,23 +236,6 @@
         },
         "type" : "object"
       },
-      "FilaAImportarDTO" : {
-        "properties" : {
-          "categoryId" : {
-            "format" : "int64",
-            "type" : "integer"
-          },
-          "confirmsMovementId" : {
-            "format" : "int64",
-            "type" : "integer"
-          },
-          "row" : {
-            "format" : "int32",
-            "type" : "integer"
-          }
-        },
-        "type" : "object"
-      },
       "GeneratePendingRequestDTO" : {
         "properties" : {
           "budgetStartDay" : {
@@ -288,65 +261,6 @@
             "type" : "integer"
           }
         },
-        "type" : "object"
-      },
-      "ImportarDTO" : {
-        "properties" : {
-          "accountId" : {
-            "format" : "int64",
-            "type" : "integer"
-          },
-          "amountColumn" : {
-            "format" : "int32",
-            "type" : "integer"
-          },
-          "bankName" : {
-            "type" : "string"
-          },
-          "csv" : {
-            "type" : "string"
-          },
-          "dateColumn" : {
-            "format" : "int32",
-            "type" : "integer"
-          },
-          "datePattern" : {
-            "type" : "string"
-          },
-          "decimalSeparator" : {
-            "type" : "string"
-          },
-          "descriptionColumn" : {
-            "format" : "int32",
-            "type" : "integer"
-          },
-          "externalIdColumn" : {
-            "format" : "int32",
-            "type" : "integer"
-          },
-          "hasHeader" : {
-            "type" : "boolean"
-          },
-          "invertSign" : {
-            "type" : "boolean"
-          },
-          "profileId" : {
-            "format" : "int64",
-            "type" : "integer"
-          },
-          "rememberProfile" : {
-            "type" : "boolean"
-          },
-          "rows" : {
-            "items" : {
-              "$ref" : "#/components/schemas/FilaAImportarDTO"
-            },
-            "type" : "array"
-          }
-        },
-        "required" : [
-          "csv"
-        ],
         "type" : "object"
       },
       "InvitacionPorCorreoDTO" : {
@@ -442,14 +356,14 @@
       },
       "MovementSaveDTO" : {
         "properties" : {
-          "accountId" : {
-            "format" : "int64",
-            "type" : "integer"
-          },
           "amount" : {
             "exclusiveMinimum" : false,
             "minimum" : 0.01,
             "type" : "number"
+          },
+          "cardId" : {
+            "format" : "int64",
+            "type" : "integer"
           },
           "categoryId" : {
             "format" : "int64",
@@ -475,6 +389,12 @@
             "format" : "int64",
             "type" : "integer"
           },
+          "installments" : {
+            "format" : "int32",
+            "maximum" : 72,
+            "minimum" : 1,
+            "type" : "integer"
+          },
           "parentMovementId" : {
             "format" : "int64",
             "type" : "integer"
@@ -482,21 +402,6 @@
           "scheduledMovementId" : {
             "format" : "int64",
             "type" : "integer"
-          },
-          "splitMode" : {
-            "enum" : [
-              "EQUAL",
-              "SHARES",
-              "PERCENT",
-              "AMOUNT"
-            ],
-            "type" : "string"
-          },
-          "splits" : {
-            "items" : {
-              "$ref" : "#/components/schemas/SplitInputDTO"
-            },
-            "type" : "array"
           },
           "userId" : {
             "format" : "int64",
@@ -507,35 +412,6 @@
           "amount",
           "categoryId",
           "date"
-        ],
-        "type" : "object"
-      },
-      "MoverEntreSobresDTO" : {
-        "properties" : {
-          "amount" : {
-            "type" : "number"
-          },
-          "budgetStartDay" : {
-            "format" : "int32",
-            "type" : "integer"
-          },
-          "fromCategoryId" : {
-            "format" : "int64",
-            "type" : "integer"
-          },
-          "referenceDate" : {
-            "format" : "date",
-            "type" : "string"
-          },
-          "toCategoryId" : {
-            "format" : "int64",
-            "type" : "integer"
-          }
-        },
-        "required" : [
-          "amount",
-          "fromCategoryId",
-          "toCategoryId"
         ],
         "type" : "object"
       },
@@ -604,29 +480,6 @@
             "type" : "string"
           }
         },
-        "type" : "object"
-      },
-      "ReconcileDTO" : {
-        "properties" : {
-          "accountId" : {
-            "format" : "int64",
-            "type" : "integer"
-          },
-          "apply" : {
-            "type" : "boolean"
-          },
-          "date" : {
-            "format" : "date",
-            "type" : "string"
-          },
-          "realBalance" : {
-            "type" : "number"
-          }
-        },
-        "required" : [
-          "accountId",
-          "realBalance"
-        ],
         "type" : "object"
       },
       "ResultDTO" : {
@@ -785,74 +638,6 @@
           "startDate"
         ],
         "type" : "object"
-      },
-      "SettleDTO" : {
-        "properties" : {
-          "accountId" : {
-            "format" : "int64",
-            "type" : "integer"
-          },
-          "amount" : {
-            "type" : "number"
-          },
-          "date" : {
-            "format" : "date",
-            "type" : "string"
-          },
-          "withUserId" : {
-            "format" : "int64",
-            "type" : "integer"
-          }
-        },
-        "required" : [
-          "withUserId"
-        ],
-        "type" : "object"
-      },
-      "SplitInputDTO" : {
-        "properties" : {
-          "participantId" : {
-            "format" : "int64",
-            "type" : "integer"
-          },
-          "value" : {
-            "type" : "number"
-          }
-        },
-        "required" : [
-          "participantId"
-        ],
-        "type" : "object"
-      },
-      "TransferenciaDTO" : {
-        "properties" : {
-          "amount" : {
-            "type" : "number"
-          },
-          "description" : {
-            "maxLength" : 255,
-            "minLength" : 0,
-            "type" : "string"
-          },
-          "fromCategoryId" : {
-            "format" : "int64",
-            "type" : "integer"
-          },
-          "toCategoryId" : {
-            "format" : "int64",
-            "type" : "integer"
-          },
-          "userId" : {
-            "format" : "int64",
-            "type" : "integer"
-          }
-        },
-        "required" : [
-          "amount",
-          "fromCategoryId",
-          "toCategoryId"
-        ],
-        "type" : "object"
       }
     },
     "securitySchemes" : {
@@ -871,168 +656,6 @@
   },
   "openapi" : "3.0.1",
   "paths" : {
-    "/v1/accounts/all" : {
-      "post" : {
-        "operationId" : "getAll_3",
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ResultDTO"
-                }
-              }
-            },
-            "description" : "OK"
-          }
-        },
-        "tags" : [
-          "account-controller"
-        ]
-      }
-    },
-    "/v1/accounts/delete/{id}" : {
-      "post" : {
-        "operationId" : "delete_4",
-        "parameters" : [
-          {
-            "in" : "path",
-            "name" : "id",
-            "required" : true,
-            "schema" : {
-              "format" : "int64",
-              "type" : "integer"
-            }
-          }
-        ],
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ResultDTO"
-                }
-              }
-            },
-            "description" : "OK"
-          }
-        },
-        "tags" : [
-          "account-controller"
-        ]
-      }
-    },
-    "/v1/accounts/get/{id}" : {
-      "post" : {
-        "operationId" : "getById_3",
-        "parameters" : [
-          {
-            "in" : "path",
-            "name" : "id",
-            "required" : true,
-            "schema" : {
-              "format" : "int64",
-              "type" : "integer"
-            }
-          }
-        ],
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ResultDTO"
-                }
-              }
-            },
-            "description" : "OK"
-          }
-        },
-        "tags" : [
-          "account-controller"
-        ]
-      }
-    },
-    "/v1/accounts/kind-list" : {
-      "post" : {
-        "operationId" : "kindList",
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ResultDTO"
-                }
-              }
-            },
-            "description" : "OK"
-          }
-        },
-        "tags" : [
-          "account-controller"
-        ]
-      }
-    },
-    "/v1/accounts/reconcile" : {
-      "post" : {
-        "operationId" : "reconcile",
-        "requestBody" : {
-          "content" : {
-            "application/json" : {
-              "schema" : {
-                "$ref" : "#/components/schemas/ReconcileDTO"
-              }
-            }
-          },
-          "required" : true
-        },
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ResultDTO"
-                }
-              }
-            },
-            "description" : "OK"
-          }
-        },
-        "tags" : [
-          "account-controller"
-        ]
-      }
-    },
-    "/v1/accounts/save" : {
-      "post" : {
-        "operationId" : "save_4",
-        "requestBody" : {
-          "content" : {
-            "application/json" : {
-              "schema" : {
-                "$ref" : "#/components/schemas/AccountSaveDTO"
-              }
-            }
-          },
-          "required" : true
-        },
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ResultDTO"
-                }
-              }
-            },
-            "description" : "OK"
-          }
-        },
-        "tags" : [
-          "account-controller"
-        ]
-      }
-    },
     "/v1/budget-allocation/copy-previous" : {
       "post" : {
         "operationId" : "copyPrevious",
@@ -1065,7 +688,7 @@
     },
     "/v1/budget-allocation/delete/{id}" : {
       "post" : {
-        "operationId" : "delete_3",
+        "operationId" : "delete_4",
         "parameters" : [
           {
             "in" : "path",
@@ -1077,36 +700,6 @@
             }
           }
         ],
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ResultDTO"
-                }
-              }
-            },
-            "description" : "OK"
-          }
-        },
-        "tags" : [
-          "budget-allocation-controller"
-        ]
-      }
-    },
-    "/v1/budget-allocation/envelopes" : {
-      "post" : {
-        "operationId" : "envelopes",
-        "requestBody" : {
-          "content" : {
-            "application/json" : {
-              "schema" : {
-                "$ref" : "#/components/schemas/AsignacionPeriodoDTO"
-              }
-            }
-          },
-          "required" : true
-        },
         "responses" : {
           "200" : {
             "content" : {
@@ -1154,39 +747,9 @@
         ]
       }
     },
-    "/v1/budget-allocation/move" : {
-      "post" : {
-        "operationId" : "move",
-        "requestBody" : {
-          "content" : {
-            "application/json" : {
-              "schema" : {
-                "$ref" : "#/components/schemas/MoverEntreSobresDTO"
-              }
-            }
-          },
-          "required" : true
-        },
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ResultDTO"
-                }
-              }
-            },
-            "description" : "OK"
-          }
-        },
-        "tags" : [
-          "budget-allocation-controller"
-        ]
-      }
-    },
     "/v1/budget-allocation/save" : {
       "post" : {
-        "operationId" : "save_3",
+        "operationId" : "save_4",
         "requestBody" : {
           "content" : {
             "application/json" : {
@@ -1214,14 +777,105 @@
         ]
       }
     },
-    "/v1/budget-allocation/summary" : {
+    "/v1/cards/delete/{id}" : {
       "post" : {
-        "operationId" : "summary_1",
+        "operationId" : "delete_3",
+        "parameters" : [
+          {
+            "in" : "path",
+            "name" : "id",
+            "required" : true,
+            "schema" : {
+              "format" : "int64",
+              "type" : "integer"
+            }
+          }
+        ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [
+          "card-controller"
+        ]
+      }
+    },
+    "/v1/cards/mine" : {
+      "post" : {
+        "operationId" : "mine",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [
+          "card-controller"
+        ]
+      }
+    },
+    "/v1/cards/pay/{id}" : {
+      "post" : {
+        "operationId" : "pay",
+        "parameters" : [
+          {
+            "in" : "path",
+            "name" : "id",
+            "required" : true,
+            "schema" : {
+              "format" : "int64",
+              "type" : "integer"
+            }
+          }
+        ],
         "requestBody" : {
           "content" : {
             "application/json" : {
               "schema" : {
-                "$ref" : "#/components/schemas/AsignacionPeriodoDTO"
+                "$ref" : "#/components/schemas/CardPayDTO"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ResultDTO"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [
+          "card-controller"
+        ]
+      }
+    },
+    "/v1/cards/save" : {
+      "post" : {
+        "operationId" : "save_3",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CardSaveDTO"
               }
             }
           },
@@ -1240,7 +894,7 @@
           }
         },
         "tags" : [
-          "budget-allocation-controller"
+          "card-controller"
         ]
       }
     },
@@ -1420,66 +1074,6 @@
         ]
       }
     },
-    "/v1/dashboard/by-category" : {
-      "post" : {
-        "operationId" : "byCategory",
-        "requestBody" : {
-          "content" : {
-            "application/json" : {
-              "schema" : {
-                "$ref" : "#/components/schemas/DashboardRequestDTO"
-              }
-            }
-          },
-          "required" : true
-        },
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ResultDTO"
-                }
-              }
-            },
-            "description" : "OK"
-          }
-        },
-        "tags" : [
-          "dashboard-controller"
-        ]
-      }
-    },
-    "/v1/dashboard/consolidated" : {
-      "post" : {
-        "operationId" : "consolidated",
-        "requestBody" : {
-          "content" : {
-            "application/json" : {
-              "schema" : {
-                "$ref" : "#/components/schemas/DashboardRequestDTO"
-              }
-            }
-          },
-          "required" : true
-        },
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ResultDTO"
-                }
-              }
-            },
-            "description" : "OK"
-          }
-        },
-        "tags" : [
-          "dashboard-controller"
-        ]
-      }
-    },
     "/v1/dashboard/pending" : {
       "post" : {
         "operationId" : "pending",
@@ -1510,19 +1104,20 @@
         ]
       }
     },
-    "/v1/dashboard/split-summary" : {
+    "/v1/debts/advance/{scheduledMovementId}" : {
       "post" : {
-        "operationId" : "splitSummary",
-        "requestBody" : {
-          "content" : {
-            "application/json" : {
-              "schema" : {
-                "$ref" : "#/components/schemas/DashboardRequestDTO"
-              }
+        "operationId" : "advance",
+        "parameters" : [
+          {
+            "in" : "path",
+            "name" : "scheduledMovementId",
+            "required" : true,
+            "schema" : {
+              "format" : "int64",
+              "type" : "integer"
             }
-          },
-          "required" : true
-        },
+          }
+        ],
         "responses" : {
           "200" : {
             "content" : {
@@ -1536,22 +1131,21 @@
           }
         },
         "tags" : [
-          "dashboard-controller"
+          "debt-controller"
         ]
       }
     },
-    "/v1/dashboard/summary" : {
+    "/v1/debts/all" : {
       "post" : {
-        "operationId" : "summary",
+        "operationId" : "all",
         "requestBody" : {
           "content" : {
             "application/json" : {
               "schema" : {
-                "$ref" : "#/components/schemas/DashboardRequestDTO"
+                "$ref" : "#/components/schemas/PlanRequestDTO"
               }
             }
-          },
-          "required" : true
+          }
         },
         "responses" : {
           "200" : {
@@ -1566,37 +1160,7 @@
           }
         },
         "tags" : [
-          "dashboard-controller"
-        ]
-      }
-    },
-    "/v1/dashboard/trend" : {
-      "post" : {
-        "operationId" : "trend",
-        "requestBody" : {
-          "content" : {
-            "application/json" : {
-              "schema" : {
-                "$ref" : "#/components/schemas/DashboardRequestDTO"
-              }
-            }
-          },
-          "required" : true
-        },
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ResultDTO"
-                }
-              }
-            },
-            "description" : "OK"
-          }
-        },
-        "tags" : [
-          "dashboard-controller"
+          "debt-controller"
         ]
       }
     },
@@ -1867,86 +1431,6 @@
         },
         "tags" : [
           "household-controller"
-        ]
-      }
-    },
-    "/v1/import/confirm" : {
-      "post" : {
-        "operationId" : "confirm_1",
-        "requestBody" : {
-          "content" : {
-            "application/json" : {
-              "schema" : {
-                "$ref" : "#/components/schemas/ImportarDTO"
-              }
-            }
-          },
-          "required" : true
-        },
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ResultDTO"
-                }
-              }
-            },
-            "description" : "OK"
-          }
-        },
-        "tags" : [
-          "importacion-controller"
-        ]
-      }
-    },
-    "/v1/import/preview" : {
-      "post" : {
-        "operationId" : "preview",
-        "requestBody" : {
-          "content" : {
-            "application/json" : {
-              "schema" : {
-                "$ref" : "#/components/schemas/ImportarDTO"
-              }
-            }
-          },
-          "required" : true
-        },
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ResultDTO"
-                }
-              }
-            },
-            "description" : "OK"
-          }
-        },
-        "tags" : [
-          "importacion-controller"
-        ]
-      }
-    },
-    "/v1/import/profiles" : {
-      "post" : {
-        "operationId" : "profiles",
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ResultDTO"
-                }
-              }
-            },
-            "description" : "OK"
-          }
-        },
-        "tags" : [
-          "importacion-controller"
         ]
       }
     },
@@ -2250,36 +1734,6 @@
             "application/json" : {
               "schema" : {
                 "$ref" : "#/components/schemas/MovementSaveDTO"
-              }
-            }
-          },
-          "required" : true
-        },
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ResultDTO"
-                }
-              }
-            },
-            "description" : "OK"
-          }
-        },
-        "tags" : [
-          "movement-controller"
-        ]
-      }
-    },
-    "/v1/movements/transfer" : {
-      "post" : {
-        "operationId" : "transfer",
-        "requestBody" : {
-          "content" : {
-            "application/json" : {
-              "schema" : {
-                "$ref" : "#/components/schemas/TransferenciaDTO"
               }
             }
           },
@@ -2652,56 +2106,6 @@
         },
         "tags" : [
           "scheduled-movement-controller"
-        ]
-      }
-    },
-    "/v1/splits/balances" : {
-      "post" : {
-        "operationId" : "balances",
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ResultDTO"
-                }
-              }
-            },
-            "description" : "OK"
-          }
-        },
-        "tags" : [
-          "reparto-controller"
-        ]
-      }
-    },
-    "/v1/splits/settle" : {
-      "post" : {
-        "operationId" : "settle",
-        "requestBody" : {
-          "content" : {
-            "application/json" : {
-              "schema" : {
-                "$ref" : "#/components/schemas/SettleDTO"
-              }
-            }
-          },
-          "required" : true
-        },
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ResultDTO"
-                }
-              }
-            },
-            "description" : "OK"
-          }
-        },
-        "tags" : [
-          "reparto-controller"
         ]
       }
     }

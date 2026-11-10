@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Text, View, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createDrawerNavigator, DrawerContentComponentProps } from '@react-navigation/drawer';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -22,15 +21,15 @@ import AnotarScreen from '../screens/anotar/AnotarScreen';
 import PresupuestoScreen from '../screens/presupuesto/PresupuestoScreen';
 import CategoriaScreen from '../screens/presupuesto/CategoriaScreen';
 import CierreScreen from '../screens/presupuesto/CierreScreen';
-import ResponsabilidadesScreen from '../screens/responsabilidades/ResponsabilidadesScreen';
 import PorConfirmarScreen from '../screens/pendientes/PorConfirmarScreen';
 import IngresosScreen from '../screens/ingresos/IngresosScreen';
 import MovimientosScreen from '../screens/movimientos/MovimientosScreen';
+import AhorrosScreen from '../screens/ahorros/AhorrosScreen';
+import DeudasScreen from '../screens/deudas/DeudasScreen';
 
 // Lo que se conserva tal cual, ahora desde el menu
 import CategoryDrillDownScreen from '../screens/summary/CategoryDrillDownScreen';
 import MovementFormScreen from '../screens/movements/MovementFormScreen';
-import MovementsListScreen from '../screens/movements/MovementsListScreen';
 import ScheduledScreen from '../screens/scheduled/ScheduledScreen';
 import ScheduledFormScreen from '../screens/scheduled/ScheduledFormScreen';
 import SettingsScreen from '../screens/settings/SettingsScreen';
@@ -40,14 +39,7 @@ import CurrencyConfigScreen from '../screens/settings/CurrencyConfigScreen';
 import HouseholdScreen from '../screens/settings/HouseholdScreen';
 import CategoriesScreen from '../screens/categories/CategoriesScreen';
 import CategoryFormScreen from '../screens/categories/CategoryFormScreen';
-import AccountsScreen from '../screens/accounts/AccountsScreen';
-import AccountFormScreen from '../screens/accounts/AccountFormScreen';
-import ReconcileScreen from '../screens/accounts/ReconcileScreen';
-import BalancesScreen from '../screens/splits/BalancesScreen';
-import EnvelopesScreen from '../screens/budget/EnvelopesScreen';
-import ImportScreen from '../screens/settings/ImportScreen';
 import PlanScreen from '../screens/plan/PlanScreen';
-import ConsolidatedScreen from '../screens/consolidated/ConsolidatedScreen';
 
 // Administracion (ola 4): registradas siempre; quien no es administrador no
 // tiene como llegar y el backend le responde 403.
@@ -56,11 +48,6 @@ import AdminRolesScreen from '../screens/admin/AdminRolesScreen';
 import AdminModulesScreen from '../screens/admin/AdminModulesScreen';
 import AdminAuditScreen from '../screens/admin/AdminAuditScreen';
 
-// Ayuno
-import FastingDashboardScreen from '../screens/fasting/FastingDashboardScreen';
-import FastingHistoryScreen from '../screens/fasting/FastingHistoryScreen';
-import FastingConfigScreen from '../screens/fasting/FastingConfigScreen';
-
 /* Las pantallas de siempre tipan sus props con la pila en la que vivian; aqui
    todas comparten una sola, asi que se registran sin ese tipo. */
 const pantalla = (c: React.ComponentType<any>) => c as React.ComponentType<any>;
@@ -68,7 +55,6 @@ const pantalla = (c: React.ComponentType<any>) => c as React.ComponentType<any>;
 const AuthStack = createNativeStackNavigator<any>();
 const RootStack = createNativeStackNavigator<any>();
 const Drawer = createDrawerNavigator();
-const FastingTab = createBottomTabNavigator();
 const Finanzas = createNativeStackNavigator<any>();
 
 const AuthNavigator = () => {
@@ -84,7 +70,7 @@ const AuthNavigator = () => {
 /*
  * FINANZAS: una sola pila. Antes eran seis pestanas abajo (Inicio, Resumen,
  * Presupuesto, +, Programados, Ajustes) y cada una con su pila, asi que una
- * misma pantalla (el Plan, el Consolidado) vivia registrada dos veces. Ahora,
+ * misma pantalla (el Plan) vivia registrada dos veces. Ahora,
  * como en Monefy, la pantalla principal es la dona y todo lo demas se abre
  * desde el menu lateral. Las pantallas nuevas dibujan su propia barra; las de
  * siempre conservan la cabecera con flecha atras.
@@ -103,26 +89,19 @@ const FinanzasNavigator = () => {
       <Finanzas.Screen name="Presupuesto" component={pantalla(PresupuestoScreen)} />
       <Finanzas.Screen name="Categoria" component={pantalla(CategoriaScreen)} />
       <Finanzas.Screen name="Cierre" component={pantalla(CierreScreen)} />
-      <Finanzas.Screen name="Responsabilidades" component={pantalla(ResponsabilidadesScreen)} />
       <Finanzas.Screen name="PorConfirmar" component={pantalla(PorConfirmarScreen)} />
       <Finanzas.Screen name="Ingresos" component={pantalla(IngresosScreen)} />
       <Finanzas.Screen name="Movimientos" component={pantalla(MovimientosScreen)} />
+      <Finanzas.Screen name="Ahorros" component={pantalla(AhorrosScreen)} />
+      <Finanzas.Screen name="Deudas" component={pantalla(DeudasScreen)} />
 
       <Finanzas.Group screenOptions={cabecera}>
         <Finanzas.Screen name="Plan" component={pantalla(PlanScreen)} options={{ title: 'Plan y quincenas' }} />
         <Finanzas.Screen name="ScheduledList" component={pantalla(ScheduledScreen)} options={{ title: 'Programados' }} />
         <Finanzas.Screen name="ScheduledForm" component={pantalla(ScheduledFormScreen)} options={{ title: 'Programado' }} />
-        <Finanzas.Screen name="MovementsList" component={pantalla(MovementsListScreen)} options={{ title: 'Movimientos' }} />
         <Finanzas.Screen name="CategoryDrillDown" component={pantalla(CategoryDrillDownScreen)} options={({ route }: any) => ({ title: route.params?.categoryName || 'Categoría' })} />
-        <Finanzas.Screen name="Envelopes" component={pantalla(EnvelopesScreen)} options={{ title: 'Sobres y arrastre' }} />
-        <Finanzas.Screen name="Consolidated" component={pantalla(ConsolidatedScreen)} options={{ title: 'Consolidado' }} />
-        <Finanzas.Screen name="Balances" component={pantalla(BalancesScreen)} options={{ title: 'Entre nosotros' }} />
-        <Finanzas.Screen name="AccountsList" component={pantalla(AccountsScreen)} options={{ title: 'Cuentas' }} />
-        <Finanzas.Screen name="AccountForm" component={pantalla(AccountFormScreen)} options={{ title: 'Cuenta' }} />
-        <Finanzas.Screen name="Reconcile" component={pantalla(ReconcileScreen)} options={{ title: 'Conciliar' }} />
         <Finanzas.Screen name="SettingsMain" component={pantalla(SettingsScreen)} options={{ title: 'Ajustes' }} />
-        <Finanzas.Screen name="ExportImport" component={pantalla(ExportImportScreen)} options={{ title: 'Exportar / Importar' }} />
-        <Finanzas.Screen name="Import" component={pantalla(ImportScreen)} options={{ title: 'Importar del banco' }} />
+        <Finanzas.Screen name="ExportImport" component={pantalla(ExportImportScreen)} options={{ title: 'Exportar a Excel' }} />
         <Finanzas.Screen name="PeriodConfig" component={pantalla(PeriodConfigScreen)} options={{ title: 'Día de corte' }} />
         <Finanzas.Screen name="CurrencyConfig" component={pantalla(CurrencyConfigScreen)} options={{ title: 'Moneda y decimales' }} />
         <Finanzas.Screen name="Household" component={pantalla(HouseholdScreen)} options={{ title: 'Hogar' }} />
@@ -141,23 +120,20 @@ const FinanzasNavigator = () => {
 const MENU: { titulo: string; icono: string; destino: string; detalle?: string }[][] = [
   [
     { titulo: 'Inicio', icono: 'home', destino: 'Inicio' },
+    { titulo: 'Ahorros', icono: 'piggy-bank', destino: 'Ahorros', detalle: 'Cuánto hay y en qué se usó' },
+    { titulo: 'Deudas', icono: 'credit-card', destino: 'Deudas', detalle: 'Tarjetas y cuotas' },
     { titulo: 'Presupuesto', icono: 'chart', destino: 'Presupuesto', detalle: 'Planeado, real y quién' },
     { titulo: 'Cierre de cada mes', icono: 'history', destino: 'Cierre', detalle: 'Lo esperado contra lo real' },
     { titulo: 'Por confirmar', icono: 'check', destino: 'PorConfirmar', detalle: 'Pagos del periodo' },
-    { titulo: 'Responsabilidades', icono: 'people', destino: 'Responsabilidades', detalle: 'Lo mío y lo de los dos' },
     { titulo: 'Ingresos', icono: 'trending-up', destino: 'Ingresos' },
   ],
   [
     { titulo: 'Plan y quincenas', icono: 'calendar', destino: 'Plan', detalle: 'Calendario y proyección' },
     { titulo: 'Programados', icono: 'clock', destino: 'ScheduledList', detalle: 'Facturas, cuotas, ahorro, bolsas' },
-    { titulo: 'Movimientos', icono: 'list', destino: 'Movimientos', detalle: 'Por categoría, desplegables' },
-    { titulo: 'Buscar movimientos', icono: 'search', destino: 'MovementsList' },
-    { titulo: 'Entre nosotros', icono: 'swap-horizontal', destino: 'Balances', detalle: 'Quién le debe a quién' },
-    { titulo: 'Cuentas', icono: 'wallet', destino: 'AccountsList', detalle: 'Saldos y conciliar' },
+    { titulo: 'Movimientos', icono: 'list', destino: 'Movimientos', detalle: 'Por categoría, y para buscar' },
   ],
   [
-    { titulo: 'Consolidado', icono: 'bar-chart', destino: 'Consolidated' },
-    { titulo: 'Exportar e importar', icono: 'upload', destino: 'ExportImport' },
+    { titulo: 'Exportar a Excel', icono: 'upload', destino: 'ExportImport' },
     { titulo: 'Ajustes', icono: 'settings', destino: 'SettingsMain', detalle: 'Categorías, hogar, corte, moneda' },
   ],
 ];
@@ -187,36 +163,7 @@ const MenuFinanzas: React.FC<DrawerContentComponentProps> = ({ navigation }) => 
           ))}
         </View>
       ))}
-      <View style={[menu.grupo, { borderTopColor: colors.border, borderTopWidth: 1 }]}>
-        <TouchableOpacity style={menu.item} onPress={() => { navigation.closeDrawer(); navigation.navigate('FastingModule'); }}
-          accessibilityRole="button" accessibilityLabel="Ir al módulo de ayuno intermitente">
-          <Icono nombre="clock" color={colors.textSecondary} />
-          <AppText variant="body">Ayuno intermitente</AppText>
-        </TouchableOpacity>
-      </View>
     </ScrollView>
-  );
-};
-
-const FastingTabs = () => {
-  const { colors } = useTheme();
-  return (
-    <FastingTab.Navigator
-      screenOptions={{
-        headerShown: false,
-        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border, borderTopWidth: 1, paddingBottom: 4, paddingTop: 4, height: 64 },
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textMuted,
-        tabBarLabelStyle: { fontSize: 14, fontWeight: '600' },
-      }}
-    >
-      <FastingTab.Screen name="FastingDashboard" component={pantalla(FastingDashboardScreen)}
-        options={{ tabBarLabel: 'Dashboard', tabBarIcon: () => <Text style={{ fontSize: 22 }}>🕐</Text> }} />
-      <FastingTab.Screen name="FastingHistory" component={pantalla(FastingHistoryScreen)}
-        options={{ tabBarLabel: 'Historial', tabBarIcon: () => <Text style={{ fontSize: 22 }}>📋</Text> }} />
-      <FastingTab.Screen name="FastingConfig" component={pantalla(FastingConfigScreen)}
-        options={{ tabBarLabel: 'Config', tabBarIcon: () => <Text style={{ fontSize: 22 }}>⚙️</Text> }} />
-    </FastingTab.Navigator>
   );
 };
 
@@ -231,8 +178,6 @@ const ModuleDrawer = () => {
       }}
     >
       <Drawer.Screen name="FinanceModule" component={FinanzasNavigator} options={{ title: 'Finanzas' }} />
-      <Drawer.Screen name="FastingModule" component={FastingTabs}
-        options={{ title: 'Ayuno Intermitente', headerShown: true, headerStyle: { backgroundColor: colors.surface }, headerTintColor: colors.text }} />
     </Drawer.Navigator>
   );
 };

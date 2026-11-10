@@ -23,11 +23,6 @@ describe('budgetAllocationService', () => {
     expect(mockPost).toHaveBeenCalledWith(`${BASE}/list`, { userId: '1', budgetStartDay: 15, referenceDate: '2026-03-15' });
   });
 
-  it('summary posts and omits referenceDate when absent', async () => {
-    await budgetAllocationService.summary('1', 1);
-    expect(mockPost).toHaveBeenCalledWith(`${BASE}/summary`, { userId: '1', budgetStartDay: 1, referenceDate: undefined });
-  });
-
   it('delete posts to delete endpoint', async () => {
     await budgetAllocationService.delete(7);
     expect(mockPost).toHaveBeenCalledWith(`${BASE}/delete/7`);

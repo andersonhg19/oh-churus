@@ -38,7 +38,12 @@ const leerFalloEnJson = async (datos: any): Promise<string | null> => {
   }
 };
 
-const ExportImportScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
+/*
+ * Solo exporta. La importacion del CSV del banco se retiro porque nadie la
+ * usaba; el nombre de la pantalla (y su ruta, ExportImport) se conserva para
+ * que el menu sembrado en auth-service siga apuntando aqui.
+ */
+const ExportImportScreen: React.FC<{ navigation?: any }> = () => {
   const { colors } = useTheme();
   const { showToast } = useToast();
   const { user } = useAuth();
@@ -116,15 +121,6 @@ const ExportImportScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           variant="secondary"
           style={styles.actionBtn}
         />
-      </Card>
-
-      <Card style={styles.section}>
-        <AppText variant="label" style={styles.sectionTitle}>Importar del banco</AppText>
-        <AppText variant="caption" color={colors.textSecondary} style={styles.hint}>
-          Pega el CSV que descargaste del banco. Antes de guardar nada vas a ver que se va a
-          crear, que ya tenias y que confirma un pago que la app estaba esperando.
-        </AppText>
-        <Button testID="ir-a-importar" title="Importar del banco" onPress={() => navigation.navigate('Import')} variant="outline" style={styles.actionBtn} />
       </Card>
     </ScrollView>
   );

@@ -17,12 +17,6 @@ describe('movementService', () => {
     expect(mockPost).toHaveBeenCalledWith('/BUDGET-SERVICE/oh-churus/v1/movements/save', expect.objectContaining({ userId: '1' }));
   });
 
-  it('getById posts to get endpoint', async () => {
-    mockPost.mockResolvedValueOnce({ data: { correct: true, object: { id: '1' } } });
-    await movementService.getById('1');
-    expect(mockPost).toHaveBeenCalledWith('/BUDGET-SERVICE/oh-churus/v1/movements/get/1');
-  });
-
   it('getAll posts with filter', async () => {
     mockPost.mockResolvedValueOnce({ data: { correct: true, object: { list: [] } } });
     await movementService.getAll({ userId: '1', page: 0, size: 10 });
@@ -39,11 +33,5 @@ describe('movementService', () => {
     mockPost.mockResolvedValueOnce({ data: { correct: true } });
     await movementService.confirm('3');
     expect(mockPost).toHaveBeenCalledWith('/BUDGET-SERVICE/oh-churus/v1/movements/confirm/3', {});
-  });
-
-  it('getByPeriod posts with date range', async () => {
-    mockPost.mockResolvedValueOnce({ data: { correct: true, object: [] } });
-    await movementService.getByPeriod('1', '2026-01-01', '2026-01-31');
-    expect(mockPost).toHaveBeenCalledWith('/BUDGET-SERVICE/oh-churus/v1/movements/by-period', { userId: '1', startDate: '2026-01-01', endDate: '2026-01-31' });
   });
 });

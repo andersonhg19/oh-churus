@@ -26,7 +26,7 @@ const modulos = [
     id: 1, code: 'finanzas', name: 'Finanzas', icon: 'wallet', sortOrder: 1, active: true,
     pages: [
       { id: 10, code: 'panel', name: 'Panel', route: 'Dashboard', inMenu: true, sortOrder: 1, active: true },
-      { id: 11, code: 'sobres', name: 'Sobres', route: 'Envelopes', inMenu: false, sortOrder: 2, active: true },
+      { id: 11, code: 'categorias', name: 'Categorias', route: 'CategoriesList', inMenu: false, sortOrder: 2, active: true },
     ],
   },
 ];

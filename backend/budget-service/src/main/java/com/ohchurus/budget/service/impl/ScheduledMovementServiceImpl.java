@@ -41,7 +41,6 @@ import java.util.stream.Collectors;
 @Transactional
 public class ScheduledMovementServiceImpl implements ScheduledMovementService {
 
-    private final AccountServiceImpl cuentas;
 
     /**
      * Cuantas ocurrencias atrasadas puede materializar el generador solo.
@@ -76,8 +75,7 @@ public class ScheduledMovementServiceImpl implements ScheduledMovementService {
                                          ScheduledMovementMapper scheduledMovementMapper,
                                          MovementMapper movementMapper,
                                          HouseholdServiceImpl householdService,
-                                         com.ohchurus.budget.util.ControlAcceso acceso,
-                                        AccountServiceImpl cuentas) {
+                                         com.ohchurus.budget.util.ControlAcceso acceso) {
         this.scheduledMovementRepository = scheduledMovementRepository;
         this.movementRepository = movementRepository;
         this.categoryRepository = categoryRepository;
@@ -85,7 +83,6 @@ public class ScheduledMovementServiceImpl implements ScheduledMovementService {
         this.movementMapper = movementMapper;
         this.householdService = householdService;
         this.acceso = acceso;
-        this.cuentas = cuentas;
     }
 
     /** Un programado es tuyo, o esta en una categoria compartida de tu hogar. */
@@ -330,14 +327,12 @@ public class ScheduledMovementServiceImpl implements ScheduledMovementService {
             boolean cambioNombre = !Objects.equals(antes.nombre(), p.getName());
             boolean cambioPagador = !Objects.equals(antes.pagador(), pagador);
             if (!cambioImporte && !cambioCategoria && !cambioNombre && !cambioPagador) return;
-            Long cuenta = cambioPagador ? cuentas.porDefecto(pagador).getId() : null;
             for (Movement m : sinConfirmarVivos) {
                 if (cambioImporte) m.setAmount(p.getAmount() != null ? p.getAmount() : BigDecimal.ZERO);
                 if (cambioCategoria) m.setCategoryId(p.getCategoryId());
                 if (cambioNombre) m.setDescription(p.getName());
                 if (cambioPagador && !pagador.equals(m.getUserId())) {
                     m.setUserId(pagador);
-                    m.setAccountId(cuenta);
                 }
             }
             movementRepository.saveAll(sinConfirmarVivos);
@@ -764,10 +759,6 @@ public class ScheduledMovementServiceImpl implements ScheduledMovementService {
                    gimnasio de Samy que dio de alta Anderson tiene que salir de
                    la cuenta de Samy. */
                 .userId(pagadorDe(programado))
-                /* Y su cuenta es la del dueno, por lo mismo: un pendiente sin
-                   cuenta no saldria en ningun saldo pero si contaria en el
-                   presupuesto. */
-                .accountId(cuentas.porDefecto(pagadorDe(programado)).getId())
                 .categoryId(programado.getCategoryId())
                 .date(ocurrencia.fecha())
                 .amount(programado.getAmount() != null ? programado.getAmount() : BigDecimal.ZERO)

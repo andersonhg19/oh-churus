@@ -58,28 +58,19 @@ public interface MovementRepository extends JpaRepository<Movement, Long> {
 
     boolean existsByCategoryIdAndActiveTrue(Long categoryId);
 
-    /** Todos los movimientos vivos de una cuenta. Los filtra Computables. */
-    List<Movement> findByAccountIdAndActiveTrue(Long accountId);
-
-    /** ¿Queda algo colgando de esta cuenta? Se usa para no dejarla huerfana al borrarla. */
-    boolean existsByAccountIdAndActiveTrue(Long accountId);
-
     List<Movement> findByUserIdAndActiveTrue(Long userId);
 
-    /**
-     * Los movimientos que pueden generar deuda conmigo: los mios y los de las
-     * categorias compartidas de mis hogares.
-     *
-     * SIN ACOTAR POR PERIODO, a proposito. Una deuda no caduca a fin de mes:
-     * si el mercado de marzo sigue sin saldarse tiene que seguir apareciendo
-     * en octubre. Es justo la diferencia entre esta consulta y las del panel.
-     */
-    @Query("SELECT m FROM Movement m WHERE m.active = true "
-            + "AND (m.userId = :userId OR m.settledWithUserId = :userId "
-            + "     OR m.categoryId IN (SELECT c.id FROM Category c "
-            + "                         WHERE c.householdId IN :householdIds AND c.active = true))")
-    List<Movement> findParaBalances(@Param("userId") Long userId,
-                                    @Param("householdIds") List<Long> householdIds);
+    /** Lo metido en un ahorro hasta una fecha (su saldo, junto con lo pagado con el). */
+    List<Movement> findByCategoryIdAndActiveTrueAndConfirmedTrueAndDateLessThanEqual(Long categoryId, java.time.LocalDate hasta);
+
+    /** Lo pagado con un ahorro hasta una fecha. */
+    List<Movement> findByFundedFromCategoryIdAndActiveTrueAndConfirmedTrueAndDateLessThanEqual(Long categoryId, java.time.LocalDate hasta);
+
+    /** Las cuotas vivas de una compra con tarjeta. */
+    List<Movement> findByPurchaseIdAndActiveTrue(Long purchaseId);
+
+    /** Lo comprado con una tarjeta (pagado o no). */
+    List<Movement> findByCardIdAndActiveTrueOrderByDateAsc(Long cardId);
 
 
     // Household-aware queries: include movements from ALL household members in shared categories
@@ -141,6 +132,4 @@ public interface MovementRepository extends JpaRepository<Movement, Long> {
     // Children of a parent movement
     List<Movement> findByParentMovementIdAndActiveTrue(Long parentMovementId);
 
-    // Find by transferPairId
-    Optional<Movement> findByTransferPairIdAndActiveTrue(Long transferPairId);
 }

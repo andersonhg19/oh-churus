@@ -34,52 +34,20 @@ public class MovementServiceImpl implements MovementService {
     private final MovementMapper movementMapper;
     private final HouseholdServiceImpl householdService;
     private final ControlAcceso acceso;
-    private final AccountServiceImpl cuentas;
-    private final com.ohchurus.budget.repository.AccountRepository cuentaRepo;
-    private final RepartoServiceImpl repartos;
-    private final RepartoDeGastos reparto;
+    private final com.ohchurus.budget.repository.CardRepository tarjetas;
 
     public MovementServiceImpl(MovementRepository movementRepository,
                                CategoryRepository categoryRepository,
                                MovementMapper movementMapper,
                                HouseholdServiceImpl householdService,
                                ControlAcceso acceso,
-                               AccountServiceImpl cuentas,
-                               com.ohchurus.budget.repository.AccountRepository cuentaRepo,
-                               RepartoServiceImpl repartos,
-                               RepartoDeGastos reparto) {
+                               com.ohchurus.budget.repository.CardRepository tarjetas) {
         this.movementRepository = movementRepository;
         this.categoryRepository = categoryRepository;
         this.movementMapper = movementMapper;
         this.householdService = householdService;
         this.acceso = acceso;
-        this.cuentas = cuentas;
-        this.cuentaRepo = cuentaRepo;
-        this.repartos = repartos;
-        this.reparto = reparto;
-    }
-
-    /**
-     * En que cuenta cae este movimiento.
-     *
-     * Tres reglas, en orden:
-     *   1. La que diga el DTO, SI es suya. Aceptar un accountId ajeno metería
-     *      el movimiento en la cuenta de otra persona y le descuadraría el
-     *      saldo — el mismo agujero de identidad de siempre, con otra columna.
-     *   2. Si no dice nada, la cuenta por defecto ("Sin asignar").
-     *   3. Nunca null. Un movimiento sin cuenta no aparece en ningún saldo
-     *      pero sí en el presupuesto: descuadre invisible.
-     */
-    private Long cuentaPara(Long cuentaPedida, Long dueno) {
-        if (cuentaPedida != null) {
-            java.util.Optional<com.ohchurus.budget.entity.Account> c =
-                    cuentaRepo.findByIdAndActiveTrue(cuentaPedida);
-            if (c.isPresent()
-                    && (acceso.esMio(c.get().getUserId()) || acceso.esDeMiHogar(c.get().getHouseholdId()))) {
-                return c.get().getId();
-            }
-        }
-        return cuentas.porDefecto(dueno).getId();
+        this.tarjetas = tarjetas;
     }
 
     /*
@@ -94,14 +62,12 @@ public class MovementServiceImpl implements MovementService {
     @Override
     public ResultDTO saveAndUpdate(MovementSaveDTO dto) {
         categoryCacheTL.remove();
-        cuentaCacheTL.remove();
         try {
             boolean isUpdate = dto.getId() != null;
             return isUpdate ? updateMovement(dto) : createMovement(dto);
         } catch (Exception e) {
             /* Atrapar la excepcion dentro del metodo transaccional NO revierte:
-               lo ya escrito (el movimiento sin sus partes, una sola pata de la
-               transferencia) se confirmaba igual. */
+               lo ya escrito se confirmaba igual. */
             com.ohchurus.budget.util.Transacciones.revertir();
             log.error("Error saving movement: {}", e.getMessage(), e);
             return new ResultDTO(false, "Error saving movement", 500);
@@ -140,21 +106,22 @@ public class MovementServiceImpl implements MovementService {
            {"userId": <id de Bruno>} con su propio token y la categoria
            aparecia dentro de la cuenta de Bruno. Las lecturas y los borrados
            ya estaban cerrados; la creacion se habia quedado fuera. */
-        /* El reparto se valida ANTES de escribir el movimiento. Si se validara
-           despues habria que deshacer lo escrito, y capturar la excepcion
-           dentro del mismo metodo transaccional no revierte: quedaria un gasto
-           con el importe total y sin partes, que es justo la mentira que el
-           reparto viene a arreglar. Lo cazo su propia prueba. */
-        ResultDTO repartoInvalido = repartos.validar(dto.getAmount(), dto.getSplitMode(), dto.getSplits());
-        if (repartoInvalido != null) return repartoInvalido;
-
         ResultDTO origenInvalido = validarOrigen(dto.getFundedFromCategoryId(), dto.getCategoryId());
         if (origenInvalido != null) return origenInvalido;
+        ResultDTO tarjetaInvalida = validarTarjeta(dto.getCardId(), dto.getFundedFromCategoryId(), dto.getCategoryId());
+        if (tarjetaInvalida != null) return tarjetaInvalida;
 
         Long dueno = com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId();
+        Long tarjeta = idONulo(dto.getCardId());
+        int cuotas = tarjeta != null && dto.getInstallments() != null ? dto.getInstallments() : 1;
+        if (cuotas > 1) {
+            if (dto.getParentMovementId() != null) {
+                return new ResultDTO(false, "Un sub-gasto no se divide en cuotas", 400);
+            }
+            return crearCompraACuotas(dto, dueno, tarjeta, cuotas);
+        }
         Movement movement = Movement.builder()
                 .userId(dueno)
-                .accountId(cuentaPara(dto.getAccountId(), dueno))
                 .categoryId(dto.getCategoryId())
                 .date(dto.getDate())
                 .amount(dto.getAmount())
@@ -163,22 +130,13 @@ public class MovementServiceImpl implements MovementService {
                 .parentMovementId(dto.getParentMovementId())
                 .confirmed(dto.getConfirmed() != null ? dto.getConfirmed() : true)
                 .fundedFromCategoryId(origen(dto.getFundedFromCategoryId()))
+                .cardId(tarjeta)
+                .installmentNumber(tarjeta != null ? 1 : null)
+                .installmentTotal(tarjeta != null ? 1 : null)
                 .active(true)
                 .build();
 
         Movement saved = movementRepository.save(movement);
-
-        /* Las FILAS del reparto si se escriben despues, porque necesitan el id
-           del movimiento. Pero ya esta validado arriba, asi que aqui no puede
-           fallar. */
-        /* Solo se vuelve a guardar SI hay reparto: aplicar() le pone el modo a
-           la entidad y hay que persistirlo. Sin reparto no hay nada que
-           reescribir, y un segundo save por cada gasto anotado es un viaje a
-           la base que no hace nada. */
-        if (dto.getSplitMode() != null) {
-            repartos.aplicar(saved, dto.getSplitMode(), dto.getSplits());
-            saved = movementRepository.save(saved);
-        }
 
         log.info("Movement created: id={} for user {}", saved.getId(), saved.getUserId());
         return new ResultDTO(enrichWithCategory(movementMapper.toResultDTO(saved)));
@@ -198,25 +156,25 @@ public class MovementServiceImpl implements MovementService {
         }
 
         Movement movement = existing.get();
-        Long categoriaFinal = esTransferencia(movement) ? movement.getCategoryId() : dto.getCategoryId();
+        Long categoriaFinal = dto.getCategoryId();
         Long origenPedido = dto.getFundedFromCategoryId() != null ? dto.getFundedFromCategoryId() : movement.getFundedFromCategoryId();
         ResultDTO origenInvalido = validarOrigen(origenPedido, categoriaFinal);
         if (origenInvalido != null) return origenInvalido;
         if (dto.getFundedFromCategoryId() != null) movement.setFundedFromCategoryId(origen(dto.getFundedFromCategoryId()));
+        Long tarjetaPedida = dto.getCardId() != null ? dto.getCardId() : movement.getCardId();
+        ResultDTO tarjetaInvalida = validarTarjeta(tarjetaPedida, movement.getFundedFromCategoryId(), categoriaFinal);
+        if (tarjetaInvalida != null) return tarjetaInvalida;
+        int cuotasActuales = movement.getInstallmentTotal() != null ? movement.getInstallmentTotal() : 1;
+        if (dto.getInstallments() != null && dto.getInstallments() != cuotasActuales) {
+            return new ResultDTO(false, "Para cambiar las cuotas, borra la compra y anotala de nuevo", 400);
+        }
+        if (dto.getCardId() != null) cambiarTarjeta(movement, idONulo(dto.getCardId()));
         /* El dueno NUNCA cambia en una actualizacion. Antes se reasignaba al
            userId que viniera en el cuerpo, asi que mandar el id de un
            movimiento ajeno bastaba para quedarse con el. */
 
-        /* Una pata de transferencia no puede cambiar de categoria: la salida
-           vive en el bote comun y la entrada en el bolsillo personal, y mover
-           una de las dos al otro lado convierte el par en dos salidas (o dos
-           entradas) y descuadra el consolidado. */
-        if (!esTransferencia(movement)) {
-            movement.setCategoryId(dto.getCategoryId());
-        }
+        movement.setCategoryId(dto.getCategoryId());
         movement.setDate(dto.getDate());
-        boolean cambioElImporte = movement.getAmount() == null || dto.getAmount() == null
-                || movement.getAmount().compareTo(dto.getAmount()) != 0;
         movement.setAmount(dto.getAmount());
         movement.setDescription(dto.getDescription());
         /* El formulario no reenvia de que programado salio el pendiente, y
@@ -229,36 +187,87 @@ public class MovementServiceImpl implements MovementService {
         if (dto.getConfirmed() != null) {
             movement.setConfirmed(dto.getConfirmed());
         }
-        /* Cambiar de cuenta SI se permite: apuntaste el almuerzo en efectivo y
-           en realidad lo pagaste con la tarjeta. Pasa por el mismo filtro que
-           al crear, asi que no se puede mover a la cuenta de otra persona. Si
-           el DTO no trae cuenta, se queda en la que estaba en vez de caer a la
-           de por defecto: un cliente que no conoce las cuentas no deberia
-           poder desclasificar un movimiento sin querer. */
-        if (dto.getAccountId() != null) {
-            movement.setAccountId(cuentaPara(dto.getAccountId(), movement.getUserId()));
-        } else if (movement.getAccountId() == null) {
-            movement.setAccountId(cuentas.porDefecto(movement.getUserId()).getId());
-        }
-
-        /* Si el cuerpo no dice NADA del reparto (ni modo ni partes), el reparto
-           se queda como estaba. El formulario no lo recarga al editar, y antes
-           cualquier edicion de un gasto repartido —corregir la fecha, la
-           descripcion— lo borraba en silencio. Para quitarlo a proposito se
-           manda splits vacio. */
-        boolean tocaReparto = dto.getSplitMode() != null || dto.getSplits() != null;
-        ResultDTO repartoInvalido = tocaReparto
-                ? repartos.aplicar(movement, dto.getSplitMode(), dto.getSplits())
-                : null;
-        if (repartoInvalido != null) return repartoInvalido;
-        if (!tocaReparto && cambioElImporte) {
-            repartos.recalcular(movement);
-        }
-
         Movement saved = movementRepository.save(movement);
-        propagarALaOtraPata(saved);
         log.info("Movement updated: id={}", saved.getId());
         return new ResultDTO(enrichWithCategory(movementMapper.toResultDTO(saved)));
+    }
+
+    /** 0 en el cuerpo es "ninguno". */
+    private static Long idONulo(Long pedido) {
+        return pedido == null || pedido == 0L ? null : pedido;
+    }
+
+    /**
+     * Pagar con tarjeta: la tarjeta tiene que ser MIA (no se le carga una
+     * compra a la tarjeta de la pareja), solo para gastos, y no a la vez que
+     * "pagado con el ahorro": la plata sale de un sitio o del otro.
+     */
+    private ResultDTO validarTarjeta(Long pedida, Long ahorro, Long categoriaDelGasto) {
+        Long t = idONulo(pedida);
+        if (t == null) return null;
+        if (origen(ahorro) != null) {
+            return new ResultDTO(false, "Se paga con el ahorro o con la tarjeta, no con los dos", 400);
+        }
+        Optional<com.ohchurus.budget.entity.Card> tarjeta = tarjetas.findByIdAndActiveTrue(t)
+                .filter(c -> acceso.esMio(c.getUserId()));
+        if (tarjeta.isEmpty()) {
+            return new ResultDTO(false, "Card not found", 404);
+        }
+        Optional<Category> delGasto = categoryRepository.findByIdAndActiveTrue(categoriaDelGasto);
+        if (delGasto.isPresent() && delGasto.get().getType() != com.ohchurus.budget.enums.CategoryType.EXPENSE) {
+            return new ResultDTO(false, "Solo un gasto se paga con tarjeta", 400);
+        }
+        return null;
+    }
+
+    /** Cambia la tarjeta de la compra entera (todas sus cuotas). */
+    private void cambiarTarjeta(Movement m, Long tarjeta) {
+        List<Movement> compra = m.getPurchaseId() != null
+                ? movementRepository.findByPurchaseIdAndActiveTrue(m.getPurchaseId())
+                : List.of(m);
+        for (Movement c : compra) {
+            c.setCardId(tarjeta);
+            if (tarjeta == null) {
+                c.setCardPaid(false);
+            } else if (c.getInstallmentTotal() == null) {
+                c.setInstallmentNumber(1);
+                c.setInstallmentTotal(1);
+            }
+            if (!c.getId().equals(m.getId())) movementRepository.save(c);
+        }
+    }
+
+    /**
+     * Una compra a N cuotas son N gastos de su categoria, uno por mes desde el
+     * de la compra: cada mes baja lo libre solo su cuota. El valor se reparte
+     * en pesos enteros y lo que sobra de la division va en la primera cuota,
+     * para que la suma sea exactamente lo que costo.
+     */
+    private ResultDTO crearCompraACuotas(MovementSaveDTO dto, Long dueno, Long tarjeta, int n) {
+        java.math.BigDecimal total = dto.getAmount();
+        java.math.BigDecimal base = total.divide(java.math.BigDecimal.valueOf(n), 0, java.math.RoundingMode.DOWN);
+        java.math.BigDecimal resto = total.subtract(base.multiply(java.math.BigDecimal.valueOf(n)));
+        Movement primera = null;
+        for (int k = 1; k <= n; k++) {
+            Movement cuota = Movement.builder()
+                    .userId(dueno)
+                    .categoryId(dto.getCategoryId())
+                    .date(dto.getDate().plusMonths(k - 1L))
+                    .amount(k == 1 ? base.add(resto) : base)
+                    .description(dto.getDescription())
+                    .confirmed(true)
+                    .cardId(tarjeta)
+                    .installmentNumber(k)
+                    .installmentTotal(n)
+                    .active(true)
+                    .build();
+            cuota = movementRepository.save(cuota);
+            if (primera == null) primera = cuota;
+            cuota.setPurchaseId(primera.getId());
+            movementRepository.save(cuota);
+        }
+        log.info("Card purchase in {} installments: purchase={} user={}", n, primera.getId(), dueno);
+        return new ResultDTO(enrichWithCategory(movementMapper.toResultDTO(primera)));
     }
 
     /** 0 en el cuerpo es "ya no sale del ahorro". */
@@ -289,39 +298,10 @@ public class MovementServiceImpl implements MovementService {
         return null;
     }
 
-    private boolean esTransferencia(Movement m) {
-        return Boolean.TRUE.equals(m.getIsTransfer());
-    }
-
-    /**
-     * Una transferencia son DOS movimientos, no uno.
-     *
-     * Borrar ya desactivaba los dos, pero editar cambiaba una sola pata:
-     * corregir una transferencia de 500.000 a 300.000 dejaba el consolidado
-     * descuadrado en 200.000 que no existen, y no habia forma de arreglarlo
-     * desde la app. Se propaga en la MISMA transaccion, no despues: si falla
-     * el guardado de la segunda pata, tampoco se guarda la primera.
-     *
-     * Se propagan importe y fecha, que es lo que define cuanta plata se movio
-     * y cuando. La categoria no, porque cada pata vive en un lado distinto.
-     */
-    private void propagarALaOtraPata(Movement pata) {
-        if (!esTransferencia(pata) || pata.getTransferPairId() == null) {
-            return;
-        }
-        movementRepository.findByIdAndActiveTrue(pata.getTransferPairId()).ifPresent(otra -> {
-            otra.setAmount(pata.getAmount());
-            otra.setDate(pata.getDate());
-            movementRepository.save(otra);
-            log.info("Transfer pair kept in sync: id={} follows id={}", otra.getId(), pata.getId());
-        });
-    }
-
     @Override
     @Transactional(readOnly = true)
     public ResultDTO getById(Long id) {
         categoryCacheTL.remove();
-        cuentaCacheTL.remove();
         Optional<Movement> movement = movementRepository.findByIdAndActiveTrue(id);
         if (movement.isEmpty() || !puedoTocar(movement.get())) {
             return new ResultDTO(false, "Movement not found", 404);
@@ -333,7 +313,6 @@ public class MovementServiceImpl implements MovementService {
     @Transactional(readOnly = true)
     public ResultDTO getAll(MovementFilterDTO filter) {
         categoryCacheTL.remove();
-        cuentaCacheTL.remove();
         Pageable pageable = PageRequest.of(filter.getPage(), filter.getSize(), Sort.by("date").descending());
 
         List<Long> householdIds = filter.getUserId() != null
@@ -374,12 +353,11 @@ public class MovementServiceImpl implements MovementService {
     }
 
     /**
-     * "Este mes el gimnasio lo paga Andy." El pendiente pasa a nombre y a la
-     * cuenta del nuevo responsable, que es lo que lo pone en SU lista de cosas
+     * "Este mes el gimnasio lo paga Andy." El pendiente pasa a nombre del
+     * nuevo responsable, que es lo que lo pone en SU lista de cosas
      * por pagar y lo saca de la del otro.
      *
-     * Solo pendientes (lo confirmado ya salio de una cuenta concreta: cambiarlo
-     * descuadraria el saldo de las dos) y solo de categorias COMPARTIDAS: un
+     * Solo pendientes (lo confirmado ya lo pago alguien) y solo de categorias COMPARTIDAS: un
      * gasto privado no puede caer en la cuenta de alguien que no lo ve.
      */
     @Override
@@ -402,7 +380,6 @@ public class MovementServiceImpl implements MovementService {
             return new ResultDTO(false, "Quien paga tiene que ser alguien de tu hogar", 400);
         }
         m.setUserId(nuevoPagador);
-        m.setAccountId(cuentas.porDefecto(nuevoPagador).getId());
         Movement guardado = movementRepository.save(m);
         log.info("Movement {} reassigned to payer {} by {}", id, nuevoPagador, yo);
         return new ResultDTO(movementMapper.toResultDTO(guardado));
@@ -444,7 +421,6 @@ public class MovementServiceImpl implements MovementService {
             m.setActive(false);
         } else {
             m.setAmount(pendiente.subtract(suelta));
-            repartos.recalcular(m);
         }
         Movement guardado = movementRepository.save(m);
         log.info("Movement {} released {} (now pending {})", id, suelta, guardado.getActive() ? guardado.getAmount() : 0);
@@ -483,7 +459,6 @@ public class MovementServiceImpl implements MovementService {
         m.setActive(true);
         m.setReleasedAmount(null);
         Movement guardado = movementRepository.save(m);
-        repartos.recalcular(guardado);
         log.info("Movement {} release undone: pending again {}", id, guardado.getAmount());
         Map<String, Object> res = new java.util.LinkedHashMap<>();
         res.put("pending", guardado.getAmount());
@@ -532,7 +507,6 @@ public class MovementServiceImpl implements MovementService {
     @Override
     public ResultDTO confirmWithAmount(Long id, java.math.BigDecimal newAmount) {
         categoryCacheTL.remove();
-        cuentaCacheTL.remove();
         Optional<Movement> movement = movementRepository.findByIdAndActiveTrue(id);
         if (movement.isEmpty() || !puedoTocar(movement.get())) {
             return new ResultDTO(false, "Movement not found", 404);
@@ -546,13 +520,9 @@ public class MovementServiceImpl implements MovementService {
         }
         if (newAmount != null && newAmount.compareTo(entity.getAmount()) != 0) {
             entity.setAmount(newAmount);
-            repartos.recalcular(entity);
         }
         entity.setConfirmed(true);
         Movement saved = movementRepository.save(entity);
-        /* Confirmar con otro importe es la otra puerta por la que se editaba
-           una sola pata de la transferencia. */
-        propagarALaOtraPata(saved);
         log.info("Movement confirmed: id={}, amount={}", saved.getId(), saved.getAmount());
         return new ResultDTO(enrichWithCategory(movementMapper.toResultDTO(saved)));
     }
@@ -561,7 +531,6 @@ public class MovementServiceImpl implements MovementService {
     @Transactional(readOnly = true)
     public ResultDTO getByPeriod(Long userId, LocalDate startDate, LocalDate endDate) {
         categoryCacheTL.remove();
-        cuentaCacheTL.remove();
         List<Long> hIds = householdService.getHouseholdIds(userId);
         List<Movement> movements = !hIds.isEmpty()
                 ? movementRepository.findHouseholdByPeriod(userId, hIds, startDate, endDate)
@@ -579,7 +548,6 @@ public class MovementServiceImpl implements MovementService {
     @Transactional(readOnly = true)
     public ResultDTO getChildren(Long parentId) {
         categoryCacheTL.remove();
-        cuentaCacheTL.remove();
         Optional<Movement> parentOpt = movementRepository.findByIdAndActiveTrue(parentId);
         if (parentOpt.isEmpty() || !puedoTocar(parentOpt.get())) {
             return new ResultDTO(false, "Parent movement not found", 404);
@@ -623,14 +591,16 @@ public class MovementServiceImpl implements MovementService {
 
         Movement entity = movement.get();
 
-        // If it's a transfer, delete both pair movements
-        if (Boolean.TRUE.equals(entity.getIsTransfer()) && entity.getTransferPairId() != null) {
-            movementRepository.findByIdAndActiveTrue(entity.getTransferPairId()).ifPresent(pair -> {
-                pair.setActive(false);
-                movementRepository.save(pair);
-            });
+        /* Una compra a cuotas es UNA compra: borrar una cuota borra todas,
+           o quedarian cuotas sueltas de algo que ya no existe. */
+        if (entity.getPurchaseId() != null) {
+            for (Movement cuota : movementRepository.findByPurchaseIdAndActiveTrue(entity.getPurchaseId())) {
+                if (!cuota.getId().equals(entity.getId())) {
+                    cuota.setActive(false);
+                    movementRepository.save(cuota);
+                }
+            }
         }
-
         entity.setActive(false);
         movementRepository.save(entity);
         log.info("Movement deleted (soft): id={}", entity.getId());
@@ -652,26 +622,7 @@ public class MovementServiceImpl implements MovementService {
                 dto.setCategoryColor(cat.getColor());
             }
         }
-        /* Mi parte viaja con el movimiento para que la lista pueda ensenar
-           "120.000 (te tocan 40.000)". Sin reparto es igual al importe. */
-        dto.setMyShare(dto.getId() == null ? dto.getAmount()
-                : reparto.miParte(movementRepository.findById(dto.getId()).orElse(null),
-                                  acceso.usuarioActual()));
-
-        /* El nombre de la cuenta viaja con el movimiento por lo mismo que el de
-           la categoria: para que la lista se pueda pintar sin una segunda
-           llamada por fila. Mismo cache por peticion. */
-        if (dto.getAccountId() != null) {
-            java.util.Map<Long, com.ohchurus.budget.entity.Account> cache = cuentaCacheTL.get();
-            com.ohchurus.budget.entity.Account cuenta = cache.computeIfAbsent(dto.getAccountId(),
-                    id -> cuentaRepo.findByIdAndActiveTrue(id).orElse(null));
-            if (cuenta != null) {
-                dto.setAccountName(cuenta.getName());
-            }
-        }
         return dto;
     }
 
-    private static final ThreadLocal<java.util.Map<Long, com.ohchurus.budget.entity.Account>> cuentaCacheTL =
-            ThreadLocal.withInitial(java.util.HashMap::new);
 }

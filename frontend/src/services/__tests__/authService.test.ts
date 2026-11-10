@@ -42,12 +42,4 @@ describe('authService', () => {
     expect(mockPost).toHaveBeenCalledWith('/AUTH-SERVICE/oh-churus/v1/users/save', { id: '1', budgetStartDay: 15 });
     expect(result).toEqual(mockResponse.data);
   });
-
-  it('getAllUsers posts to all endpoint with filter', async () => {
-    const mockResponse = { data: { correct: true, object: { list: [], page: 0, size: 10, totalPage: 0 } } };
-    mockPost.mockResolvedValueOnce(mockResponse);
-    const result = await authService.getAllUsers({ page: 0, size: 10 });
-    expect(mockPost).toHaveBeenCalledWith('/AUTH-SERVICE/oh-churus/v1/users/all', { page: 0, size: 10 });
-    expect(result).toEqual(mockResponse.data);
-  });
 });

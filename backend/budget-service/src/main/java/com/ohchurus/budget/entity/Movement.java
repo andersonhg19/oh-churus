@@ -12,8 +12,7 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "oc_budget_movement", indexes = {
         @Index(name = "idx_movement_user_date_active", columnList = "userId, date, active"),
-        @Index(name = "idx_movement_user_confirmed_active", columnList = "userId, confirmed, active"),
-        @Index(name = "idx_movement_account_date_active", columnList = "accountId, date, active")
+        @Index(name = "idx_movement_user_confirmed_active", columnList = "userId, confirmed, active")
 })
 @Getter
 @Setter
@@ -56,78 +55,6 @@ public class Movement {
     private Long parentMovementId;
 
     /**
-     * En que cuenta ocurrio. De donde salio la plata, o a donde entro.
-     *
-     * Se deja NULABLE a proposito, y no es dejadez. La migracion V4 reparte
-     * todo lo existente a una cuenta "Sin asignar", asi que hoy no hay ni un
-     * movimiento sin cuenta; pero si la columna fuera NOT NULL, cualquier
-     * cliente antiguo que no mande accountId recibiria un error de base de
-     * datos en vez de guardar. En su lugar el servicio pone la cuenta por
-     * defecto cuando no viene ninguna, y una prueba comprueba que ningun
-     * movimiento acaba sin cuenta. La garantia esta, pero puesta donde puede
-     * dar una respuesta util en vez de una excepcion.
-     */
-    private Long accountId;
-
-    /**
-     * El movimiento de apertura: "esta cuenta empezo con esto, este dia".
-     *
-     * Es un movimiento y no un campo de la cuenta para que tenga FECHA. Con un
-     * campo `saldoInicial` solo se puede calcular el saldo de hoy; con una
-     * apertura fechada se puede calcular el de cualquier dia, que es lo que
-     * hace falta para conciliar contra un extracto viejo.
-     *
-     * No cuenta como ingreso: aparecer 2.000.000 en "Ingresos" el dia que
-     * empiezas a usar la app seria mentira. Lo excluye Computables.suma().
-     */
-    @Column(nullable = false)
-    @Builder.Default
-    private Boolean isOpening = false;
-
-    /**
-     * La referencia que le dio el BANCO a esta operacion, si vino en el
-     * extracto importado.
-     *
-     * Es la unica senal fiable de que dos filas son la misma operacion: el
-     * importe se repite, la fecha baila —el banco fecha la compra el dia que
-     * la liquida— y la descripcion la reescribe cualquiera. Se guarda para que
-     * el cotejo de la SIGUIENTE importacion la pueda usar; sin ella habria que
-     * adivinar por importe y fecha teniendo el dato exacto delante.
-     */
-    @Column(length = 120)
-    private String externalId;
-
-    /**
-     * Como se reparte este gasto entre varias personas. Nulo = no se reparte,
-     * que es el caso de la inmensa mayoria.
-     *
-     * El importe del movimiento SIGUE SIENDO EL TOTAL aunque haya reparto: son
-     * los 120.000 que salieron del banco. Lo que cambia es cuanto de eso cuenta
-     * como gasto TUYO, y eso lo dicen las filas de MovementSplit.
-     */
-    @Enumerated(EnumType.STRING)
-    @Column(length = 20)
-    private com.ohchurus.budget.enums.SplitMode splitMode;
-
-    /**
-     * "Te paso los 80.000 que te debo."
-     *
-     * No es ingreso ni gasto: la plata cambia de dueno, no aparece ni
-     * desaparece. Lo excluye Computables.suma() por lo mismo que a la
-     * transferencia.
-     *
-     * Y no se reutiliza isTransfer aunque se parezcan: la transferencia mueve
-     * plata entre bolsillos de la MISMA persona y la liquidacion entre DOS
-     * personas. Mezclarlas obligaria a distinguirlas despues por otro campo.
-     */
-    @Column(nullable = false)
-    @Builder.Default
-    private Boolean isSettlement = false;
-
-    /** Con quien se salda, cuando es una liquidacion. */
-    private Long settledWithUserId;
-
-    /**
      * Cuanto se libero de este pendiente del plan (V12): plata que no se pago
      * (o no se ahorro) y paso a estar disponible. Nulo = nada.
      */
@@ -139,11 +66,25 @@ public class Movement {
      */
     private Long fundedFromCategoryId;
 
+    /**
+     * Con que tarjeta se pago (V15). Nulo = con plata del mes o del ahorro.
+     * La compra cuenta como gasto de su categoria; la tarjeta solo dice que
+     * esa plata se le debe al banco hasta que se pague (cardPaid).
+     */
+    private Long cardId;
+
+    /** La tarjeta ya se pago por esta compra (o esta cuota). */
     @Column(nullable = false)
     @Builder.Default
-    private Boolean isTransfer = false;
+    private Boolean cardPaid = false;
 
-    private Long transferPairId;
+    /** Que cuota es (1..installmentTotal), si la compra fue a cuotas. */
+    private Integer installmentNumber;
+
+    private Integer installmentTotal;
+
+    /** Las cuotas de una compra comparten este id: el de la primera cuota. */
+    private Long purchaseId;
 
     @Column(nullable = false)
     @Builder.Default

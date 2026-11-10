@@ -34,21 +34,14 @@ describe('ExportImportScreen', () => {
   });
 
   /*
-   * Esta prueba comprobaba antes que existiera el texto "Importar desde
-   * Excel", que era un boton de PROXIMAMENTE: al tocarlo salia un aviso de
-   * "esta funcionalidad estara disponible pronto". O sea que verificaba con
-   * todo rigor que la promesa incumplida siguiera en su sitio.
-   *
-   * Ya hay importacion de verdad (ola 3.4), asi que ahora comprueba que el
-   * boton LLEVE A ALGUNA PARTE, que es lo que de verdad importa: un boton que
-   * no navega es otra vez un placeholder, solo que sin avisar.
+   * La importacion del banco se retiro: la pantalla solo exporta. Un boton
+   * que llevara a una ruta que ya no existe no haria nada al tocarlo.
    */
-  it('el boton de importar lleva a la pantalla de importacion, no a un aviso', () => {
-    const { getByText, getByTestId } = render(<ExportImportScreen navigation={mockNavigation} />, { wrapper: Wrapper });
+  it('solo ofrece exportar: ya no hay boton de importar', () => {
+    const { getByText, queryByTestId, queryByText } = render(<ExportImportScreen navigation={mockNavigation} />, { wrapper: Wrapper });
     expect(getByText(/Exportar Reporte Excel/)).toBeTruthy();
-
-    fireEvent.press(getByTestId('ir-a-importar'));
-    expect(mockNavigation.navigate).toHaveBeenCalledWith('Import');
+    expect(queryByTestId('ir-a-importar')).toBeNull();
+    expect(queryByText(/Importar/)).toBeNull();
   });
 
   /* Cuando falla la generacion el backend responde 200 con un ResultDTO en

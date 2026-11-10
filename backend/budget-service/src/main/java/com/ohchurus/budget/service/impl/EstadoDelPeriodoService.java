@@ -1,14 +1,11 @@
 package com.ohchurus.budget.service.impl;
 
 import com.ohchurus.budget.dto.output.ResultDTO;
-import com.ohchurus.budget.entity.Account;
 import com.ohchurus.budget.entity.BudgetAllocation;
 import com.ohchurus.budget.entity.Category;
 import com.ohchurus.budget.entity.Movement;
-import com.ohchurus.budget.enums.AccountKind;
 import com.ohchurus.budget.enums.CategoryType;
 import com.ohchurus.budget.enums.ScheduledKind;
-import com.ohchurus.budget.repository.AccountRepository;
 import com.ohchurus.budget.repository.BudgetAllocationRepository;
 import com.ohchurus.budget.repository.CategoryRepository;
 import com.ohchurus.budget.repository.MovementRepository;
@@ -69,20 +66,15 @@ public class EstadoDelPeriodoService {
     private final MovementRepository movimientos;
     private final CategoryRepository categorias;
     private final BudgetAllocationRepository asignaciones;
-    private final AccountRepository cuentas;
-    private final SaldoDeCuenta saldos;
     private final HouseholdServiceImpl hogares;
 
     public EstadoDelPeriodoService(PlanFinancieroService plan, MovementRepository movimientos,
                                    CategoryRepository categorias, BudgetAllocationRepository asignaciones,
-                                   AccountRepository cuentas, SaldoDeCuenta saldos,
                                    HouseholdServiceImpl hogares) {
         this.plan = plan;
         this.movimientos = movimientos;
         this.categorias = categorias;
         this.asignaciones = asignaciones;
-        this.cuentas = cuentas;
-        this.saldos = saldos;
         this.hogares = hogares;
     }
 
@@ -393,6 +385,7 @@ public class EstadoDelPeriodoService {
         boolean cerrado = fin.isBefore(hoy);
         BigDecimal totAsignado = BigDecimal.ZERO, totReal = BigDecimal.ZERO, totComprometido = BigDecimal.ZERO;
         BigDecimal totAhorroMeta = BigDecimal.ZERO, totAhorrado = BigDecimal.ZERO, totSinPresupuesto = BigDecimal.ZERO;
+        BigDecimal totSaldoAhorros = BigDecimal.ZERO;
         BigDecimal totBolsaRestante = BigDecimal.ZERO;
         int dentro = 0, excedidas = 0, metasCumplidas = 0, metasIncumplidas = 0;
         List<Map<String, Object>> cats = new ArrayList<>();
@@ -455,6 +448,11 @@ public class EstadoDelPeriodoService {
             r.put("executionPct", pct(realDelMes, c.asignado));
             r.put("fromSavings", c.delAhorro);
             r.put("withdrawn", c.retirado);
+            if (esAhorro) {
+                BigDecimal saldo = saldoDelAhorro(c.cat, alcance, fin);
+                r.put("balance", saldo);
+                totSaldoAhorros = totSaldoAhorros.add(saldo);
+            }
             r.put("status", estado);
             r.put("hasAllocation", c.tieneAsignacion);
             r.put("plannedInItems", c.planDeLineas);
@@ -498,6 +496,7 @@ public class EstadoDelPeriodoService {
         t.put("released", totLiberado);
         t.put("fromSavings", totDelAhorro);
         t.put("netSaved", totAhorrado.subtract(totDelAhorro));
+        t.put("savingsBalance", totSaldoAhorros);
         t.put("freeToSpend", libre);
         t.put("freeNow", libreHoy);
         t.put("executionPct", pct(totReal, totAsignado.subtract(totAhorroMeta)));
@@ -526,7 +525,6 @@ public class EstadoDelPeriodoService {
             res.put("incomeByPerson", ingresos(ingresosPorPersona));
             res.put("incomeItems", ingresosDetalle);
             res.put("responsibilities", responsabilidades(responsables));
-            res.put("funds", fondos(yo, alcance));
         }
         return res;
     }
@@ -540,6 +538,30 @@ public class EstadoDelPeriodoService {
             }
         }
         return l.pagador();
+    }
+
+    /**
+     * CUANTO HAY en un ahorro al cierre del periodo: todo lo que se ha metido
+     * en el (de cualquier mes, tambien lo que ya estaba ahorrado y se cargo
+     * con fecha anterior) menos todo lo que se ha pagado con el. No se
+     * reinicia cada mes: es el saldo, no la meta del mes.
+     *
+     * En el hogar cuenta todo; en una persona, lo que metio y lo que saco
+     * ella.
+     */
+    private BigDecimal saldoDelAhorro(Category ahorro, Alcance alcance, LocalDate hasta) {
+        BigDecimal saldo = BigDecimal.ZERO;
+        for (Movement m : movimientos.findByCategoryIdAndActiveTrueAndConfirmedTrueAndDateLessThanEqual(ahorro.getId(), hasta)) {
+            if (!Computables.suma(m)) continue;
+            if (!alcance.hogar() && !alcance.persona().equals(m.getUserId())) continue;
+            saldo = saldo.add(Computables.importe(m));
+        }
+        for (Movement m : movimientos.findByFundedFromCategoryIdAndActiveTrueAndConfirmedTrueAndDateLessThanEqual(ahorro.getId(), hasta)) {
+            if (!Computables.suma(m)) continue;
+            if (!alcance.hogar() && !alcance.persona().equals(m.getUserId())) continue;
+            saldo = saldo.subtract(Computables.importe(m));
+        }
+        return saldo;
     }
 
     private boolean entra(Alcance alcance, Category cat, Movement m) {
@@ -619,29 +641,6 @@ public class EstadoDelPeriodoService {
             out.add(p);
         });
         return out;
-    }
-
-    /** HOGAR: las cuentas comunes y las mias. PERSONA: las suyas, si soy yo. */
-    private Map<String, Object> fondos(Long yo, Alcance alcance) {
-        List<Map<String, Object>> lista = new ArrayList<>();
-        BigDecimal total = BigDecimal.ZERO;
-        Long de = alcance.hogar() ? yo : alcance.persona();
-        if (alcance.hogar() || yo.equals(de)) {
-            for (Account a : cuentas.findByUserIdAndActiveTrueOrderByNameAsc(de)) {
-                if (a.getKind() != AccountKind.OWN && a.getKind() != null) continue;
-                BigDecimal saldo = saldos.confirmado(a.getId());
-                total = total.add(saldo);
-                Map<String, Object> m = new LinkedHashMap<>();
-                m.put("accountId", a.getId());
-                m.put("name", a.getName());
-                m.put("balance", saldo);
-                lista.add(m);
-            }
-        }
-        Map<String, Object> f = new LinkedHashMap<>();
-        f.put("total", total);
-        f.put("accounts", lista);
-        return f;
     }
 
     private static BigDecimal nz(BigDecimal v) { return v != null ? v : BigDecimal.ZERO; }

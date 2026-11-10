@@ -72,7 +72,6 @@
 		<module>gateway-service</module>
 		<module>auth-service</module>
 		<module>budget-service</module>
-		<module>fasting-service</module>
 	</modules>
 
 	<build>

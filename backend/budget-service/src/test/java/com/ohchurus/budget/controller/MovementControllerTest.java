@@ -441,42 +441,4 @@ class MovementControllerTest {
         }
     }
 
-    @Nested
-    @DisplayName("POST /v1/movements/transfer")
-    class TransferTests {
-
-        @Test
-        @DisplayName("Should parse body with description and delegate to BudgetAllocationService")
-        void shouldTransferWithDescription() throws Exception {
-            when(budgetAllocationService.transfer(eq(1L), eq(30L), eq(20L),
-                    eq(new BigDecimal("50000")), eq("Disponibilizar"))).thenReturn(successResult);
-
-            String body = "{\"userId\":1,\"fromCategoryId\":30,\"toCategoryId\":20,"
-                    + "\"amount\":50000,\"description\":\"Disponibilizar\"}";
-
-            mockMvc.perform(post("/v1/movements/transfer")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(body))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.correct").value(true));
-
-            verify(budgetAllocationService).transfer(1L, 30L, 20L, new BigDecimal("50000"), "Disponibilizar");
-        }
-
-        @Test
-        @DisplayName("Should default description to null when absent")
-        void shouldTransferWithoutDescription() throws Exception {
-            when(budgetAllocationService.transfer(eq(1L), eq(30L), eq(20L),
-                    eq(new BigDecimal("50000")), eq(null))).thenReturn(successResult);
-
-            String body = "{\"userId\":1,\"fromCategoryId\":30,\"toCategoryId\":20,\"amount\":50000}";
-
-            mockMvc.perform(post("/v1/movements/transfer")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(body))
-                    .andExpect(status().isOk());
-
-            verify(budgetAllocationService).transfer(1L, 30L, 20L, new BigDecimal("50000"), null);
-        }
-    }
 }

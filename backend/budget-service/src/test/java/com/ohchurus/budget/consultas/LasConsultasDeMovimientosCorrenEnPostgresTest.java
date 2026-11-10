@@ -129,7 +129,7 @@ class LasConsultasDeMovimientosCorrenEnPostgresTest extends PostgresDeVerdad {
                                 boolean confirmado, boolean vivo, Long programadoId) {
         return movimientos.save(Movement.builder()
                 .userId(duena).categoryId(categoriaId).date(LocalDate.parse(fecha))
-                .amount(new BigDecimal(importe)).isTransfer(false)
+                .amount(new BigDecimal(importe))
                 .confirmed(confirmado).active(vivo).scheduledMovementId(programadoId)
                 .build());
     }

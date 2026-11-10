@@ -146,52 +146,16 @@ class BudgetAllocationControllerTest {
     }
 
     @Test
-    @DisplayName("POST /summary should delegate with defaults")
-    void shouldSummary() throws Exception {
-        when(service.summary(eq(1L), eq(1), eq(null))).thenReturn(successResult);
-
-        mockMvc.perform(post("/v1/budget-allocation/summary")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of("userId", 1))))
-                .andExpect(status().isOk());
-
-        verify(service).summary(1L, 1, null);
-    }
-
-    @Test
-    @DisplayName("POST /summary should parse optional budgetStartDay and referenceDate")
-    void shouldSummaryWithOptionalFields() throws Exception {
-        when(service.summary(eq(1L), eq(15), eq(java.time.LocalDate.of(2026, 3, 15)))).thenReturn(successResult);
-
-        Map<String, Object> body = new HashMap<>();
-        body.put("userId", 1);
-        body.put("budgetStartDay", 15);
-        body.put("referenceDate", "2026-03-15");
-
-        mockMvc.perform(post("/v1/budget-allocation/summary")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(body)))
-                .andExpect(status().isOk());
-
-        verify(service).summary(1L, 15, java.time.LocalDate.of(2026, 3, 15));
-    }
-
-    @Test
-    @DisplayName("POST /save, /list, /summary should treat explicit null referenceDate as null")
+    @DisplayName("POST /save, /list should treat explicit null referenceDate as null")
     void shouldHandleExplicitNullReferenceDate() throws Exception {
         when(service.save(eq(1L), eq(20L), any(), isNull(), eq(1), isNull())).thenReturn(successResult);
         when(service.list(eq(1L), eq(1), isNull())).thenReturn(successResult);
-        when(service.summary(eq(1L), eq(1), isNull())).thenReturn(successResult);
 
         mockMvc.perform(post("/v1/budget-allocation/save")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"userId\":1,\"categoryId\":20,\"amount\":\"100\",\"referenceDate\":null}"))
                 .andExpect(status().isOk());
         mockMvc.perform(post("/v1/budget-allocation/list")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"userId\":1,\"referenceDate\":null}"))
-                .andExpect(status().isOk());
-        mockMvc.perform(post("/v1/budget-allocation/summary")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"userId\":1,\"referenceDate\":null}"))
                 .andExpect(status().isOk());

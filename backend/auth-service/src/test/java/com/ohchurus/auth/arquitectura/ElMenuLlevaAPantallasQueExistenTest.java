@@ -10,6 +10,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -122,11 +123,32 @@ class ElMenuLlevaAPantallasQueExistenTest {
            asi que la ruta es el cuarto literal de cada linea que empieza por
            SELECT dentro del bloque de paginas. Se busca por forma —un
            identificador en mayuscula inicial— en vez de por posicion, que es
-           mas robusto ante un cambio de columnas. */
+           mas robusto ante un cambio de columnas.
+
+           Las migraciones posteriores pueden corregir o retirar rutas (la V8
+           lo hace con las pantallas que se quitaron). Se aplican en orden de
+           version, una sentencia por linea:
+             UPDATE oc_auth_page SET route = 'Nueva', ... WHERE route = 'Vieja';
+             DELETE FROM oc_auth_page WHERE route = 'Retirada';
+           asi lo que se compara es lo que queda sembrado de verdad. */
+        Pattern renombra = Pattern.compile(
+                "^UPDATE oc_auth_page SET route = '([^']+)'.*WHERE route = '([^']+)'");
+        Pattern retira = Pattern.compile("^DELETE FROM oc_auth_page WHERE route = '([^']+)'");
+
         Set<String> rutas = new LinkedHashSet<>();
         for (Path migracion : ficherosDeMigracion()) {
             for (String linea : leer(migracion).split("\\R")) {
                 String limpia = linea.trim();
+                Matcher m = renombra.matcher(limpia);
+                if (m.find()) {
+                    if (rutas.remove(m.group(2))) rutas.add(m.group(1));
+                    continue;
+                }
+                m = retira.matcher(limpia);
+                if (m.find()) {
+                    rutas.remove(m.group(1));
+                    continue;
+                }
                 if (!limpia.startsWith("SELECT '")) continue;
                 List<String> literales = new ArrayList<>(extraer(limpia, "'([^']*)'"));
                 /* modulo, code, nombre, RUTA, icono */
@@ -138,10 +160,18 @@ class ElMenuLlevaAPantallasQueExistenTest {
 
     private static List<Path> ficherosDeMigracion() {
         try (var ficheros = Files.list(raizDelModulo().resolve(MIGRACIONES))) {
-            return ficheros.filter(f -> f.getFileName().toString().endsWith(".sql")).sorted().toList();
+            /* Por numero de version y no por nombre: "V10__" va detras de "V9__". */
+            return ficheros.filter(f -> f.getFileName().toString().endsWith(".sql"))
+                    .sorted(Comparator.comparingInt(ElMenuLlevaAPantallasQueExistenTest::version))
+                    .toList();
         } catch (IOException e) {
             throw new UncheckedIOException("No puedo listar las migraciones", e);
         }
+    }
+
+    private static int version(Path migracion) {
+        Matcher m = Pattern.compile("^V(\\d+)__").matcher(migracion.getFileName().toString());
+        return m.find() ? Integer.parseInt(m.group(1)) : Integer.MAX_VALUE;
     }
 
     private static Set<String> extraer(String texto, String patron) {

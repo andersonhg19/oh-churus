@@ -166,7 +166,7 @@ jobs:
         run: mvn -B -DskipTests package
 
       - name: Levantar el stack
-        run: docker compose up -d --build postgres discovery-service gateway-service auth-service budget-service fasting-service
+        run: docker compose up -d --build postgres discovery-service gateway-service auth-service budget-service
 
       # Nada de "sleep 90 y crucemos los dedos": se pregunta por la salud de cada
       # servicio A TRAVES del gateway, que es justo lo que Karate va a usar. Si

@@ -1,6 +1,5 @@
 package com.ohchurus.budget.service;
 
-import com.ohchurus.budget.dto.output.DashboardSummaryDTO;
 import com.ohchurus.budget.dto.output.ResultDTO;
 import com.ohchurus.budget.dto.output.ResultMovementDTO;
 import com.ohchurus.budget.entity.Category;
@@ -41,30 +40,6 @@ class DashboardServiceImplEdgeCasesTest {
     @Mock private ScheduledMovementService scheduledMovementService;
     @Mock private HouseholdServiceImpl householdService;
 
-    /* El reparto entre personas entro con la ola 3. Aqui se le dice "este
-       gasto no se reparte", que es el caso de la inmensa mayoria, para poder
-       seguir probando la LOGICA. Que la regla de oro se cumpla —120.000 en la
-       cuenta, 40.000 en la categoria— lo demuestra LaReglaDeOroDelRepartoTest,
-       que levanta la app entera con tres personas de verdad. */
-    @Mock
-    private com.ohchurus.budget.service.impl.RepartoDeGastos reparto;
-
-    @BeforeEach
-    void sinRepartoPorDefecto() {
-        org.mockito.Mockito.lenient().when(reparto.misPartes(
-                org.mockito.ArgumentMatchers.anyCollection(),
-                org.mockito.ArgumentMatchers.any())).thenAnswer(inv -> {
-            java.util.Collection<com.ohchurus.budget.entity.Movement> ms = inv.getArgument(0);
-            java.util.Map<Long, java.math.BigDecimal> partes = new java.util.HashMap<>();
-            ms.forEach(m -> partes.put(m.getId(),
-                    com.ohchurus.budget.util.Computables.importe(m)));
-            return partes;
-        });
-        org.mockito.Mockito.lenient().when(reparto.miParte(
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any())).thenAnswer(inv ->
-                com.ohchurus.budget.util.Computables.importe(inv.getArgument(0)));
-    }
 
     @InjectMocks
     private DashboardServiceImpl service;
@@ -84,100 +59,6 @@ class DashboardServiceImplEdgeCasesTest {
     @BeforeEach
     void noHouseholds() {
         lenient().when(householdService.getHouseholdIds(USER_ID)).thenReturn(Collections.emptyList());
-    }
-
-    @Test
-    @DisplayName("getSummary: gastos y presupuesto cuentan EXACTAMENTE la misma plata")
-    void getSummaryEdgeMovements() {
-        Movement transfer = Movement.builder().id(1L).userId(USER_ID).categoryId(20L).date(LocalDate.now())
-                .amount(new BigDecimal("999")).isTransfer(true).confirmed(true).active(true).build();
-        Movement incomeNull = Movement.builder().id(2L).userId(USER_ID).categoryId(10L).date(LocalDate.now())
-                .amount(null).confirmed(true).active(true).build();
-        Movement child = Movement.builder().id(3L).userId(USER_ID).categoryId(20L).date(LocalDate.now())
-                .amount(new BigDecimal("100")).parentMovementId(50L).confirmed(true).active(true).build();
-        Movement orphanCat = Movement.builder().id(4L).userId(USER_ID).categoryId(77L).date(LocalDate.now())
-                .amount(new BigDecimal("50")).confirmed(true).active(true).build();
-        Movement pendingNull = Movement.builder().id(5L).userId(USER_ID).categoryId(20L).date(LocalDate.now())
-                .amount(null).confirmed(false).active(true).build();
-
-        when(movementRepository.findByUserIdAndDateBetweenAndConfirmedTrueAndActiveTrue(eq(USER_ID), any(), any()))
-                .thenReturn(List.of(transfer, incomeNull, child, orphanCat));
-        when(movementRepository.findByUserIdAndDateBetweenAndConfirmedFalseAndActiveTrue(eq(USER_ID), any(), any()))
-                .thenReturn(List.of(pendingNull));
-        when(movementRepository.findByUserIdAndConfirmedFalseAndActiveTrue(USER_ID)).thenReturn(Collections.emptyList());
-        when(categoryRepository.findByIdAndActiveTrue(10L)).thenReturn(Optional.of(income()));
-        when(categoryRepository.findByIdAndActiveTrue(20L)).thenReturn(Optional.of(expense()));
-        when(categoryRepository.findByIdAndActiveTrue(77L)).thenReturn(Optional.empty()); // cat null -> EXPENSE default
-
-        ResultDTO r = service.getSummary(USER_ID, 1, LocalDate.now());
-        assertTrue(r.isCorrect());
-        DashboardSummaryDTO s = (DashboardSummaryDTO) r.getObject();
-        assertEquals(BigDecimal.ZERO, s.getTotalIncome());        // incomeNull -> 0
-
-        /* Esta prueba pedia totalExpense=150 y budgetTotal=50 SOBRE LOS MISMOS
-           MOVIMIENTOS: fijaba como correcto que "Gastos" contara los
-           sub-movimientos y "Presupuesto" no. Era la incoherencia que el
-           usuario veia como "las cifras no cuadran", certificada por la suite.
-
-           La regla, ahora unica (ver Computables): el hijo es detalle del
-           padre y la transferencia no es ni ingreso ni gasto. Con estos datos
-           solo computa orphanCat (50). */
-        assertEquals(new BigDecimal("50"), s.getTotalExpense());
-        assertEquals(new BigDecimal("50"), s.getBudgetTotal());
-        assertEquals(s.getTotalExpense(), s.getBudgetTotal(),
-                "gastos y presupuesto tienen que contar la misma plata");
-        assertEquals(1, s.getPendingCount());
-    }
-
-    @Test
-    @DisplayName("getSummary should NOT auto-generate pending for a non-current period")
-    void getSummaryNonCurrentPeriod() {
-        when(movementRepository.findByUserIdAndDateBetweenAndConfirmedTrueAndActiveTrue(eq(USER_ID), any(), any()))
-                .thenReturn(Collections.emptyList());
-        when(movementRepository.findByUserIdAndDateBetweenAndConfirmedFalseAndActiveTrue(eq(USER_ID), any(), any()))
-                .thenReturn(Collections.emptyList());
-        when(movementRepository.findByUserIdAndConfirmedFalseAndActiveTrue(USER_ID)).thenReturn(Collections.emptyList());
-
-        ResultDTO r = service.getSummary(USER_ID, 1, LocalDate.now().minusMonths(3));
-        assertTrue(r.isCorrect());
-        verify(scheduledMovementService, never()).generatePending(anyLong(), anyInt());
-    }
-
-    @Test
-    @DisplayName("getSummary should swallow errors from auto-generate pending")
-    void getSummaryGenerateThrows() {
-        doThrow(new RuntimeException("gen failed")).when(scheduledMovementService).generatePending(eq(USER_ID), eq(1));
-        when(movementRepository.findByUserIdAndDateBetweenAndConfirmedTrueAndActiveTrue(eq(USER_ID), any(), any()))
-                .thenReturn(Collections.emptyList());
-        when(movementRepository.findByUserIdAndDateBetweenAndConfirmedFalseAndActiveTrue(eq(USER_ID), any(), any()))
-                .thenReturn(Collections.emptyList());
-        when(movementRepository.findByUserIdAndConfirmedFalseAndActiveTrue(USER_ID)).thenReturn(Collections.emptyList());
-
-        ResultDTO r = service.getSummary(USER_ID, 1, LocalDate.now());
-        assertTrue(r.isCorrect()); // error swallowed, summary still produced
-    }
-
-    @Test
-    @DisplayName("getByCategory should skip transfers and tolerate null amount / missing or untyped category")
-    void getByCategoryEdge() {
-        Movement transfer = Movement.builder().id(1L).userId(USER_ID).categoryId(20L).date(LocalDate.now())
-                .amount(new BigDecimal("10")).isTransfer(true).confirmed(true).active(true).build();
-        Movement nullAmt = Movement.builder().id(2L).userId(USER_ID).categoryId(88L).date(LocalDate.now())
-                .amount(null).confirmed(true).active(true).build();
-        Movement orphan = Movement.builder().id(3L).userId(USER_ID).categoryId(77L).date(LocalDate.now())
-                .amount(new BigDecimal("30")).confirmed(true).active(true).build();
-
-        when(movementRepository.findByUserIdAndDateBetweenAndConfirmedTrueAndActiveTrue(eq(USER_ID), any(), any()))
-                .thenReturn(List.of(transfer, nullAmt, orphan));
-        when(categoryRepository.findByIdAndActiveTrue(88L)).thenReturn(Optional.of(nullType()));
-        when(categoryRepository.findByIdAndActiveTrue(77L)).thenReturn(Optional.empty());
-
-        ResultDTO r = service.getByCategory(USER_ID, 1, LocalDate.now());
-        assertTrue(r.isCorrect());
-        @SuppressWarnings("unchecked")
-        List<DashboardSummaryDTO.CategorySummary> cats = (List<DashboardSummaryDTO.CategorySummary>) r.getObject();
-        // transfer excluded -> only categories 88 and 77 present
-        assertEquals(2, cats.size());
     }
 
     @Test
@@ -204,45 +85,4 @@ class DashboardServiceImplEdgeCasesTest {
         assertNull(list.get(0).getCategoryType()); // untyped category
     }
 
-    @Test
-    @DisplayName("getSplitSummary should default reference date and tolerate missing categories in pending")
-    void getSplitSummaryDefaultRefAndNullCat() {
-        Movement confirmedNoCat = Movement.builder().id(1L).userId(USER_ID).categoryId(77L).date(LocalDate.now())
-                .amount(new BigDecimal("40")).confirmed(true).active(true).build();
-        Movement pendingNoCat = Movement.builder().id(2L).userId(USER_ID).categoryId(77L).date(LocalDate.now())
-                .amount(new BigDecimal("15")).confirmed(false).active(true).build();
-
-        when(movementRepository.findByUserIdAndDateBetweenAndConfirmedTrueAndActiveTrue(eq(USER_ID), any(), any()))
-                .thenReturn(List.of(confirmedNoCat));
-        when(movementRepository.findByUserIdAndDateBetweenAndConfirmedFalseAndActiveTrue(eq(USER_ID), any(), any()))
-                .thenReturn(List.of(pendingNoCat));
-        when(movementRepository.findByUserIdAndConfirmedFalseAndActiveTrue(USER_ID)).thenReturn(Collections.emptyList());
-        when(categoryRepository.findByIdAndActiveTrue(77L)).thenReturn(Optional.empty());
-
-        ResultDTO r = service.getSplitSummary(USER_ID, 1, null); // null reference date
-        assertTrue(r.isCorrect());
-        DashboardSummaryDTO.SplitSummary s = (DashboardSummaryDTO.SplitSummary) r.getObject();
-        // missing category -> treated as personal expense
-        assertEquals(new BigDecimal("40"), s.getPersonalExpense());
-        assertEquals(1, s.getPersonalPendingCount());
-    }
-
-    @Test
-    @DisplayName("getTrend should skip transfers and treat null amounts as zero")
-    void getTrendEdge() {
-        Movement transfer = Movement.builder().id(1L).userId(USER_ID).categoryId(20L).date(LocalDate.now())
-                .amount(new BigDecimal("99")).isTransfer(true).confirmed(true).active(true).build();
-        Movement nullAmt = Movement.builder().id(2L).userId(USER_ID).categoryId(20L).date(LocalDate.now())
-                .amount(null).confirmed(true).active(true).build();
-
-        when(movementRepository.findByUserIdAndDateBetweenAndConfirmedTrueAndActiveTrue(eq(USER_ID), any(), any()))
-                .thenReturn(List.of(transfer, nullAmt))
-                .thenReturn(Collections.emptyList());
-        when(categoryRepository.findByIdAndActiveTrue(20L)).thenReturn(Optional.of(expense()));
-
-        ResultDTO r = service.getTrend(USER_ID, 1);
-        assertTrue(r.isCorrect());
-        DashboardSummaryDTO.TrendDTO trend = (DashboardSummaryDTO.TrendDTO) r.getObject();
-        assertEquals(BigDecimal.ZERO, trend.getCurrentExpense()); // transfer skipped, null -> 0
-    }
 }

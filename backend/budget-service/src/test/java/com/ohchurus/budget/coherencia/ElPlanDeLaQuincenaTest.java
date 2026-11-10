@@ -8,13 +8,11 @@ import com.ohchurus.budget.entity.Category;
 import com.ohchurus.budget.entity.Household;
 import com.ohchurus.budget.entity.HouseholdMember;
 import com.ohchurus.budget.enums.CategoryType;
-import com.ohchurus.budget.repository.AccountRepository;
 import com.ohchurus.budget.repository.BudgetAllocationRepository;
 import com.ohchurus.budget.repository.CategoryRepository;
 import com.ohchurus.budget.repository.HouseholdMemberRepository;
 import com.ohchurus.budget.repository.HouseholdRepository;
 import com.ohchurus.budget.repository.MovementRepository;
-import com.ohchurus.budget.repository.MovementSplitRepository;
 import com.ohchurus.budget.repository.ScheduledMovementRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -52,9 +50,7 @@ class ElPlanDeLaQuincenaTest {
 
     @Autowired private WebApplicationContext contexto;
     @Autowired private MovementRepository movimientos;
-    @Autowired private MovementSplitRepository partes;
     @Autowired private CategoryRepository categorias;
-    @Autowired private AccountRepository cuentas;
     @Autowired private HouseholdRepository hogares;
     @Autowired private HouseholdMemberRepository miembros;
     @Autowired private BudgetAllocationRepository asignaciones;
@@ -69,11 +65,9 @@ class ElPlanDeLaQuincenaTest {
     @BeforeEach
     void montar() throws Exception {
         mvc = MockMvcBuilders.webAppContextSetup(contexto).apply(springSecurity()).build();
-        partes.deleteAll();
         movimientos.deleteAll();
         asignaciones.deleteAll();
         programados.deleteAll();
-        cuentas.deleteAll();
         categorias.deleteAll();
         miembros.deleteAll();
         hogares.deleteAll();
@@ -242,9 +236,6 @@ class ElPlanDeLaQuincenaTest {
         assertThat(movimientos.findById(pendiente).get().getUserId())
                 .as("este mes el gimnasio lo paga Andy: tiene que salir en SU lista")
                 .isEqualTo(ANDY);
-        assertThat(movimientos.findById(pendiente).get().getAccountId())
-                .as("y en su cuenta, no en la de Samy")
-                .isEqualTo(cuentas.findByUserIdAndIsDefaultTrueAndActiveTrue(ANDY).get().getId());
 
         Long secreto = programados.findAll().stream().filter(p -> p.getName().equals("Gasto secreto")).findFirst().get().getId();
         pedir(ANDY, "/v1/scheduled/materialize",
@@ -255,7 +246,7 @@ class ElPlanDeLaQuincenaTest {
 
         pedir(ANDY, "/v1/movements/confirm/" + pendiente, "{}");
         assertThat(pedir(ANDY, "/v1/movements/reassign/" + pendiente, "{\"payerUserId\":" + SAMY + "}")
-                .path("correct").asBoolean()).as("lo confirmado ya salio de una cuenta").isFalse();
+                .path("correct").asBoolean()).as("lo confirmado ya lo pago alguien").isFalse();
     }
 
     @Test
@@ -275,8 +266,9 @@ class ElPlanDeLaQuincenaTest {
                 "{\"budgetStartDay\":1,\"referenceDate\":\"2026-11-15\"}").path("object").path("copied").asInt())
                 .isZero();
 
-        JsonNode s = pedir(ANDY, "/v1/budget-allocation/summary",
-                "{\"budgetStartDay\":1,\"referenceDate\":\"2026-11-15\"}").path("object");
-        assertThat(num(s.path("totalBudgeted"))).isEqualByComparingTo("4300000");
+        java.math.BigDecimal noviembre = asignaciones.findAll().stream()
+                .filter(a -> Boolean.TRUE.equals(a.getActive()) && java.time.LocalDate.of(2026, 11, 1).equals(a.getPeriodStart()))
+                .map(a -> a.getAllocatedAmount()).reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
+        assertThat(noviembre).isEqualByComparingTo("4300000");
     }
 }

@@ -47,7 +47,6 @@ describe('PlanScreen', () => {
         today: '2026-11-05', payDates: ['2026-11-01', '2026-11-15'], hasIncome: true,
         current: ventana, next: { ...ventana, start: '2026-11-15', end: '2026-11-30' },
         overdueFromBefore: [],
-        available: { accountsBalance: 2800000, stillToPay: 160000, reservedInProvisions: 600000, freeToSpend: 2040000 },
         installments: [{ scheduledMovementId: 9, name: 'Computador Q1', installmentAmount: 500000, totalInstallments: 7,
           paidInstallments: 0, remainingInstallments: 7, remainingTotal: 3500000, nextDate: '2026-11-01',
           endDate: '2027-05-31', monthlyFreed: 500000, kind: 'DEDUCTION' }],
@@ -61,10 +60,11 @@ describe('PlanScreen', () => {
     });
   });
 
-  it('muestra lo disponible, la quincena con el descuento aparte y las cuotas', async () => {
-    const { getByTestId, getAllByText, getByText } = render(<Wrapper><PlanScreen /></Wrapper>);
-    await waitFor(() => expect(getByTestId('disponible-hoy')).toBeTruthy());
-    expect(getByTestId('disponible-hoy').props.children).toBe('$2.040.000');
+  it('muestra la quincena con el descuento aparte y las cuotas', async () => {
+    const { queryByTestId, getAllByText, getByText } = render(<Wrapper><PlanScreen /></Wrapper>);
+    await waitFor(() => expect(getByText(/Gym vence/)).toBeTruthy());
+    /* "Libre para gastar hoy" salia del saldo de las cuentas, que se retiraron. */
+    expect(queryByTestId('disponible-hoy')).toBeNull();
     expect(getAllByText('Ingreso efectivo').length).toBeGreaterThan(0);
     expect(getAllByText(/Descuentos de nómina/).length).toBeGreaterThan(0);
     expect(getByText(/Al terminar se liberan/)).toBeTruthy();

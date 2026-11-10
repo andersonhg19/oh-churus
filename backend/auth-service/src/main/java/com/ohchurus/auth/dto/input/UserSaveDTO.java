@@ -23,7 +23,11 @@ public class UserSaveDTO {
     @Size(max = 150, message = "no puede superar los 150 caracteres")
     private String email;
 
-    @Size(min = 6, max = 100, message = "debe tener entre 6 y 100 caracteres")
+    /* Contrasena nueva. Nulo = no se cambia. Solo se exige la politica a la
+       que llega: las contrasenas ya guardadas no se tocan. */
+    @Size(min = 8, max = 100, message = "debe tener entre 8 y 100 caracteres")
+    @Pattern(regexp = UserRegisterDTO.CLAVE_CON_LETRA_Y_NUMERO,
+            message = "debe tener al menos una letra y un numero")
     private String password;
 
     @Min(value = 1, message = "debe estar entre 1 y 31")
@@ -42,4 +46,12 @@ public class UserSaveDTO {
     @Min(value = 0, message = "debe estar entre 0 y 4")
     @Max(value = 4, message = "debe estar entre 0 y 4")
     private Integer decimalPlaces;
+
+    /**
+     * La contrasena actual. Obligatoria para cambiar la PROPIA contrasena por
+     * /v1/users/save: sin ella, un token robado bastaba para quedarse con la
+     * cuenta cambiandole la clave (QA A3).
+     */
+    @Size(max = 100, message = "no puede superar los 100 caracteres")
+    private String currentPassword;
 }

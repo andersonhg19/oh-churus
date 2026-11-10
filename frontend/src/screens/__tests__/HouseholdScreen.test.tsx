@@ -51,7 +51,7 @@ describe('HouseholdScreen', () => {
   it('loads the user households and shows the create option', async () => {
     const { getByText } = render(<HouseholdScreen />, { wrapper: Wrapper });
     await waitFor(() => expect(householdService.getByUser).toHaveBeenCalledWith('1'));
-    expect(getByText(/Crear nucleo familiar/)).toBeTruthy();
+    expect(getByText(/Crear hogar/)).toBeTruthy();
   });
 
   /* Esta prueba certificaba el bug: invitaba escribiendo "5" en un campo
@@ -138,7 +138,7 @@ describe('HouseholdScreen', () => {
 
     await waitFor(() => expect(getByText('No se pudo consultar el nucleo familiar')).toBeTruthy());
     expect(getByText('Reintentar')).toBeTruthy();
-    expect(queryByText('Sin nucleo familiar')).toBeNull();
+    expect(queryByText('Sin hogar')).toBeNull();
   });
 
   it('reintentar vuelve a consultar y pinta el nucleo', async () => {
@@ -157,7 +157,7 @@ describe('HouseholdScreen', () => {
   it('sin nucleos y sin fallo se sigue viendo el estado vacio, no un error', async () => {
     const { getByText, queryByText } = render(<HouseholdScreen />, { wrapper: Wrapper });
 
-    await waitFor(() => expect(getByText('Sin nucleo familiar')).toBeTruthy());
+    await waitFor(() => expect(getByText('Sin hogar')).toBeTruthy());
     expect(queryByText('Reintentar')).toBeNull();
   });
 });

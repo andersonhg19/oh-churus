@@ -102,9 +102,9 @@ const ExportImportScreen: React.FC<{ navigation?: any }> = () => {
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
       <Card style={styles.section}>
-        <AppText variant="label" style={styles.sectionTitle}>Exportar Reporte Excel</AppText>
+        <AppText variant="label" style={styles.sectionTitle}>Exportar a Excel</AppText>
         <AppText variant="caption" color={colors.textSecondary} style={styles.hint}>
-          Selecciona el periodo y descarga tu presupuesto en Excel con formulas y estilos
+          Selecciona el periodo y descarga tu presupuesto en Excel con fórmulas y estilos
         </AppText>
         <PeriodNavigator
           periodStart={exportPeriodStart}

@@ -1,11 +1,15 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AppText from '../../components/atoms/Text';
 import Icono from '../../components/atoms/Icono';
 import { tintaSobre } from '../../utils/tinta';
-import Teclado from '../../components/molecules/Teclado';
+import { textoLegibleSobre } from '../../theme/contraste';
+import Teclado, { useTecladoFisico } from '../../components/molecules/Teclado';
+import Calendario, { moverDias } from '../../components/molecules/Calendario';
+import ConfirmarDescarte from '../../components/molecules/ConfirmarDescarte';
+import { nombreTarjeta } from '../../utils/medioDePago';
 import { PALETA } from '../../components/molecules/DonaDeCategorias';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useToast } from '../../contexts/ToastContext';
@@ -13,7 +17,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useAhorros, useMisTarjetas } from '../../hooks/useAhorros';
 import { categoryService } from '../../services/categoryService';
 import { movementService } from '../../services/movementService';
-import { evaluar, mostrar, tieneOperacion } from '../../utils/calculadora';
+import { evaluar, mostrar, pulsar, tieneOperacion } from '../../utils/calculadora';
 import { fechaLocalISO, formatCurrency, formatDateShort } from '../../utils/format';
 import { Category, CategoryType, Movement } from '../../types';
 
@@ -32,12 +36,6 @@ interface Props {
 /** Verde del ahorro: distinto del verde de los ingresos, siempre con la alcancia. */
 export const VERDE_AHORRO = '#1FA67A';
 const CUOTAS_RAPIDAS = [1, 3, 6, 12, 24, 36];
-
-const desplazar = (iso: string, dias: number) => {
-  const [y, m, d] = iso.split('-').map(Number);
-  const f = new Date(y, m - 1, d + dias);
-  return fechaLocalISO(f);
-};
 
 const sinTildes = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
@@ -96,6 +94,11 @@ const AnotarScreen: React.FC<Props> = ({ navigation, route }) => {
   /* De donde sale la plata: null = fondos del mes; 'ahorro:<id>' o 'tarjeta:<id>'. */
   const [fuente, setFuente] = useState<string | null>(route.params?.pagadoCon || null);
   const [cuotas, setCuotas] = useState(1);
+  const [descartando, setDescartando] = useState(false);
+  /* Salir sin preguntar: al anotar o al pasar al formulario completo. */
+  const salirSinPreguntar = useRef(false);
+  /* Lo que se iba a hacer cuando se pidio salir (atras del navegador, gesto). */
+  const salidaPendiente = useRef<any>(null);
   const ahorros = useAhorros();
   const tarjetas = useMisTarjetas();
 
@@ -161,6 +164,7 @@ const AnotarScreen: React.FC<Props> = ({ navigation, route }) => {
         ? `${categoria.name} · ${cuotas} cuotas de ${formatCurrency(Math.floor(monto / cuotas))}`
         : `${categoria.name} · ${formatCurrency(monto)}`;
       showToast('success', titulo, detalle);
+      salirSinPreguntar.current = true;
       navigation.goBack();
     } catch (e: any) {
       showToast('error', 'Error', e?.message || 'No se pudo anotar');
@@ -168,6 +172,12 @@ const AnotarScreen: React.FC<Props> = ({ navigation, route }) => {
       setGuardando(false);
     }
   };
+
+  /* El texto sobre el ambar se calcula: casi negro en el tema oscuro, blanco en el claro. */
+  const tintaPrimaria = textoLegibleSobre(colors.primary);
+  /* Y el de la cabecera, sobre el rojo o el verde: el blanco sobre #FF6B6B era 2,78:1. */
+  const tinta = textoLegibleSobre(color);
+  const fondoPildora = tinta === '#FFFFFF' ? 'rgba(0,0,0,0.22)' : 'rgba(255,255,255,0.35)';
 
   const chip = (texto: string, activo: boolean, onPress: () => void, etiqueta: string, icono?: string) => (
     <TouchableOpacity
@@ -177,8 +187,8 @@ const AnotarScreen: React.FC<Props> = ({ navigation, route }) => {
       accessibilityRole="button"
       accessibilityLabel={etiqueta}
     >
-      {!!icono && <Icono nombre={icono} color={activo ? '#1A1405' : colors.textSecondary} tamano={16} />}
-      <AppText variant="caption" style={{ fontWeight: '700', color: activo ? '#1A1405' : colors.textSecondary }}>{texto}</AppText>
+      {!!icono && <Icono nombre={icono} color={activo ? tintaPrimaria : colors.textSecondary} tamano={16} />}
+      <AppText variant="caption" style={{ fontWeight: '700', color: activo ? tintaPrimaria : colors.textSecondary }}>{texto}</AppText>
     </TouchableOpacity>
   );
 
@@ -198,7 +208,7 @@ const AnotarScreen: React.FC<Props> = ({ navigation, route }) => {
   };
 
   const hoy = fechaLocalISO();
-  const textoFecha = fecha === hoy ? 'Hoy' : fecha === desplazar(hoy, -1) ? 'Ayer' : formatDateShort(fecha);
+  const textoFecha = fecha === hoy ? 'Hoy' : fecha === moverDias(hoy, -1) ? 'Ayer' : formatDateShort(fecha);
 
   const filtradas = categorias.filter((c) => !busqueda.trim() || sinTildes(c.name).includes(sinTildes(busqueda.trim())));
   const gastos = filtradas.filter((c) => !(tipo === 'EXPENSE' && idsAhorro.has(String(c.id))));
@@ -207,9 +217,70 @@ const AnotarScreen: React.FC<Props> = ({ navigation, route }) => {
   const vinoElegida = !!route.params?.categoriaId;
 
   const textoFuente = ahorroElegido && fuenteValida ? `Del ${ahorroElegido.nombre}`
-    : tarjetaElegida && fuenteValida ? `Tarjeta ${tarjetaElegida.name}` : 'Fondos del mes';
+    : tarjetaElegida && fuenteValida ? nombreTarjeta(tarjetaElegida.name) : 'Fondos del mes';
   const saldoTras = ahorroElegido ? ahorroElegido.saldo - monto : 0;
   const cuotaMes = cuotas > 0 ? Math.floor(monto / cuotas) : monto;
+
+  /* Hay algo escrito que se perderia al cerrar. La categoria o el medio que
+     llegaron ya elegidos (desde la dona, desde Ahorros) no cuentan. */
+  const hayAlgoEscrito = expresion !== '' || nota.trim() !== '' || fecha !== hoy
+    || (!!categoria && String(categoria.id) !== String(route.params?.categoriaId ?? ''))
+    || (fuente || null) !== (route.params?.pagadoCon || null);
+  const hayAlgoRef = useRef(hayAlgoEscrito);
+  hayAlgoRef.current = hayAlgoEscrito;
+
+  const salir = () => {
+    salirSinPreguntar.current = true;
+    setDescartando(false);
+    const accion = salidaPendiente.current;
+    salidaPendiente.current = null;
+    if (accion && navigation.dispatch) navigation.dispatch(accion);
+    else navigation.goBack();
+  };
+  const cerrar = () => {
+    if (hayAlgoEscrito && !guardando) setDescartando(true);
+    else salir();
+  };
+
+  /* El atras del navegador o del celular tambien pregunta. */
+  useEffect(() => {
+    if (!navigation.addListener) return undefined;
+    return navigation.addListener('beforeRemove', (e: any) => {
+      if (salirSinPreguntar.current || !hayAlgoRef.current) return;
+      e.preventDefault();
+      salidaPendiente.current = e.data?.action || null;
+      setDescartando(true);
+    });
+  }, [navigation]);
+
+  /* "Mas": el formulario completo con TODO lo elegido, tambien el medio de
+     pago y las cuotas (antes volvia a "Fondos del mes" y sin cuotas). */
+  const abrirFormularioCompleto = () => {
+    salirSinPreguntar.current = true;
+    navigation.replace('MovementFormModal', {
+      prefill: {
+        amount: monto || undefined, categoryId: categoria?.id, type: tipo, date: fecha,
+        description: nota.trim() || undefined,
+        confirmed: tarjetaElegida && fuenteValida ? true : pagado,
+        ...(fuenteValida && ahorroElegido && { fundedFromCategoryId: ahorroElegido.id }),
+        ...(fuenteValida && tarjetaElegida && { cardId: String(tarjetaElegida.id), installments: cuotas }),
+      },
+    });
+  };
+
+  const hojaAbierta = eligiendoCategoria || eligiendoFuente || eligiendoFecha || descartando;
+  useTecladoFisico({
+    activo: true,
+    onTecla: (t) => { if (!hojaAbierta) setExpresion((e) => pulsar(e, t)); },
+    onListo: () => { if (!hojaAbierta) guardar(); },
+    onCerrar: () => {
+      if (descartando) setDescartando(false);
+      else if (eligiendoCategoria) setEligiendoCategoria(false);
+      else if (eligiendoFuente) setEligiendoFuente(false);
+      else if (eligiendoFecha) setEligiendoFecha(false);
+      else cerrar();
+    },
+  });
 
   const fila = (c: Category) => {
     const saldo = ahorros.find((a) => a.id === String(c.id))?.saldo;
@@ -248,22 +319,23 @@ const AnotarScreen: React.FC<Props> = ({ navigation, route }) => {
     <View style={[styles.pantalla, { backgroundColor: colors.background, paddingBottom: insets.bottom }]}>
       <View style={[styles.monto, { backgroundColor: color, paddingTop: insets.top + 8 }]}>
         <View style={styles.filaMonto}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.cerrar} accessibilityRole="button" accessibilityLabel="Cerrar sin anotar">
-            <Icono nombre="close" color="#FFFFFF" />
+          <TouchableOpacity onPress={cerrar} style={styles.cerrar} accessibilityRole="button" accessibilityLabel="Cerrar sin anotar">
+            <Icono nombre="close" color={tinta} />
           </TouchableOpacity>
-          <AppText variant="caption" style={{ color: '#FFFFFF', fontWeight: '700', flex: 1 }}>
+          <AppText variant="caption" style={{ color: tinta, fontWeight: '700', flex: 1 }}>
             {tipo === 'INCOME' ? 'Ingreso' : esDeposito ? `Depositar en ${categoria?.name}` : 'Gasto'}
           </AppText>
-          <TouchableOpacity onPress={() => setEligiendoFecha(true)} style={styles.fechaCabecera}
+          <TouchableOpacity onPress={() => setEligiendoFecha(true)} style={[styles.fechaCabecera, { backgroundColor: fondoPildora }]}
             accessibilityRole="button" accessibilityLabel={`Fecha ${textoFecha}. Cambiar la fecha`}>
-            <AppText variant="caption" style={{ color: '#FFFFFF', fontWeight: '800' }}>{textoFecha} ▾</AppText>
+            <Icono nombre="calendar" color={tinta} tamano={16} />
+            <AppText variant="caption" style={{ color: tinta, fontWeight: '800' }}>{textoFecha} ▾</AppText>
           </TouchableOpacity>
         </View>
-        <AppText variant="title" style={{ color: '#FFFFFF', textAlign: 'right' }} accessibilityLabel={`Monto ${formatCurrency(monto)}`}>
+        <AppText variant="title" style={{ color: tinta, textAlign: 'right' }} accessibilityLabel={`Monto ${formatCurrency(monto)}`}>
           {mostrar(expresion)}
         </AppText>
         {tieneOperacion(expresion) && (
-          <AppText variant="body" style={{ color: '#FFFFFF', textAlign: 'right', opacity: 0.9 }}>= {formatCurrency(monto)}</AppText>
+          <AppText variant="body" style={{ color: tinta, textAlign: 'right' }}>= {formatCurrency(monto)}</AppText>
         )}
       </View>
 
@@ -284,7 +356,7 @@ const AnotarScreen: React.FC<Props> = ({ navigation, route }) => {
               <TouchableOpacity key={c.id} style={[styles.chip, { backgroundColor: categoria?.id === c.id ? colors.primary : colors.surfaceLight }]}
                 onPress={() => setCategoria(c)} accessibilityRole="button" accessibilityLabel={`Reciente ${c.name}`}>
                 {circulo(c, 22)}
-                <AppText variant="caption" style={{ fontWeight: '700', color: categoria?.id === c.id ? '#1A1405' : colors.textSecondary }}>{c.name}</AppText>
+                <AppText variant="caption" style={{ fontWeight: '700', color: categoria?.id === c.id ? tintaPrimaria : colors.textSecondary }}>{c.name}</AppText>
               </TouchableOpacity>
             ))}
           </View>
@@ -316,7 +388,7 @@ const AnotarScreen: React.FC<Props> = ({ navigation, route }) => {
                     <TouchableOpacity key={n} style={[styles.cuota, { backgroundColor: cuotas === n ? colors.primary : colors.surfaceLight }]}
                       onPress={() => setCuotas(n)} accessibilityRole="radio" accessibilityState={{ selected: cuotas === n }}
                       accessibilityLabel={`${n} ${n === 1 ? 'cuota' : 'cuotas'}`}>
-                      <AppText variant="caption" style={{ fontWeight: '800', color: cuotas === n ? '#1A1405' : colors.textSecondary }}>{n}</AppText>
+                      <AppText variant="caption" style={{ fontWeight: '800', color: cuotas === n ? tintaPrimaria : colors.textSecondary }}>{n}</AppText>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -337,7 +409,7 @@ const AnotarScreen: React.FC<Props> = ({ navigation, route }) => {
                 <TouchableOpacity key={String(v)} style={[styles.opcion, pagado === v && { backgroundColor: colors.primary }]}
                   onPress={() => setPagado(v)} accessibilityRole="radio" accessibilityState={{ selected: pagado === v }}
                   accessibilityLabel={v ? 'Ya pagado' : 'Por pagar'}>
-                  <AppText variant="caption" style={{ fontWeight: '700', color: pagado === v ? '#1A1405' : colors.textSecondary }}>
+                  <AppText variant="caption" style={{ fontWeight: '700', color: pagado === v ? tintaPrimaria : colors.textSecondary }}>
                     {v ? 'Ya pagado' : 'Por pagar'}
                   </AppText>
                 </TouchableOpacity>
@@ -345,9 +417,7 @@ const AnotarScreen: React.FC<Props> = ({ navigation, route }) => {
             </View>
           )}
           {!conNota && chip('Nota', false, () => setConNota(true), 'Agregar una nota', 'edit')}
-          {chip('Más', false, () => navigation.replace('MovementFormModal', {
-            prefill: { amount: monto || undefined, categoryId: categoria?.id, type: tipo, date: fecha, description: nota, confirmed: pagado },
-          }), 'Más opciones: abrir el formulario completo con lo escrito', 'more')}
+          {chip('Más', false, abrirFormularioCompleto, 'Más opciones: abrir el formulario completo con lo escrito', 'more')}
         </View>
         {conNota && (
           <TextInput
@@ -367,7 +437,8 @@ const AnotarScreen: React.FC<Props> = ({ navigation, route }) => {
         expresion={expresion}
         onCambio={setExpresion}
         onListo={guardar}
-        textoListo={guardando ? 'Anotando…' : `${esDeposito ? 'Depositar' : 'Anotar'}${monto > 0 ? ` ${formatCurrency(monto)}` : ''}`}
+        textoListo={guardando ? 'Anotando…' : monto > 0 && !categoria ? 'Anotar · elige la categoría'
+          : `${esDeposito ? 'Depositar' : 'Anotar'}${monto > 0 ? ` ${formatCurrency(monto)}` : ''}`}
         listoDeshabilitado={monto <= 0 || !categoria || guardando}
       />
 
@@ -434,24 +505,9 @@ const AnotarScreen: React.FC<Props> = ({ navigation, route }) => {
         </View>
       </Modal>
 
-      <Modal visible={eligiendoFecha} transparent animationType="fade" onRequestClose={() => setEligiendoFecha(false)}>
-        <TouchableOpacity style={[styles.fondo, { justifyContent: 'flex-end' }]} activeOpacity={1} onPress={() => setEligiendoFecha(false)}
-          accessibilityRole="button" accessibilityLabel="Cerrar">
-          <View style={[styles.hoja, { backgroundColor: colors.surface }]}>
-            <AppText variant="subtitle">¿Cuándo fue?</AppText>
-            <AppText variant="title" style={{ textAlign: 'center' }}>{formatDateShort(fecha)}</AppText>
-            <View style={styles.filaFecha}>
-              {chip('Hoy', fecha === hoy, () => setFecha(hoy), 'Hoy')}
-              {chip('Ayer', fecha === desplazar(hoy, -1), () => setFecha(desplazar(hoy, -1)), 'Ayer')}
-            </View>
-            <View style={styles.filaFecha}>
-              {chip('− 1 día', false, () => setFecha(desplazar(fecha, -1)), 'Un día antes')}
-              {chip('+ 1 día', false, () => setFecha(desplazar(fecha, 1)), 'Un día después')}
-            </View>
-            {chip('Listo', true, () => setEligiendoFecha(false), 'Usar esta fecha')}
-          </View>
-        </TouchableOpacity>
-      </Modal>
+      <Calendario visible={eligiendoFecha} fecha={fecha} onElegir={setFecha} onCerrar={() => setEligiendoFecha(false)} />
+
+      <ConfirmarDescarte visible={descartando} onSeguir={() => { salidaPendiente.current = null; setDescartando(false); }} onDescartar={salir} />
     </View>
   );
 };
@@ -461,22 +517,20 @@ const styles = StyleSheet.create({
   monto: { paddingHorizontal: 16, paddingBottom: 14, gap: 2 },
   filaMonto: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   cerrar: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginLeft: -10 },
-  fechaCabecera: { minHeight: 44, paddingHorizontal: 12, justifyContent: 'center', borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.18)' },
+  fechaCabecera: { minHeight: 44, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 22 },
   campos: { paddingHorizontal: 16, paddingTop: 12, gap: 8 },
   campo: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52, paddingHorizontal: 12, borderRadius: 14, borderWidth: 1 },
   recientes: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 40, paddingHorizontal: 12, borderRadius: 20 },
-  cuota: { minWidth: 44, minHeight: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10 },
-  segmento: { flexDirection: 'row', borderRadius: 20, padding: 3 },
-  opcion: { minHeight: 36, paddingHorizontal: 12, borderRadius: 17, justifyContent: 'center' },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 12, borderRadius: 22 },
+  cuota: { minWidth: 44, minHeight: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10 },
+  segmento: { flexDirection: 'row', borderRadius: 24, padding: 2 },
+  opcion: { minHeight: 44, paddingHorizontal: 12, borderRadius: 22, justifyContent: 'center' },
   punto: { alignItems: 'center', justifyContent: 'center' },
   nota: { marginHorizontal: 0, padding: 12, borderRadius: 12, fontSize: 16 },
   fondo: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)' },
-  hoja: { padding: 20, gap: 14, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
   hojaAlta: { maxHeight: '80%', padding: 16, gap: 10, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
   fila: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 52, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth },
   seccion: { marginTop: 12, marginBottom: 4, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
-  filaFecha: { flexDirection: 'row', justifyContent: 'center', gap: 8 },
 });
 
 export default AnotarScreen;

@@ -76,8 +76,9 @@ public class CategoryServiceImpl implements CategoryService {
         Long dueno = com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId();
 
         if (categoryRepository.existsByUserIdAndNameAndParentIdAndActiveTrue(
-                dueno, dto.getName(), dto.getParentId())) {
-            return new ResultDTO(false, "Category name already exists at this level", 203);
+                dueno, dto.getName(), dto.getParentId())
+                || yaExisteParecida(dueno, dto.getName(), dto.getParentId(), null)) {
+            return new ResultDTO(false, "Ya existe una categoría con ese nombre", 203);
         }
 
         /* Solo se comparte con un hogar del que se es miembro: con el id de un
@@ -125,8 +126,9 @@ public class CategoryServiceImpl implements CategoryService {
         }
 
         if (categoryRepository.existsByUserIdAndNameAndParentIdAndActiveTrueAndIdNot(
-                dto.getUserId(), dto.getName(), dto.getParentId(), dto.getId())) {
-            return new ResultDTO(false, "Category name already exists at this level", 203);
+                dto.getUserId(), dto.getName(), dto.getParentId(), dto.getId())
+                || yaExisteParecida(acceso.usuarioActual(), dto.getName(), dto.getParentId(), dto.getId())) {
+            return new ResultDTO(false, "Ya existe una categoría con ese nombre", 203);
         }
 
         Category category = existing.get();
@@ -288,5 +290,30 @@ public class CategoryServiceImpl implements CategoryService {
             types.add(map);
         }
         return new ResultDTO(types);
+    }
+
+    /**
+     * "casa" y "Casa" (o "Salud" y "salud ") son la misma categoria para quien
+     * la usa: se comparan sin mayusculas, tildes ni espacios de mas, contra las
+     * propias y las del hogar del mismo nivel (QA, ola 7.1).
+     */
+    private boolean yaExisteParecida(Long yo, String nombre, Long padre, Long excluir) {
+        if (yo == null || nombre == null) return false;
+        String buscado = normalizar(nombre);
+        java.util.List<Long> hogares = householdService.getHouseholdIds(yo);
+        java.util.List<Category> visibles = new java.util.ArrayList<>(categoryRepository.findByUserIdAndActiveTrue(yo));
+        for (Long h : hogares) visibles.addAll(categoryRepository.findByHouseholdIdAndActiveTrue(h));
+        for (Category c : visibles) {
+            if (excluir != null && excluir.equals(c.getId())) continue;
+            if (!java.util.Objects.equals(c.getParentId(), padre)) continue;
+            if (normalizar(c.getName()).equals(buscado)) return true;
+        }
+        return false;
+    }
+
+    static String normalizar(String t) {
+        String sinTildes = java.text.Normalizer.normalize(t.trim(), java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "");
+        return sinTildes.replaceAll("\\s+", " ").toLowerCase(java.util.Locale.ROOT);
     }
 }

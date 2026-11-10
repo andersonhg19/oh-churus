@@ -11,7 +11,8 @@ export type EstadoCategoria =
   | 'META_CUMPLIDA' | 'META_INCUMPLIDA' | 'EN_CURSO';
 
 export interface ElementoDelPlan {
-  scheduledMovementId: number;
+  /** null en un ingreso anotado suelto (no viene de un programado). */
+  scheduledMovementId: number | null;
   movementId?: number;
   name: string;
   date: string;
@@ -50,6 +51,8 @@ export interface CategoriaDelPeriodo {
   fromSavings?: number;
   /** En un ahorro: cuanto hay, sumando todos los meses (lo metido menos lo pagado con el). */
   balance?: number;
+  /** En un ahorro: la meta que sigue pidiendo el mes (lo planeado menos lo liberado). */
+  currentGoal?: number;
   /** Sacado de esta categoria de ahorro para pagar otras cosas. */
   withdrawn?: number;
   withdrawals?: { movementId: number; date: string; amount: number; description?: string; toCategoryId: number; toCategoryName: string; userId: number }[];

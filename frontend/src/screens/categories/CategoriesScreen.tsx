@@ -88,8 +88,8 @@ const CategoriesScreen: React.FC<Props> = ({ navigation }) => {
       >
         {tree.length === 0 ? (
           <EmptyState
-            title="Sin categorias"
-            message="Crea tu primera categoria de ingreso o gasto"
+            title="Sin categorías"
+            message="Crea tu primera categoría de ingreso o gasto"
             icon="📁"
           />
         ) : (

@@ -64,33 +64,39 @@ public class UserServiceImpl implements UserService {
             return createUser(alta);
         } catch (Exception e) {
             log.error("Error registering user: {}", e.getMessage(), e);
-            return new ResultDTO(false, "Error saving user", 500);
+            return new ResultDTO(false, "No se pudo guardar el usuario", 500);
         }
     }
 
     @Override
     public ResultDTO saveAndUpdate(UserSaveDTO dto) {
         try {
-            boolean isUpdate = dto.getId() != null;
-
-            if (isUpdate) {
-                return updateUser(dto);
-            } else {
-                return createUser(dto);
+            /* /v1/users/save solo EDITA tu propia cuenta. Antes, sin "id",
+               creaba cuentas: cualquier usuario con token, sin rol alguno,
+               daba de alta a quien quisiera (QA M3). Las altas van por
+               /v1/auth/register o, para un administrador, /v1/admin/users/save. */
+            if (dto.getId() == null) {
+                return new ResultDTO(false,
+                        "Las cuentas nuevas se crean desde el registro o desde Administración", 403);
             }
+            return updateUser(dto);
         } catch (Exception e) {
             log.error("Error saving user: {}", e.getMessage(), e);
-            return new ResultDTO(false, "Error saving user", 500);
+            return new ResultDTO(false, "No se pudo guardar el usuario", 500);
         }
     }
 
     private ResultDTO createUser(UserSaveDTO dto) {
         if (dto.getPassword() == null || dto.getPassword().isBlank()) {
-            return new ResultDTO(false, "Password is required for new users", 101);
+            return new ResultDTO(false, "La contraseña es obligatoria", 101);
         }
 
         if (userRepository.existsByEmailAndActiveTrue(dto.getEmail())) {
-            return new ResultDTO(false, "Email already in use", 102);
+            /* No hay forma de rechazar un correo repetido sin revelar que
+               existe (sin verificacion por correo); al menos el mensaje no lo
+               grita y lleva a iniciar sesion. */
+            return new ResultDTO(false,
+                    "No se pudo crear la cuenta con ese correo. Si ya tienes una, inicia sesión.", 102);
         }
 
         User user = User.builder()
@@ -111,18 +117,28 @@ public class UserServiceImpl implements UserService {
            Se responde "no encontrado" y no "no puedes", para no confirmar que
            ese id existe. */
         if (!esYo(dto.getId())) {
-            return new ResultDTO(false, "User not found", 103);
+            return new ResultDTO(false, "Usuario no encontrado", 103);
         }
         Optional<User> existing = userRepository.findByIdAndActiveTrue(dto.getId());
         if (existing.isEmpty()) {
-            return new ResultDTO(false, "User not found", 103);
+            return new ResultDTO(false, "Usuario no encontrado", 103);
         }
 
         if (userRepository.existsByEmailAndActiveTrueAndIdNot(dto.getEmail(), dto.getId())) {
-            return new ResultDTO(false, "Email already in use by another user", 102);
+            return new ResultDTO(false, "Ese correo no está disponible", 102);
         }
 
         User user = existing.get();
+
+        /* Cambiar la contrasena exige la actual (QA A3). Se comprueba ANTES de
+           tocar nada para no guardar a medias el resto de cambios. */
+        boolean cambiaClave = dto.getPassword() != null && !dto.getPassword().isBlank();
+        if (cambiaClave && (dto.getCurrentPassword() == null || dto.getCurrentPassword().isEmpty()
+                || !passwordEncoder.matches(dto.getCurrentPassword(), user.getPassword()))) {
+            log.warn("Cambio de contrasena rechazado: la actual no coincide (usuario {})", user.getId());
+            return new ResultDTO(false, "La contraseña actual no es correcta", 400);
+        }
+
         user.setName(dto.getName());
         user.setEmail(dto.getEmail());
 
@@ -140,7 +156,7 @@ public class UserServiceImpl implements UserService {
             user.setDecimalPlaces(dto.getDecimalPlaces());
         }
 
-        if (dto.getPassword() != null && !dto.getPassword().isBlank()) {
+        if (cambiaClave) {
             user.setPassword(passwordEncoder.encode(dto.getPassword()));
         }
 
@@ -161,11 +177,11 @@ public class UserServiceImpl implements UserService {
            null como "no", que es lo que hay que hacer con la ausencia de dato.
            Un administrador que quiera ver la ficha de otro usa /v1/admin. */
         if (!esYo(id)) {
-            return new ResultDTO(false, "User not found", 103);
+            return new ResultDTO(false, "Usuario no encontrado", 103);
         }
         Optional<User> user = userRepository.findByIdAndActiveTrue(id);
         if (user.isEmpty()) {
-            return new ResultDTO(false, "User not found", 103);
+            return new ResultDTO(false, "Usuario no encontrado", 103);
         }
         return new ResultDTO(userMapper.toResultDTO(user.get()));
     }
@@ -224,11 +240,11 @@ public class UserServiceImpl implements UserService {
            usuario autenticado desactivaba la cuenta de otro con solo su id, y
            el dueno se quedaba sin poder entrar sin saber por que. */
         if (!esYo(id)) {
-            return new ResultDTO(false, "User not found", 103);
+            return new ResultDTO(false, "Usuario no encontrado", 103);
         }
         Optional<User> user = userRepository.findByIdAndActiveTrue(id);
         if (user.isEmpty()) {
-            return new ResultDTO(false, "User not found", 103);
+            return new ResultDTO(false, "Usuario no encontrado", 103);
         }
 
         User entity = user.get();

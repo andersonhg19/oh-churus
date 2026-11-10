@@ -19,6 +19,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.Collections;
@@ -35,19 +36,22 @@ public class MovementServiceImpl implements MovementService {
     private final HouseholdServiceImpl householdService;
     private final ControlAcceso acceso;
     private final com.ohchurus.budget.repository.CardRepository tarjetas;
+    private final com.ohchurus.budget.repository.ScheduledMovementRepository programados;
 
     public MovementServiceImpl(MovementRepository movementRepository,
                                CategoryRepository categoryRepository,
                                MovementMapper movementMapper,
                                HouseholdServiceImpl householdService,
                                ControlAcceso acceso,
-                               com.ohchurus.budget.repository.CardRepository tarjetas) {
+                               com.ohchurus.budget.repository.CardRepository tarjetas,
+                               com.ohchurus.budget.repository.ScheduledMovementRepository programados) {
         this.movementRepository = movementRepository;
         this.categoryRepository = categoryRepository;
         this.movementMapper = movementMapper;
         this.householdService = householdService;
         this.acceso = acceso;
         this.tarjetas = tarjetas;
+        this.programados = programados;
     }
 
     /*
@@ -106,8 +110,15 @@ public class MovementServiceImpl implements MovementService {
            {"userId": <id de Bruno>} con su propio token y la categoria
            aparecia dentro de la cuenta de Bruno. Las lecturas y los borrados
            ya estaban cerrados; la creacion se habia quedado fuera. */
+        ResultDTO fueraDeRango = validarFechaYMonto(dto);
+        if (fueraDeRango != null) return fueraDeRango;
+        ResultDTO programadoAjeno = validarProgramado(dto.getScheduledMovementId());
+        if (programadoAjeno != null) return programadoAjeno;
         ResultDTO origenInvalido = validarOrigen(dto.getFundedFromCategoryId(), dto.getCategoryId());
         if (origenInvalido != null) return origenInvalido;
+        ResultDTO noAlcanza = validarSaldoDelAhorro(origen(dto.getFundedFromCategoryId()), dto.getAmount(), null,
+                com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId());
+        if (noAlcanza != null) return noAlcanza;
         ResultDTO tarjetaInvalida = validarTarjeta(dto.getCardId(), dto.getFundedFromCategoryId(), dto.getCategoryId());
         if (tarjetaInvalida != null) return tarjetaInvalida;
 
@@ -157,17 +168,34 @@ public class MovementServiceImpl implements MovementService {
 
         Movement movement = existing.get();
         Long categoriaFinal = dto.getCategoryId();
+        ResultDTO fueraDeRango = validarFechaYMonto(dto);
+        if (fueraDeRango != null) return fueraDeRango;
+        if (dto.getScheduledMovementId() != null) {
+            ResultDTO programadoAjeno = validarProgramado(dto.getScheduledMovementId());
+            if (programadoAjeno != null) return programadoAjeno;
+        }
+        /* Un gasto de la pareja no se puede mover a MI categoria privada: ella
+           dejaria de verlo y yo veria su plata en mi presupuesto (QA, ola 7.1). */
+        Category destino = categoryRepository.findByIdAndActiveTrue(categoriaFinal).orElse(null);
+        if (destino != null && !destino.getId().equals(movement.getCategoryId())
+                && destino.getHouseholdId() == null && !destino.getUserId().equals(movement.getUserId())) {
+            return new ResultDTO(false, "Category not found", 404);
+        }
         Long origenPedido = dto.getFundedFromCategoryId() != null ? dto.getFundedFromCategoryId() : movement.getFundedFromCategoryId();
         ResultDTO origenInvalido = validarOrigen(origenPedido, categoriaFinal);
         if (origenInvalido != null) return origenInvalido;
-        if (dto.getFundedFromCategoryId() != null) movement.setFundedFromCategoryId(origen(dto.getFundedFromCategoryId()));
+        BigDecimal yaSalia = origen(origenPedido) != null && origen(origenPedido).equals(movement.getFundedFromCategoryId())
+                && Boolean.TRUE.equals(movement.getConfirmed()) ? movement.getAmount() : null;
+        ResultDTO noAlcanza = validarSaldoDelAhorro(origen(origenPedido), dto.getAmount(), yaSalia, movement.getUserId());
+        if (noAlcanza != null) return noAlcanza;
         Long tarjetaPedida = dto.getCardId() != null ? dto.getCardId() : movement.getCardId();
-        ResultDTO tarjetaInvalida = validarTarjeta(tarjetaPedida, movement.getFundedFromCategoryId(), categoriaFinal);
+        ResultDTO tarjetaInvalida = validarTarjeta(tarjetaPedida, origenPedido, categoriaFinal);
         if (tarjetaInvalida != null) return tarjetaInvalida;
         int cuotasActuales = movement.getInstallmentTotal() != null ? movement.getInstallmentTotal() : 1;
         if (dto.getInstallments() != null && dto.getInstallments() != cuotasActuales) {
             return new ResultDTO(false, "Para cambiar las cuotas, borra la compra y anotala de nuevo", 400);
         }
+        if (dto.getFundedFromCategoryId() != null) movement.setFundedFromCategoryId(origen(dto.getFundedFromCategoryId()));
         if (dto.getCardId() != null) cambiarTarjeta(movement, idONulo(dto.getCardId()));
         /* El dueno NUNCA cambia en una actualizacion. Antes se reasignaba al
            userId que viniera en el cuerpo, asi que mandar el id de un
@@ -190,6 +218,54 @@ public class MovementServiceImpl implements MovementService {
         Movement saved = movementRepository.save(movement);
         log.info("Movement updated: id={}", saved.getId());
         return new ResultDTO(enrichWithCategory(movementMapper.toResultDTO(saved)));
+    }
+
+    /** Fechas y montos que no pueden ser de nadie: el ano 1 o el 9999, o mil billones. */
+    private static final java.math.BigDecimal MONTO_MAXIMO = new java.math.BigDecimal("100000000000");
+
+    private ResultDTO validarFechaYMonto(MovementSaveDTO dto) {
+        LocalDate f = dto.getDate();
+        if (f != null && (f.isBefore(LocalDate.of(2000, 1, 1)) || f.isAfter(LocalDate.now().plusYears(5)))) {
+            return new ResultDTO(false, "La fecha tiene que estar entre el 2000 y dentro de cinco anos", 400);
+        }
+        if (dto.getAmount() != null && dto.getAmount().compareTo(MONTO_MAXIMO) > 0) {
+            return new ResultDTO(false, "Ese valor es demasiado grande", 400);
+        }
+        return null;
+    }
+
+    /** Solo se engancha a un programado que yo vea (no al privado de la pareja). */
+    private ResultDTO validarProgramado(Long programadoId) {
+        if (programadoId == null) return null;
+        Optional<com.ohchurus.budget.entity.ScheduledMovement> p = programados.findById(programadoId)
+                .filter(x -> acceso.puedeVer(x.getUserId(), x.getCategoryId()));
+        return p.isPresent() ? null : new ResultDTO(false, "Scheduled movement not found", 404);
+    }
+
+    /**
+     * Con el ahorro se paga lo que HAY en el ahorro: antes solo se advertia y
+     * se podia dejar el ahorro en negativo (QA, ola 7.1). El saldo es el de
+     * quien paga en ese ahorro (lo que metio menos lo que ha pagado con el, de
+     * todos los meses): cada uno tiene su cuenta de ahorro, y es la misma cifra
+     * que ve en su vista.
+     */
+    private ResultDTO validarSaldoDelAhorro(Long ahorroId, java.math.BigDecimal monto, java.math.BigDecimal yaSalia, Long dueno) {
+        if (ahorroId == null || monto == null) return null;
+        LocalDate siempre = LocalDate.of(9999, 12, 31);
+        java.math.BigDecimal saldo = java.math.BigDecimal.ZERO;
+        for (Movement m : movementRepository.findByCategoryIdAndActiveTrueAndConfirmedTrueAndDateLessThanEqual(ahorroId, siempre)) {
+            if (com.ohchurus.budget.util.Computables.suma(m) && java.util.Objects.equals(m.getUserId(), dueno)) saldo = saldo.add(com.ohchurus.budget.util.Computables.importe(m));
+        }
+        for (Movement m : movementRepository.findByFundedFromCategoryIdAndActiveTrueAndConfirmedTrueAndDateLessThanEqual(ahorroId, siempre)) {
+            if (com.ohchurus.budget.util.Computables.suma(m) && java.util.Objects.equals(m.getUserId(), dueno)) saldo = saldo.subtract(com.ohchurus.budget.util.Computables.importe(m));
+        }
+        if (yaSalia != null) saldo = saldo.add(yaSalia);
+        if (monto.compareTo(saldo) > 0) {
+            String nombre = categoryRepository.findById(ahorroId).map(Category::getName).orElse("el ahorro");
+            return new ResultDTO(false, "En " + nombre + " hay " + saldo.setScale(0, java.math.RoundingMode.DOWN).toPlainString()
+                    + ": no alcanza para pagar " + monto.setScale(0, java.math.RoundingMode.DOWN).toPlainString(), 400);
+        }
+        return null;
     }
 
     /** 0 en el cuerpo es "ninguno". */

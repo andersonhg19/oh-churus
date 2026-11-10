@@ -20,7 +20,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 const CLASE_CORTA: Record<string, string> = {
-  DEDUCTION: 'Descuento de nómina', SAVING: 'Ahorro', PROVISION: 'Provisión (no genera pendiente)', PAYMENT: 'Pago',
+  DEDUCTION: 'Descuento de nómina', SAVING: 'Ahorro', PROVISION: 'Plata separada (sin pago por confirmar)', PAYMENT: 'Pago',
 };
 
 type ScheduledStackParamList = {
@@ -68,14 +68,14 @@ const ScheduledScreen: React.FC<Props> = ({ navigation }) => {
         const porRevisar = res.object?.proposals || [];
         setPropuestas(porRevisar);
         setPropuestasTotal(res.object?.proposalsTotal || porRevisar.length);
-        showToast('success', 'Listo', `Se generaron ${creados} movimientos pendientes`);
+        showToast('success', 'Listo', creados === 0 ? 'No había pagos nuevos por crear' : `Se ${creados === 1 ? 'creó 1 pago' : `crearon ${creados} pagos`} por confirmar`);
         // Generar cambia la lista: refrescarla aqui evita tener que salir y volver.
         await cargar();
       } else {
         showToast('error', 'Error', res.message);
       }
     } catch (err: any) {
-      showToast('error', 'Error', err.message || 'No se pudo generar');
+      showToast('error', 'Error', err.message || 'No se pudieron crear los pagos');
     } finally {
       setGenerating(false);
     }
@@ -122,12 +122,12 @@ const ScheduledScreen: React.FC<Props> = ({ navigation }) => {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.headerRow}>
-        <AppText variant="caption" color={colors.textSecondary} style={{ flex: 1 }}>Facturas, cuotas, ahorros y bolsas</AppText>
+        <AppText variant="caption" color={colors.textSecondary} style={{ flex: 1 }}>Facturas, cuotas, ahorros y plata separada</AppText>
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <Button
-            title="Generar"
+            title="Crear pendientes"
             variant="outline"
-            accessibilityLabel="Generar los movimientos que ya tocaban"
+            accessibilityLabel="Crear los pagos por confirmar que ya tocaban"
             onPress={handleGenerate}
             loading={generating}
             size="small"
@@ -148,7 +148,7 @@ const ScheduledScreen: React.FC<Props> = ({ navigation }) => {
           </AppText>
           {/* El estado no depende solo del color: lo dice el texto. */}
           <AppText variant="caption">
-            No se crearon solas porque son mas de cinco. Revisalas y registralas
+            No se crearon solas porque son más de cinco. Revísalas y regístralas
             si de verdad ocurrieron.
           </AppText>
           {propuestas.slice(0, 5).map((p) => (
@@ -166,7 +166,7 @@ const ScheduledScreen: React.FC<Props> = ({ navigation }) => {
           ))}
           {propuestasTotal > propuestas.length && (
             <AppText variant="caption">
-              {`Mostrando ${propuestas.length}; las demas apareceran despues.`}
+              {`Mostrando ${propuestas.length}; las demás aparecerán después.`}
             </AppText>
           )}
           <Button
@@ -198,7 +198,7 @@ const ScheduledScreen: React.FC<Props> = ({ navigation }) => {
               <View style={styles.itemInfo}>
                 <AppText variant="body" numberOfLines={1}>{item.name}</AppText>
                 <AppText variant="caption">
-                  {getFrequencyLabel(item.frequency)} - {item.categoryName || 'Sin categoria'}
+                  {getFrequencyLabel(item.frequency)} - {item.categoryName || 'Sin categoría'}
                   {item.dayOfMonth ? ` - día ${item.dayOfMonth}` : ''}
                 </AppText>
                 {/* Quien paga, que clase es y, si tiene fin, cuantas cuotas
@@ -209,7 +209,7 @@ const ScheduledScreen: React.FC<Props> = ({ navigation }) => {
                     item.payerName ? `Paga ${item.payerName}` : null,
                     item.kind && item.kind !== 'PAYMENT' ? CLASE_CORTA[item.kind] : null,
                     item.remainingOccurrences != null
-                      ? `${item.remainingOccurrences} cuota(s) restantes - termina ${item.endDate ? formatDate(item.endDate) : ''}`
+                      ? `${item.remainingOccurrences} ${item.remainingOccurrences === 1 ? 'cuota restante' : 'cuotas restantes'} - termina ${item.endDate ? formatDate(item.endDate) : ''}`
                       : null,
                   ].filter(Boolean).join(' · ')}
                 </AppText>

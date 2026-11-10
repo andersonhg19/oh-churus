@@ -115,6 +115,18 @@ describe('El contraste se mide', () => {
         );
       });
 
+      it('los textos secundarios se leen tambien sobre surfaceLight (4.5:1)', () => {
+        /* Las tarjetas del inicio, las cajas de la categoria y las pestanas
+           usan surfaceLight de fondo, y encima van las leyendas ("de $7,96 M",
+           "3 pagos"). QA midio 3.73:1 con el gris anterior: no bastaba con
+           medir contra background, surface y card. */
+        (['textSecondary', 'textMuted'] as const).forEach((clave) => {
+          const medido = contraste(colores[clave], colores.surfaceLight);
+          expect(`${clave} sobre surfaceLight: ${medido >= 4.5 ? 'OK' : medido.toFixed(2)}`)
+            .toBe(`${clave} sobre surfaceLight: OK`);
+        });
+      });
+
       it('el borde se distingue de la superficie que separa', () => {
         /* Un borde que no se ve es una tarjeta sin limites: se pierde donde
            acaba una cosa y empieza la siguiente. Aqui basta 1.5:1 —es una

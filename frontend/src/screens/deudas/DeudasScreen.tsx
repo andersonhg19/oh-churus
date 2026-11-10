@@ -11,6 +11,12 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useCarga, exigir, mensajeDeError } from '../../hooks/useCarga';
 import { deudaService, Deudas, Tarjeta, DeudaEnCuotas } from '../../services/deudaService';
+import { deudasDelAlcance } from '../../utils/deudas';
+import { useAlcance } from '../../contexts/AlcanceContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { categoryService } from '../../services/categoryService';
+import { scheduledService } from '../../services/scheduledService';
+import FormDeuda, { CategoriaSimple, DatosDeuda, inicioDeLaDeuda } from './FormDeuda';
 import { formatCurrency } from '../../utils/format';
 import { tintaSobre } from '../../utils/tinta';
 import { diaMes, mesAnio } from './fechas';
@@ -35,7 +41,12 @@ const DeudasScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const [abierta, setAbierta] = useState<number | null>(null);
   const [accion, setAccion] = useState<Accion | null>(null);
   const [agregando, setAgregando] = useState(false);
+  const [editando, setEditando] = useState<DatosTarjeta | null>(null);
+  const [nuevaDeuda, setNuevaDeuda] = useState(false);
+  const [categorias, setCategorias] = useState<CategoriaSimple[]>([]);
   const [ocupado, setOcupado] = useState(false);
+  const { alcance } = useAlcance();
+  const { user } = useAuth();
 
   const traer = useCallback(async () => {
     setDeudas(exigir(await deudaService.todas()) || null);
@@ -83,17 +94,38 @@ const DeudasScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   };
 
   const guardarTarjeta = (t: DatosTarjeta) =>
-    correr(() => deudaService.guardarTarjeta(t), () => ['Tarjeta agregada', t.name], () => setAgregando(false));
+    correr(() => deudaService.guardarTarjeta(t), () => [t.id ? 'Tarjeta actualizada' : 'Tarjeta agregada', t.name],
+      () => { setAgregando(false); setEditando(null); });
 
-  const cabeza = <Encabezado titulo="Deudas" conAlcance={false} conPeriodo={false} />;
+  const abrirNuevaDeuda = async () => {
+    setNuevaDeuda(true);
+    if (categorias.length) return;
+    try {
+      /* El servidor saca de quien son por el token; el userId es solo el filtro de siempre. */
+      const r = await categoryService.getAll({ userId: user?.userId, page: 0, size: 200 } as any);
+      setCategorias(((r.correct && r.object?.list) || [])
+        .filter((c: any) => c.type === 'EXPENSE' && c.active !== false)
+        .map((c: any) => ({ id: String(c.id), name: c.name })));
+    } catch { /* sin categorias el formulario lo dice */ }
+  };
+
+  const guardarDeuda = (d: DatosDeuda) =>
+    correr(() => scheduledService.save({
+      name: d.name, categoryId: d.categoryId, amount: d.amount, frequency: 'MONTHLY' as any,
+      startDate: inicioDeLaDeuda(d.dayOfMonth), durationMonths: d.durationMonths, dayOfMonth: d.dayOfMonth, kind: 'PAYMENT' as any,
+    }) as any, () => ['Deuda creada', `${d.durationMonths} cuotas de ${formatCurrency(d.amount)}`], () => setNuevaDeuda(false));
+
+  const cabeza = <Encabezado titulo="Deudas" conPeriodo={false} />;
   const marco = (contenido: React.ReactNode) => (
     <View style={[styles.pantalla, { backgroundColor: colors.background }]}>{cabeza}{contenido}</View>
   );
   if (cargando && !deudas) return marco(<Spinner fullScreen />);
   if (error) return marco(<EstadoError mensaje={error} onReintentar={cargar} />);
-  const d = deudas!;
-  const tarjetas = d.cards || [];
-  const cuotas = d.loans || [];
+  /* Sigue el selector Hogar / persona: en una persona, sus tarjetas y lo que
+     ella paga en cuotas (QA 7.1: Deudas ignoraba el selector). */
+  const d = deudasDelAlcance(deudas!, alcance as any);
+  const tarjetas = d.cards;
+  const cuotas = d.loans;
 
   const tarjetaUI = (t: Tarjeta) => {
     const expandida = abierta === t.id;
@@ -115,11 +147,20 @@ const DeudasScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             </AppText>
             {t.owed > 0 && (
               <AppText variant="caption" color={colors.textSecondary}>
-                {t.dueNow > 0 ? `Ya toca pagar ${formatCurrency(t.dueNow)}` : 'Nada por pagar aún'}
-                {t.upcoming > 0 ? ` · Después ${formatCurrency(t.upcoming)}` : ''}
+                {t.dueNow > 0
+                  ? `${t.lastCutoff ? `Extracto del ${diaMes(t.lastCutoff)}` : 'Ya toca pagar'}: ${formatCurrency(t.dueNow)}${t.nextPaymentDate ? ` · pagar antes del ${diaMes(t.nextPaymentDate)}` : ''}`
+                  : 'Nada por pagar aún'}
               </AppText>
             )}
-            {!!t.paymentDay && <AppText variant="caption" color={colors.textMuted}>Se paga el {t.paymentDay} de cada mes</AppText>}
+            {(t.currentCycle || 0) > 0 && (
+              <AppText variant="caption" color={colors.textSecondary}>{`Este ciclo (siguiente extracto): ${formatCurrency(t.currentCycle || 0)}`}</AppText>
+            )}
+            {t.upcoming > 0 && (
+              <AppText variant="caption" color={colors.textSecondary}>{`Cuotas de los próximos meses: ${formatCurrency(t.upcoming)}`}</AppText>
+            )}
+            {!t.cutoffDay && t.mine && (
+              <AppText variant="caption" color={colors.textMuted}>Ponle el día de corte para saber qué entra en cada extracto.</AppText>
+            )}
           </View>
           <Icono nombre={expandida ? 'down' : 'right'} color={colors.textSecondary} tamano={20} />
         </TouchableOpacity>
@@ -146,8 +187,13 @@ const DeudasScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           </View>
         )}
 
-        {t.mine && (t.dueNow > 0 || t.owed === 0) && (
+        {t.mine && (
           <View style={styles.acciones}>
+            <TouchableOpacity style={[styles.boton, { borderColor: colors.border, borderWidth: 1 }]}
+              onPress={() => setEditando({ id: t.id, name: t.name, paymentDay: t.paymentDay ?? null, cutoffDay: t.cutoffDay ?? null, color: t.color || '#6C5CE7' })}
+              accessibilityRole="button" accessibilityLabel={`Editar ${t.name}`}>
+              <AppText variant="label" color={colors.text} style={{ fontWeight: '700' }}>Editar</AppText>
+            </TouchableOpacity>
             {t.dueNow > 0 && (
               <TouchableOpacity style={[styles.boton, { backgroundColor: colors.primary }]} onPress={() => setAccion({ tipo: 'pagar', tarjeta: t })}
                 accessibilityRole="button" accessibilityLabel={`Pagar tarjeta ${t.name}`}>
@@ -206,7 +252,7 @@ const DeudasScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     if (accion.tipo === 'pagar') {
       return {
         titulo: `Pagar ${accion.tarjeta.name}`, boton: 'Pagar',
-        texto: `Quedan pagadas las compras hasta hoy: ${formatCurrency(accion.tarjeta.dueNow)}. No es un gasto nuevo: ya contaron cuando compraste.`,
+        texto: `Quedan pagadas las compras ${accion.tarjeta.lastCutoff ? `hasta el corte del ${diaMes(accion.tarjeta.lastCutoff)}` : 'hasta hoy'}: ${formatCurrency(accion.tarjeta.dueNow)}. No es un gasto nuevo: ya contaron cuando compraste.`,
       };
     }
     if (accion.tipo === 'borrar') {
@@ -255,23 +301,26 @@ const DeudasScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           <AppText variant="body" color={colors.textSecondary}>No hay créditos en cuotas.</AppText>
         )}
         {cuotas.map(cuotaUI)}
-        <View style={[styles.pista, { backgroundColor: colors.surfaceLight }]}>
-          <AppText variant="caption" color={colors.textSecondary}>
-            Para anotar un crédito, créalo en Programados con su número de cuotas.
-          </AppText>
-          <TouchableOpacity style={styles.enlace} onPress={() => navigation.navigate('ScheduledList')}
-            accessibilityRole="button" accessibilityLabel="Ir a Programados">
-            <AppText variant="label" color={colors.primary} style={{ fontWeight: '700' }}>Ir a Programados</AppText>
-            <Icono nombre="right" color={colors.primary} tamano={16} />
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity style={[styles.boton, styles.agregar, { borderColor: colors.border }]} onPress={abrirNuevaDeuda}
+          accessibilityRole="button" accessibilityLabel="Nueva deuda en cuotas">
+          <Icono nombre="plus" color={colors.primary} tamano={18} />
+          <AppText variant="label" color={colors.primary} style={{ fontWeight: '700' }}>Nueva deuda en cuotas</AppText>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.enlace} onPress={() => navigation.navigate('ScheduledList')}
+          accessibilityRole="button" accessibilityLabel="Ver o editar en Programados">
+          <AppText variant="caption" color={colors.textSecondary}>Para cambiar una deuda, edítala en Programados</AppText>
+          <Icono nombre="right" color={colors.textSecondary} tamano={16} />
+        </TouchableOpacity>
       </ScrollView>
 
       <Hoja visible={!!accion} titulo={hoja?.titulo || ''} onCerrar={() => !ocupado && setAccion(null)}
         textoConfirmar={hoja?.boton} onConfirmar={confirmar} ocupado={ocupado}>
         <AppText variant="body" color={colors.textSecondary}>{hoja?.texto}</AppText>
       </Hoja>
-      <FormTarjeta visible={agregando} ocupado={ocupado} onCerrar={() => !ocupado && setAgregando(false)} onGuardar={guardarTarjeta} />
+      <FormTarjeta visible={agregando || !!editando} inicial={editando} ocupado={ocupado}
+        onCerrar={() => { if (!ocupado) { setAgregando(false); setEditando(null); } }} onGuardar={guardarTarjeta} />
+      <FormDeuda visible={nuevaDeuda} ocupado={ocupado} categorias={categorias}
+        onCerrar={() => !ocupado && setNuevaDeuda(false)} onGuardar={guardarDeuda} />
     </>,
   );
 };

@@ -70,6 +70,12 @@
             "pattern" : "^#[0-9A-Fa-f]{6}$",
             "type" : "string"
           },
+          "cutoffDay" : {
+            "format" : "int32",
+            "maximum" : 31,
+            "minimum" : 1,
+            "type" : "integer"
+          },
           "id" : {
             "format" : "int64",
             "type" : "integer"

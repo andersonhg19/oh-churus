@@ -26,7 +26,7 @@ describe('PeriodConfigScreen', () => {
 
   it('renders the period configuration', () => {
     const { getByText } = render(<PeriodConfigScreen />, { wrapper: Wrapper });
-    expect(getByText('Dia de inicio del periodo')).toBeTruthy();
+    expect(getByText('Día de corte del periodo')).toBeTruthy();
   });
 
   it('saves a valid budget start day', async () => {

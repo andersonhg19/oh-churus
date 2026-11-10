@@ -331,6 +331,23 @@ public class EstadoDelPeriodoService {
                 if (!movimientosDeIngresoProgramados.contains(m.getId())) {
                     ingresoExtra = ingresoExtra.add(v);
                     p[0] = p[0].add(v);
+                    /* Y sale en la lista: si no, el total de ingresos tenia
+                       plata que el detalle no explicaba (QA, ola 7.1). */
+                    if (detalle) {
+                        Map<String, Object> e = new LinkedHashMap<>();
+                        e.put("scheduledMovementId", null);
+                        e.put("movementId", m.getId());
+                        e.put("name", m.getDescription() != null && !m.getDescription().isBlank() ? m.getDescription() : cat.getName());
+                        e.put("date", m.getDate().toString());
+                        e.put("amount", v);
+                        e.put("status", "PAGADO");
+                        e.put("released", BigDecimal.ZERO);
+                        e.put("kind", "INCOME");
+                        e.put("categoryName", cat.getName());
+                        e.put("payerUserId", m.getUserId());
+                        e.put("payerName", hogares.apodoDe(m.getUserId()));
+                        ingresosDetalle.add(e);
+                    }
                 }
                 continue;
             }
@@ -381,6 +398,20 @@ public class EstadoDelPeriodoService {
         }
         ingresoEsperado = ingresoEsperado.add(ingresoExtra);
 
+        /* Una categoria es de ahorro por sus programados, no por si este
+           periodo tiene una fecha suya: lo metido al ahorro en un mes sin
+           programado (lo que ya habia, cargado con fecha anterior) se veia
+           como GASTO en el cierre de ese mes. */
+        Set<Long> deAhorro = new HashSet<>(), dePago = new HashSet<>();
+        for (Linea l : lineas) {
+            if (l.ingreso()) continue;
+            if (l.clase() == ScheduledKind.SAVING) deAhorro.add(l.cat().getId());
+            else if (l.clase() != ScheduledKind.PROVISION) dePago.add(l.cat().getId());
+        }
+        for (Map.Entry<Long, Acum> e : porCat.entrySet()) {
+            if (deAhorro.contains(e.getKey()) && !dePago.contains(e.getKey())) e.getValue().ahorro = true;
+        }
+
         // --- 4. por categoria: estado, diferencia, quien --------------------
         boolean cerrado = fin.isBefore(hoy);
         BigDecimal totAsignado = BigDecimal.ZERO, totReal = BigDecimal.ZERO, totComprometido = BigDecimal.ZERO;
@@ -406,8 +437,12 @@ public class EstadoDelPeriodoService {
             BigDecimal disponible = c.asignado.subtract(realDelMes).subtract(comprometidoDelMes);
             BigDecimal diferencia = c.asignado.subtract(realDelMes);
             String estado;
+            BigDecimal metaVigente = c.asignado.subtract(c.liberado).max(BigDecimal.ZERO);
             if (esAhorro) {
-                /* Una meta de 0 no se incumple: no habia nada que ahorrar. */
+                /* Una meta de 0 no se incumple: no habia nada que ahorrar. El
+                   cierre compara con lo PLANEADO aunque se haya liberado: dice
+                   con honestidad que no se ahorro. Lo que sigue pidiendo el mes
+                   (lo planeado menos lo liberado) va aparte, en currentGoal. */
                 if (c.real.compareTo(c.asignado) >= 0) { estado = "META_CUMPLIDA"; metasCumplidas++; }
                 else if (cerrado) { estado = "META_INCUMPLIDA"; metasIncumplidas++; }
                 else estado = "EN_CURSO";
@@ -448,6 +483,7 @@ public class EstadoDelPeriodoService {
             r.put("executionPct", pct(realDelMes, c.asignado));
             r.put("fromSavings", c.delAhorro);
             r.put("withdrawn", c.retirado);
+            if (esAhorro) r.put("currentGoal", metaVigente);
             if (esAhorro) {
                 BigDecimal saldo = saldoDelAhorro(c.cat, alcance, fin);
                 r.put("balance", saldo);

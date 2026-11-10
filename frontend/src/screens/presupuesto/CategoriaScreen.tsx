@@ -28,7 +28,7 @@ const CategoriaScreen: React.FC<{ navigation: any; route: any }> = ({ navigation
   const { colors } = useTheme();
   const { showToast } = useToast();
   const { user } = useAuth();
-  const { alcance, corte, periodo } = useAlcance();
+  const { alcance, setAlcance, corte, periodo } = useAlcance();
   const id = Number(route.params?.categoryId);
   const [estado, setEstado] = useState<EstadoDelPeriodo | null>(null);
   const [fijando, setFijando] = useState(false);
@@ -49,6 +49,10 @@ const CategoriaScreen: React.FC<{ navigation: any; route: any }> = ({ navigation
   /* Lo presupuestado se fija en el hogar (o en lo personal propio): en la vista
      de una persona, lo de una categoria comun es lo que le toca, no se edita. */
   const editable = !!c && (alcance.tipo === 'HOGAR' ? c.shared : !c.shared && alcance.userId === Number(user?.userId));
+  /* Una categoria comun vista desde lo de una persona: su presupuesto es del
+     hogar. Antes no habia ningun boton y parecia que no se podia presupuestar;
+     ahora se ofrece pasar a la vista del hogar, donde si se fija. */
+  const presupuestableEnElHogar = !!c && !editable && c.shared && alcance.tipo === 'PERSONA';
 
   /* Liberar se puede deshacer: si se libero por error, o al final si se pudo
      pagar, lo liberado vuelve a quedar por pagar. */
@@ -84,7 +88,7 @@ const CategoriaScreen: React.FC<{ navigation: any; route: any }> = ({ navigation
       if (!a) { showToast('error', 'No se encontró el presupuesto'); return; }
       const r = await budgetAllocationService.delete(a.id);
       if (!r.correct) { showToast('error', 'No se pudo quitar', r.message); return; }
-      showToast('success', 'Presupuesto quitado', `${titulo} queda con lo planeado en sus elementos`);
+      showToast('success', 'Presupuesto quitado', `${titulo} queda con lo que tiene programado`);
       cargar();
     } catch { showToast('error', 'Error', 'No se pudo quitar el presupuesto'); }
   };
@@ -100,7 +104,7 @@ const CategoriaScreen: React.FC<{ navigation: any; route: any }> = ({ navigation
     );
   }
 
-  const est = ESTADOS[c.status];
+  const est = ESTADOS[c.status] || { texto: '', tono: 'neutro' as const };
   const caja = (titulo2: string, valor: number, color?: string) => (
     <View style={[styles.caja, { backgroundColor: colors.surfaceLight }]}>
       <AppText variant="caption" color={colors.textSecondary}>{titulo2}</AppText>
@@ -123,7 +127,7 @@ const CategoriaScreen: React.FC<{ navigation: any; route: any }> = ({ navigation
           <AppText variant="body">{fraseDelCierre(c, estado!.closed)}</AppText>
           {c.provision > 0 && (
             <AppText variant="caption" color={colors.textSecondary}>
-              Bolsa de {formatCurrency(c.provision)}: quedan {formatCurrency(c.provisionLeft)}.
+              Plata separada: {formatCurrency(c.provision)}; quedan {formatCurrency(c.provisionLeft)}.
             </AppText>
           )}
         </View>
@@ -133,6 +137,16 @@ const CategoriaScreen: React.FC<{ navigation: any; route: any }> = ({ navigation
             accessibilityRole="button" accessibilityLabel={`Fijar lo presupuestado de ${titulo}`}>
             <AppText variant="body" style={{ color: '#1A1405', fontWeight: '800' }}>
               {c.hasAllocation ? 'Cambiar lo presupuestado' : 'Fijar lo presupuestado'}
+            </AppText>
+          </TouchableOpacity>
+        )}
+
+        {presupuestableEnElHogar && (
+          <TouchableOpacity style={[styles.enlace, { borderColor: colors.primary, justifyContent: 'center' }]}
+            onPress={() => setAlcance({ tipo: 'HOGAR' })}
+            accessibilityRole="button" accessibilityLabel={`Presupuestar ${titulo} para el hogar`}>
+            <AppText variant="body" style={{ color: colors.primary, fontWeight: '700', textAlign: 'center' }}>
+              {c.hasAllocation ? 'Cambiar lo presupuestado (en el hogar)' : 'Presupuestar para el hogar'}
             </AppText>
           </TouchableOpacity>
         )}
@@ -148,7 +162,7 @@ const CategoriaScreen: React.FC<{ navigation: any; route: any }> = ({ navigation
           <>
             <AppText variant="subtitle">Elementos</AppText>
             {c.items.map((it, i) => {
-              const e = ESTADOS_ELEMENTO[it.status];
+              const e = ESTADOS_ELEMENTO[it.status] || ESTADOS_ELEMENTO.PREVISTO;
               const liberado = (it.released || 0) > 0 && !!it.movementId && it.status !== 'PAGADO';
               const fila = (
                 <>

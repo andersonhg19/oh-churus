@@ -39,7 +39,7 @@ describe('ExportImportScreen', () => {
    */
   it('solo ofrece exportar: ya no hay boton de importar', () => {
     const { getByText, queryByTestId, queryByText } = render(<ExportImportScreen navigation={mockNavigation} />, { wrapper: Wrapper });
-    expect(getByText(/Exportar Reporte Excel/)).toBeTruthy();
+    expect(getByText(/Exportar a Excel/)).toBeTruthy();
     expect(queryByTestId('ir-a-importar')).toBeNull();
     expect(queryByText(/Importar/)).toBeNull();
   });

@@ -8,6 +8,8 @@ import com.ohchurus.auth.entity.AuditLog;
 import com.ohchurus.auth.entity.Role;
 import com.ohchurus.auth.entity.User;
 import com.ohchurus.auth.repository.UserRepository;
+import com.ohchurus.auth.security.DemasiadosIntentosException;
+import com.ohchurus.auth.security.LimiteDeIntentosDeLogin;
 import com.ohchurus.auth.security.SecParams;
 import com.ohchurus.auth.service.AuthenticationService;
 import com.ohchurus.auth.service.CambioAuditable;
@@ -29,26 +31,37 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     private final UserRepository userRepository;
     private final SecParams secParams;
     private final ApplicationEventPublisher eventos;
+    private final LimiteDeIntentosDeLogin limiteDeIntentos;
 
     public AuthenticationServiceImpl(AuthenticationManager authenticationManager,
                                      UserRepository userRepository,
                                      SecParams secParams,
-                                     ApplicationEventPublisher eventos) {
+                                     ApplicationEventPublisher eventos,
+                                     LimiteDeIntentosDeLogin limiteDeIntentos) {
         this.authenticationManager = authenticationManager;
         this.userRepository = userRepository;
         this.secParams = secParams;
         this.eventos = eventos;
+        this.limiteDeIntentos = limiteDeIntentos;
     }
 
     @Override
     public AuthenticationResponse authenticate(AuthenticationRequest request) {
+        /* Se comprueba ANTES de mirar la contrasena: con el correo bloqueado
+           ni siquiera la correcta entra, o el limite no frenaria nada. */
+        if (limiteDeIntentos.estaBloqueado(request.getEmail())) {
+            log.warn("Login rechazado por exceso de intentos: {}", request.getEmail());
+            throw new DemasiadosIntentosException();
+        }
         try {
             authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword()));
         } catch (BadCredentialsException e) {
             log.warn("Failed authentication attempt for email: {}", request.getEmail());
+            limiteDeIntentos.registrarFallo(request.getEmail());
             throw new BadCredentialsException("Invalid email or password");
         }
+        limiteDeIntentos.registrarExito(request.getEmail());
 
         User user = userRepository.findByEmailAndActiveTrueWithRoles(request.getEmail())
                 .orElseThrow(() -> new BadCredentialsException("User not found"));

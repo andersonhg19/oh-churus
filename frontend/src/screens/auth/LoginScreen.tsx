@@ -8,6 +8,7 @@ import Input from '../../components/atoms/Input';
 import Button from '../../components/atoms/Button';
 import { spacing } from '../../theme';
 import { validateEmail, validatePassword } from '../../utils/validators';
+import { mensajeDelServidor } from '../../utils/mensajes';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 type AuthStackParamList = {
@@ -20,7 +21,7 @@ type Props = NativeStackScreenProps<AuthStackParamList, 'Login'>;
 const LoginScreen: React.FC<Props> = ({ navigation }) => {
   const { colors } = useTheme();
   const { showToast } = useToast();
-  const { login } = useAuth();
+  const { login, avisoDeSesion, limpiarAvisoDeSesion } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -42,7 +43,9 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
     try {
       await login(email.trim(), password);
     } catch (err: any) {
-      showToast('error', 'Error', err.message || 'No se pudo iniciar sesion');
+      /* Un 429 ("Demasiados intentos...") llega como error HTTP: su mensaje
+         viene en el cuerpo y ya esta en espanol. */
+      showToast('error', 'No se pudo entrar', mensajeDelServidor(err, 'No se pudo iniciar sesión'));
     } finally {
       setLoading(false);
     }
@@ -66,9 +69,24 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
           </AppText>
         </View>
 
+        {/* Si la sesion se cerro sola (token caducado), se dice por que: sin
+            esto, aparecer de golpe en la entrada parece un fallo de la app. */}
+        {!!avisoDeSesion && (
+          <View style={[styles.aviso, { borderColor: colors.warning, backgroundColor: colors.surface }]}
+            accessibilityRole="alert" accessibilityLiveRegion="polite">
+            <AppText variant="body" style={{ flex: 1 }}>{avisoDeSesion}</AppText>
+            {!!limpiarAvisoDeSesion && (
+              <TouchableOpacity onPress={limpiarAvisoDeSesion} style={styles.cerrarAviso}
+                accessibilityRole="button" accessibilityLabel="Cerrar el aviso">
+                <AppText variant="body" color={colors.textSecondary}>✕</AppText>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
         <View style={styles.form}>
           <Input
-            label="Correo electronico"
+            label="Correo electrónico"
             value={email}
             onChangeText={setEmail}
             placeholder="tu@correo.com"
@@ -84,7 +102,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
             error={errors.password}
           />
           <Button
-            title="Iniciar Sesion"
+            title="Iniciar sesión"
             onPress={handleLogin}
             loading={loading}
             size="large"
@@ -101,10 +119,10 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
           accessibilityLabel="¿No tienes cuenta? Regístrate"
         >
           <AppText variant="body" color={colors.textSecondary}>
-            No tienes cuenta?{' '}
+            ¿No tienes cuenta?{' '}
           </AppText>
           <AppText variant="body" color={colors.primary}>
-            Registrate
+            Regístrate
           </AppText>
         </TouchableOpacity>
       </ScrollView>
@@ -133,6 +151,16 @@ const styles = StyleSheet.create({
   form: {
     marginBottom: spacing.lg,
   },
+  aviso: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingLeft: spacing.md,
+    marginBottom: spacing.lg,
+    minHeight: 48,
+  },
+  cerrarAviso: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   loginBtn: {
     marginTop: spacing.sm,
   },

@@ -61,7 +61,7 @@ class DTOTest {
     @Test
     @DisplayName("UserSaveDTO getters/setters")
     void testUserSaveDTO() {
-        UserSaveDTO dto = new UserSaveDTO(1L, "Name", "e@e.com", "pass", 15, "COP", 0);
+        UserSaveDTO dto = new UserSaveDTO(1L, "Name", "e@e.com", "pass", 15, "COP", 0, null);
         assertEquals(1L, dto.getId());
         assertEquals("Name", dto.getName());
         assertEquals("e@e.com", dto.getEmail());

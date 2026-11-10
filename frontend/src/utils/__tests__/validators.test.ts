@@ -37,19 +37,19 @@ describe('validateEmail', () => {
     expect(validateEmail('user@correo.com')).toBeNull();
   });
   it('returns error for empty', () => {
-    expect(validateEmail('')).toBe('El correo electronico es obligatorio');
+    expect(validateEmail('')).toBe('El correo electrónico es obligatorio');
   });
   it('returns error for null', () => {
-    expect(validateEmail(null)).toBe('El correo electronico es obligatorio');
+    expect(validateEmail(null)).toBe('El correo electrónico es obligatorio');
   });
   it('returns error for invalid format', () => {
-    expect(validateEmail('noesuncorreo')).toBe('Ingresa un correo valido (ej: usuario@correo.com)');
+    expect(validateEmail('noesuncorreo')).toBe('Ingresa un correo válido (ej: usuario@correo.com)');
   });
   it('returns error for missing @', () => {
-    expect(validateEmail('usuario.correo.com')).toBe('Ingresa un correo valido (ej: usuario@correo.com)');
+    expect(validateEmail('usuario.correo.com')).toBe('Ingresa un correo válido (ej: usuario@correo.com)');
   });
   it('returns error for missing domain', () => {
-    expect(validateEmail('usuario@')).toBe('Ingresa un correo valido (ej: usuario@correo.com)');
+    expect(validateEmail('usuario@')).toBe('Ingresa un correo válido (ej: usuario@correo.com)');
   });
   it('accepts email with dots', () => {
     expect(validateEmail('user.name@mail.co')).toBeNull();
@@ -61,22 +61,22 @@ describe('validatePassword', () => {
     expect(validatePassword('password123')).toBeNull();
   });
   it('returns error for empty', () => {
-    expect(validatePassword('')).toBe('La contrasena es obligatoria');
+    expect(validatePassword('')).toBe('La contraseña es obligatoria');
   });
   it('returns error for null', () => {
-    expect(validatePassword(null)).toBe('La contrasena es obligatoria');
+    expect(validatePassword(null)).toBe('La contraseña es obligatoria');
   });
   it('returns error for too short', () => {
-    expect(validatePassword('abc')).toBe('La contrasena debe tener al menos 6 caracteres');
+    expect(validatePassword('abc')).toBe('La contraseña debe tener al menos 6 caracteres');
   });
   it('accepts exactly min length', () => {
     expect(validatePassword('123456')).toBeNull();
   });
   it('respects custom min length', () => {
-    expect(validatePassword('1234', 8)).toBe('La contrasena debe tener al menos 8 caracteres');
+    expect(validatePassword('1234', 8)).toBe('La contraseña debe tener al menos 8 caracteres');
   });
   it('returns error for whitespace only', () => {
-    expect(validatePassword('   ')).toBe('La contrasena es obligatoria');
+    expect(validatePassword('   ')).toBe('La contraseña es obligatoria');
   });
 });
 
@@ -88,7 +88,7 @@ describe('validateAmount', () => {
     expect(validateAmount('')).toBe('El monto es obligatorio');
   });
   it('returns error for non-numeric', () => {
-    expect(validateAmount('abc')).toBe('El monto debe ser un numero valido (ej: 150000)');
+    expect(validateAmount('abc')).toBe('El monto debe ser un número válido (ej: 150000)');
   });
   it('returns error for zero', () => {
     expect(validateAmount('0')).toBe('El monto debe ser mayor a $0');
@@ -124,16 +124,16 @@ describe('validateDate', () => {
     expect(validateDate('2026-00-15')).toBe('El mes debe estar entre 01 y 12');
   });
   it('returns error for day 31 in February', () => {
-    expect(validateDate('2026-02-31')).toBe('El dia debe estar entre 01 y 28 para el mes 02');
+    expect(validateDate('2026-02-31')).toBe('El día debe estar entre 01 y 28 para el mes 02');
   });
   it('returns error for day 0', () => {
-    expect(validateDate('2026-03-00')).toContain('El dia debe estar entre 01 y');
+    expect(validateDate('2026-03-00')).toContain('El día debe estar entre 01 y');
   });
   it('accepts Feb 29 in leap year', () => {
     expect(validateDate('2024-02-29')).toBeNull();
   });
   it('rejects Feb 29 in non-leap year', () => {
-    expect(validateDate('2026-02-29')).toContain('El dia debe estar entre 01 y 28');
+    expect(validateDate('2026-02-29')).toContain('El día debe estar entre 01 y 28');
   });
 });
 
@@ -145,13 +145,13 @@ describe('validateDayOfMonth', () => {
     expect(validateDayOfMonth('15')).toBeNull();
   });
   it('returns error for 0', () => {
-    expect(validateDayOfMonth('0')).toBe('El dia del mes debe estar entre 1 y 31');
+    expect(validateDayOfMonth('0')).toBe('El día del mes debe estar entre 1 y 31');
   });
   it('returns error for 32', () => {
-    expect(validateDayOfMonth('32')).toBe('El dia del mes debe estar entre 1 y 31');
+    expect(validateDayOfMonth('32')).toBe('El día del mes debe estar entre 1 y 31');
   });
   it('returns error for text', () => {
-    expect(validateDayOfMonth('abc')).toBe('El dia del mes debe estar entre 1 y 31');
+    expect(validateDayOfMonth('abc')).toBe('El día del mes debe estar entre 1 y 31');
   });
 });
 
@@ -163,13 +163,13 @@ describe('validateDuration', () => {
     expect(validateDuration('12')).toBeNull();
   });
   it('returns error for 0', () => {
-    expect(validateDuration('0')).toBe('La duracion debe ser al menos 1 mes');
+    expect(validateDuration('0')).toBe('La duración debe ser al menos 1 mes');
   });
   it('returns error for negative', () => {
-    expect(validateDuration('-5')).toBe('La duracion debe ser al menos 1 mes');
+    expect(validateDuration('-5')).toBe('La duración debe ser al menos 1 mes');
   });
   it('returns error for exceeding max', () => {
-    expect(validateDuration('200')).toBe('La duracion no puede superar 120 meses (10 años)');
+    expect(validateDuration('200')).toBe('La duración no puede superar 120 meses (10 años)');
   });
 });
 
@@ -178,10 +178,10 @@ describe('validateCategory', () => {
     expect(validateCategory('5')).toBeNull();
   });
   it('returns error for null', () => {
-    expect(validateCategory(null)).toBe('Debes seleccionar una categoria');
+    expect(validateCategory(null)).toBe('Debes seleccionar una categoría');
   });
   it('returns error for empty', () => {
-    expect(validateCategory('')).toBe('Debes seleccionar una categoria');
+    expect(validateCategory('')).toBe('Debes seleccionar una categoría');
   });
 });
 

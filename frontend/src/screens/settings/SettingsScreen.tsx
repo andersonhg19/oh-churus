@@ -30,19 +30,22 @@ type Props = NativeStackScreenProps<SettingsStackParamList, 'SettingsMain'>;
 
 const SettingsScreen: React.FC<Props> = ({ navigation }) => {
   const { colors, isDark, toggleTheme } = useTheme();
-  const { user, logout } = useAuth();
+  const { user, logout, esAdmin } = useAuth();
   /* Que se pinta lo dice el servidor. Si no contesta, se cae al rol del
      token; ver useMenu. Y en cualquiera de los dos casos, quien no deba entrar
      recibe un 403 aunque llegue a la pantalla: esto es para no ensenar puertas
      que no se pueden abrir, no para cerrarlas. */
   const { puedeVer } = useMenu();
-  const veLaAdministracion = puedeVer('AdminUsers', true);
+  /* Ademas del menu del servidor, el rol del token: si el servidor llegara a
+     listar estas paginas a quien no es administrador, igual le responderia
+     403 al entrar. Mejor no ensenarlas. */
+  const veLaAdministracion = esAdmin && puedeVer('AdminUsers', true);
 
   const handleLogout = () =>
     confirmarAccion({
-      titulo: 'Cerrar sesion',
-      mensaje: 'Estas seguro?',
-      textoConfirmar: 'Si, salir',
+      titulo: 'Cerrar sesión',
+      mensaje: '¿Seguro que quieres salir?',
+      textoConfirmar: 'Sí, salir',
       onConfirmar: logout,
     });
 
@@ -124,7 +127,7 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
       {veLaAdministracion && (
         <>
           <AppText variant="caption" color={colors.textSecondary} style={styles.seccion}>
-            Administracion
+            Administración
           </AppText>
 
           <Card
@@ -151,7 +154,7 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
 
           <Card
             style={styles.menuItem}
-            accessibilityLabel="Administrar los modulos y los permisos de cada rol"
+            accessibilityLabel="Administrar los módulos y los permisos de cada rol"
             onPress={() => navigation.navigate('AdminModules')}
           >
             <View style={styles.menuRow}>
@@ -162,7 +165,7 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
 
           <Card
             style={styles.menuItem}
-            accessibilityLabel="Ver el registro de quien hizo que"
+            accessibilityLabel="Ver el registro de quién hizo qué"
             onPress={() => navigation.navigate('AdminAudit')}
           >
             <View style={styles.menuRow}>
@@ -187,7 +190,7 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
       </Card>
 
       {/* Logout */}
-      <Button title="Cerrar Sesion" onPress={handleLogout} variant="danger" style={styles.logoutBtn} />
+      <Button title="Cerrar sesión" onPress={handleLogout} variant="danger" style={styles.logoutBtn} />
 
       <AppText variant="caption" align="center" color={colors.textMuted} style={styles.version}>
         Oh Churus! v3.0.0

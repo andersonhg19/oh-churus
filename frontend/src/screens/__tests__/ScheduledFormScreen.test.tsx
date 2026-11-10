@@ -80,7 +80,7 @@ describe('ScheduledFormScreen', () => {
       { wrapper: Wrapper },
     );
     fireEvent.press(getByText('Guardar'));
-    expect((globalThis as any).__mockShowToast).toHaveBeenCalledWith('warning', 'Validacion', expect.any(String));
+    expect((globalThis as any).__mockShowToast).toHaveBeenCalledWith('warning', 'Revisa el dato', expect.any(String));
   });
 
   it('renders edit mode', () => {
@@ -132,8 +132,8 @@ describe('ScheduledFormScreen', () => {
       { wrapper: Wrapper },
     );
     expect(getByText('Semana del mes (opcional)')).toBeTruthy();
-    expect(getByText('Ultima')).toBeTruthy();
-    expect(getByText('Dia de la semana (opcional)')).toBeTruthy();
+    expect(getByText('Última')).toBeTruthy();
+    expect(getByText('Día de la semana (opcional)')).toBeTruthy();
     expect(getByText('Vie')).toBeTruthy();
     expect(getByText('Si cae fin de semana')).toBeTruthy();
     expect(getByText('Viernes antes')).toBeTruthy();
@@ -155,7 +155,7 @@ describe('ScheduledFormScreen', () => {
     fireEvent.press(getByText('Guardar'));
 
     expect((globalThis as any).__mockShowToast).toHaveBeenCalledWith(
-      'warning', 'Validacion', expect.stringContaining('tercer viernes'),
+      'warning', 'Revisa el dato', expect.stringContaining('tercer viernes'),
     );
     expect(scheduledService.save).not.toHaveBeenCalled();
   });

@@ -30,10 +30,13 @@ export const darkColors = {
   warning: '#FDCB6E',
   success: '#00B894',
   text: '#FFFFFF',
-  textSecondary: '#A0A0B8',
-  /* Subido desde #6C6C80 (3.10): es el color de las leyendas, o sea de texto
-     pequeno, y ahi 3:1 no basta. */
-  textMuted: '#8C8CA6',
+  /* Subido desde #A0A0B8 (4.78 sobre surfaceLight, justo en el borde) para
+     tener margen en las tarjetas claras del inicio. */
+  textSecondary: '#B0B0C8',
+  /* Subido desde #6C6C80 (3.10) y luego desde #8C8CA6, que sobre surfaceLight
+     (las tarjetas del inicio) se quedaba en 3.73:1: "de $7,96 M", "3 pagos"
+     no pasaban la AA. Ahora 4.79:1 sobre el fondo mas claro del tema. */
+  textMuted: '#A0A0BA',
   border: '#2D2D44',
   card: '#1E1E36',
   income: '#00B894',
@@ -61,9 +64,10 @@ export const lightColors = {
   /* Antes #27AE60 (2.53). */
   success: '#1A7340',
   text: '#2D2D2D',
-  textSecondary: '#6B6B6B',
-  /* Antes #9B9B9B (2.45). */
-  textMuted: '#6C6C6C',
+  /* Antes #6B6B6B (4.70 sobre el fondo crema): pasaba por poco. */
+  textSecondary: '#5E5E5E',
+  /* Antes #9B9B9B (2.45) y luego #6C6C6C (4.63). */
+  textMuted: '#666666',
   border: '#E0D5C5',
   card: '#FFFFFF',
   income: '#1A7340',

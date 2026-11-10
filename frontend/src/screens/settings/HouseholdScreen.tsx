@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
+import { View, StyleSheet, ScrollView, Modal } from 'react-native';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -16,6 +16,8 @@ import { authService } from '../../services/authService';
 import { confirmarAccion } from '../../utils/confirmar';
 import { useCarga, exigir } from '../../hooks/useCarga';
 import { useFocusEffect } from '@react-navigation/native';
+import { useAlcanceOpcional } from '../../contexts/AlcanceContext';
+import { mensajeDelServidor } from '../../utils/mensajes';
 
 const HouseholdScreen: React.FC = () => {
   const { colors } = useTheme();
@@ -29,6 +31,11 @@ const HouseholdScreen: React.FC = () => {
   // Se invita por correo: el id de fila de la base de datos no lo conoce nadie.
   const [newMemberEmails, setNewMemberEmails] = useState<{ [key: number]: string }>({});
   const [creating, setCreating] = useState(false);
+  /* Salir del hogar: se confirma dentro de la app (no con el dialogo del
+     navegador), porque al salir se deja de ver todo lo compartido. */
+  const [saliendoDe, setSaliendoDe] = useState<HouseholdInfo | null>(null);
+  const [saliendo, setSaliendo] = useState(false);
+  const alcance = useAlcanceOpcional();
 
   const traerHogares = useCallback(async () => {
     if (!user) return;
@@ -74,7 +81,7 @@ const HouseholdScreen: React.FC = () => {
     try {
       const res = await householdService.create(newName.trim(), user!.userId);
       if (res.correct) {
-        showToast('success', 'Nucleo creado', newName);
+        showToast('success', 'Hogar creado', newName);
         setNewName('');
         refrescar();
       } else {
@@ -100,10 +107,34 @@ const HouseholdScreen: React.FC = () => {
         setNewMemberEmails(prev => ({ ...prev, [householdId]: '' }));
         refrescar();
       } else {
-        showToast('error', 'Error', res.message);
+        showToast('error', 'No se pudo invitar', res.message);
       }
     } catch (err: any) {
-      showToast('error', 'Error', err.message || 'No se pudo agregar');
+      /* El servidor responde un 400 con un mensaje que ya explica que hacer
+         ("Revisa el correo; si ya esta en un nucleo familiar..."): se muestra
+         tal cual en vez del generico de axios. */
+      showToast('error', 'No se pudo invitar', mensajeDelServidor(err, 'No se pudo agregar a esa persona'));
+    }
+  };
+
+  const salirDelHogar = async () => {
+    if (!saliendoDe || !user || saliendo) return;
+    setSaliendo(true);
+    try {
+      const res = await householdService.removeMember(saliendoDe.householdId, Number(user.userId));
+      if (res.correct) {
+        showToast('success', 'Saliste del hogar', saliendoDe.name);
+        setSaliendoDe(null);
+        alcance?.setAlcance({ tipo: 'PERSONA', userId: Number(user.userId) });
+        alcance?.recargarMiembros();
+        refrescar();
+      } else {
+        showToast('error', 'No se pudo salir', res.message);
+      }
+    } catch (err: any) {
+      showToast('error', 'No se pudo salir', mensajeDelServidor(err, 'No se pudo salir del hogar'));
+    } finally {
+      setSaliendo(false);
     }
   };
 
@@ -113,9 +144,9 @@ const HouseholdScreen: React.FC = () => {
   const handleRemove = (householdId: number, userId: number) => {
     const quien = memberNames[userId] || `Usuario #${userId}`;
     confirmarAccion({
-      titulo: 'Sacar del nucleo',
-      mensaje: `Seguro que quieres sacar a ${quien}? Dejara de ver las categorias y el presupuesto compartidos.`,
-      textoConfirmar: 'Si, sacar',
+      titulo: 'Sacar del hogar',
+      mensaje: `¿Seguro que quieres sacar a ${quien}? Dejará de ver las categorías y el presupuesto compartidos.`,
+      textoConfirmar: 'Sí, sacar',
       onConfirmar: async () => {
         try {
           const res = await householdService.removeMember(householdId, userId);
@@ -196,6 +227,17 @@ const HouseholdScreen: React.FC = () => {
               </View>
             ))}
 
+            {h.role !== 'OWNER' && (
+              <Button
+                title="Salir del hogar"
+                accessibilityLabel={`Salir del hogar ${h.name}`}
+                variant="outline"
+                size="small"
+                onPress={() => setSaliendoDe(h)}
+                style={styles.addBtn}
+              />
+            )}
+
             {h.role === 'OWNER' && (
               <View style={styles.addMemberRow}>
                 <Input
@@ -217,19 +259,36 @@ const HouseholdScreen: React.FC = () => {
           </Card>
         ))
       ) : (
-        <EmptyState title="Sin nucleo familiar" message="Crea uno para compartir categorias y presupuesto" icon="🏠" />
+        <EmptyState title="Sin hogar" message="Crea uno para compartir categorías y presupuesto" icon="🏠" />
       )}
 
+      {/* Crear otro hogar solo tiene sentido si no se esta en ninguno: antes
+          se ofrecia siempre y parecia que el hogar actual no existia. */}
+      {households.length === 0 && (
       <Card style={styles.section}>
-        <AppText variant="label" style={styles.sectionTitle}>Crear nucleo familiar</AppText>
+        <AppText variant="label" style={styles.sectionTitle}>Crear hogar</AppText>
         <Input
-          label="Nombre del nucleo"
+          label="Nombre del hogar"
           value={newName}
           onChangeText={setNewName}
           placeholder="Ej: Familia"
         />
         <Button title="Crear" onPress={handleCreate} loading={creating} style={styles.createBtn} />
       </Card>
+      )}
+
+      <Modal visible={!!saliendoDe} transparent animationType="fade" onRequestClose={() => setSaliendoDe(null)}>
+        <View style={styles.fondo}>
+          <View style={[styles.hoja, { backgroundColor: colors.surface }]} accessibilityViewIsModal>
+            <AppText variant="subtitle">¿Salir de {saliendoDe?.name}?</AppText>
+            <AppText variant="body" color={colors.textSecondary}>
+              Dejarás de ver las categorías, el presupuesto y los movimientos compartidos del hogar. Lo tuyo personal se queda contigo. Para volver, alguien del hogar tendrá que invitarte otra vez.
+            </AppText>
+            <Button title="Sí, salir del hogar" variant="danger" onPress={salirDelHogar} loading={saliendo} />
+            <Button title="Cancelar" variant="outline" onPress={() => setSaliendoDe(null)} />
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 };
@@ -253,6 +312,8 @@ const styles = StyleSheet.create({
   addMemberRow: { marginTop: spacing.sm },
   addBtn: { marginTop: spacing.xs },
   createBtn: { marginTop: spacing.sm },
+  fondo: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: spacing.lg },
+  hoja: { borderRadius: 16, padding: spacing.lg, gap: spacing.sm },
 });
 
 export default HouseholdScreen;

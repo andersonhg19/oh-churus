@@ -21,6 +21,8 @@ jest.mock('@react-navigation/native', () => ({
   DrawerActions: { openDrawer: () => ({ type: 'OPEN_DRAWER' }) },
 }));
 jest.mock('../../services/estadoService', () => ({ estadoService: { periodo: jest.fn(), historial: jest.fn() } }));
+jest.mock('../../services/scheduledService', () => ({ scheduledService: { save: jest.fn() } }));
+jest.mock('../../services/categoryService', () => ({ categoryService: { getAll: jest.fn() } }));
 jest.mock('../../services/deudaService', () => ({
   deudaService: { todas: jest.fn(), pagarTarjeta: jest.fn(), guardarTarjeta: jest.fn(), borrarTarjeta: jest.fn(), adelantarCuota: jest.fn(), misTarjetas: jest.fn() },
 }));
@@ -108,7 +110,8 @@ describe('Deudas', () => {
   it('muestra lo que se debe, las tarjetas y las cuotas', async () => {
     const { findByLabelText, getByText, getByLabelText, queryByLabelText } = render(<Envoltura><DeudasScreen navigation={nav()} /></Envoltura>);
     expect(await findByLabelText(/Deben \$4\.600\.000\. Este mes en cuotas: \$600\.000/)).toBeTruthy();
-    expect(getByText(/Ya toca pagar \$400\.000 · Después \$1\.800\.000/)).toBeTruthy();
+    expect(getByText(/Ya toca pagar: \$400\.000/)).toBeTruthy();
+    expect(getByText(/Cuotas de los próximos meses: \$1\.800\.000/)).toBeTruthy();
     expect(getByText('Master de Samy')).toBeTruthy();
     expect(getByText(/Cuota \$600\.000 · faltan 4 \(\$2\.400\.000\) · termina mar 2027/)).toBeTruthy();
     /* La de Samy no se paga ni se borra desde aquí; la propia sin deuda sí se puede borrar. */
@@ -165,13 +168,59 @@ describe('Deudas', () => {
     expect(getByText('Un día entre 1 y 31')).toBeTruthy();
     fireEvent.changeText(getByLabelText(/^Día de pago/), '5');
     fireEvent.press(getByLabelText('Guardar'));
-    await waitFor(() => expect(deudaService.guardarTarjeta).toHaveBeenCalledWith({ name: 'Amex', paymentDay: 5, color: '#6C5CE7' }));
+    await waitFor(() => expect(deudaService.guardarTarjeta).toHaveBeenCalledWith({ name: 'Amex', paymentDay: 5, cutoffDay: null, color: '#6C5CE7' }));
   });
 
-  it('el aviso de créditos lleva a Programados', async () => {
+  it('para cambiar una deuda lleva a Programados', async () => {
     const { findByLabelText } = render(<Envoltura><DeudasScreen navigation={nav()} /></Envoltura>);
-    fireEvent.press(await findByLabelText('Ir a Programados'));
+    fireEvent.press(await findByLabelText('Ver o editar en Programados'));
     expect(mockNavegar).toHaveBeenCalledWith('ScheduledList');
+  });
+
+  it('una deuda en cuotas se crea desde aquí, con su cuota, cuántas son y el día', async () => {
+    const { categoryService } = require('../../services/categoryService');
+    const { scheduledService } = require('../../services/scheduledService');
+    (categoryService.getAll as jest.Mock).mockResolvedValue({ correct: true, object: { list: [
+      { id: '27', name: 'Casa', type: 'EXPENSE', active: true }, { id: '28', name: 'Deuda', type: 'EXPENSE', active: true },
+    ] } });
+    (scheduledService.save as jest.Mock).mockResolvedValue({ correct: true, object: { id: 99 } });
+    const { findByLabelText, getByLabelText, getByText, findByText } = render(<Envoltura><DeudasScreen navigation={nav()} /></Envoltura>);
+    fireEvent.press(await findByLabelText('Nueva deuda en cuotas'));
+    fireEvent.press(getByLabelText('Guardar'));
+    expect(getByText(/Ponle un nombre/)).toBeTruthy();
+    fireEvent.changeText(getByLabelText(/^Nombre/), 'Crédito libre inversión');
+    fireEvent.changeText(getByLabelText(/^Valor de la cuota/), '750.000');
+    fireEvent.changeText(getByLabelText(/^Cuotas/), '24');
+    fireEvent.changeText(getByLabelText(/^Día de pago/), '10');
+    expect(await findByText(/24 cuotas de .*750.000: en total .*18.000.000/)).toBeTruthy();
+    expect((await findByLabelText('Categoría Deuda')).props.accessibilityState).toEqual({ selected: true });
+    fireEvent.press(getByLabelText('Guardar'));
+    await waitFor(() => expect(scheduledService.save).toHaveBeenCalledWith(expect.objectContaining({
+      name: 'Crédito libre inversión', amount: 750000, durationMonths: 24, dayOfMonth: 10, categoryId: '28', frequency: 'MONTHLY', kind: 'PAYMENT',
+    })));
+    expect(toast).toHaveBeenCalledWith('success', 'Deuda creada', expect.stringContaining('24 cuotas'));
+  });
+
+  it('en la vista de una persona solo salen sus tarjetas y sus cuotas', async () => {
+    const base = (AlcanceContext.useAlcance as jest.Mock)();
+    (AlcanceContext.useAlcance as jest.Mock).mockReturnValue({ ...base, alcance: { tipo: 'PERSONA', userId: 4 } });
+    try {
+      const { findByText, queryByText } = render(<Envoltura><DeudasScreen navigation={nav()} /></Envoltura>);
+      expect(await findByText('Master de Samy')).toBeTruthy();
+      expect(queryByText('Visa')).toBeNull();
+      expect(queryByText('Crédito carro')).toBeNull();
+    } finally {
+      (AlcanceContext.useAlcance as jest.Mock).mockReturnValue(base);
+    }
+  });
+
+  it('con día de corte dice qué extracto toca pagar y qué va en el siguiente', async () => {
+    (deudaService.todas as jest.Mock).mockResolvedValueOnce({ correct: true, object: { ...deudas, cards: [
+      { ...deudas.cards[0], cutoffDay: 5, lastCutoff: '2026-11-05', nextPaymentDate: '2026-11-20', currentCycle: 90000, upcoming: 0 },
+    ] } });
+    const { findByText, getByText } = render(<Envoltura><DeudasScreen navigation={nav()} /></Envoltura>);
+    expect(await findByText(/Extracto del 5 nov: \$400\.000 · pagar antes del 20 nov/)).toBeTruthy();
+    expect(getByText(/Este ciclo \(siguiente extracto\): \$90\.000/)).toBeTruthy();
   });
 });
 

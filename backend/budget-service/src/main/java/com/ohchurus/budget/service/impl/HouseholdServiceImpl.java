@@ -84,7 +84,11 @@ public class HouseholdServiceImpl {
             }
             Long invitado = directorio.idPorCorreo(correo);
             if (invitado == null) {
-                return new ResultDTO(false, "No existe ningun usuario con ese correo", 404);
+                /* Mismo mensaje que cuando la persona ya tiene hogar: antes
+                   "No existe ningun usuario con ese correo" frente a "User is
+                   already a member" servia para averiguar que correos estan
+                   registrados. */
+                return noSePuedeAgregar();
             }
             return addMember(householdId, invitado);
         } catch (Exception e) {
@@ -108,8 +112,13 @@ public class HouseholdServiceImpl {
             if (!esDuenoDelHogar(householdId)) {
                 return new ResultDTO(false, "Household not found", 404);
             }
-            if (memberRepository.existsByHouseholdIdAndUserIdAndActiveTrue(householdId, userId)) {
-                return new ResultDTO(false, "User is already a member", 400);
+            /* Solo se agrega a quien NO pertenece ya a un hogar activo (este u
+               otro). Antes el OWNER metia a cualquier usuario existente en su
+               casa sin consentimiento: la victima aparecia en un hogar ajeno,
+               el intruso la veia como "persona de su hogar" y ella no tenia
+               como salir. El mensaje es el mismo exista o no la persona. */
+            if (userId == null || perteneceAUnHogarActivo(userId)) {
+                return noSePuedeAgregar();
             }
             HouseholdMember member = HouseholdMember.builder()
                     .householdId(householdId)
@@ -131,7 +140,11 @@ public class HouseholdServiceImpl {
             if (!hogarExiste(householdId)) {
                 return new ResultDTO(false, "Household not found", 404);
             }
-            if (!esDuenoDelHogar(householdId)) {
+            /* Saca el OWNER, o el propio miembro se sale. Antes solo el OWNER:
+               a quien metian en un hogar no tenia forma de abandonarlo. */
+            Long yo = com.ohchurus.budget.util.SecurityUtils.getAuthenticatedUserId();
+            boolean meSalgo = yo != null && yo.equals(userId);
+            if (!meSalgo && !esDuenoDelHogar(householdId)) {
                 return new ResultDTO(false, "Household not found", 404);
             }
             var member = memberRepository.findByHouseholdIdAndUserIdAndActiveTrue(householdId, userId);
@@ -144,7 +157,7 @@ public class HouseholdServiceImpl {
             member.get().setActive(false);
             memberRepository.save(member.get());
             limpiarRastroDelExpulsado(householdId, userId);
-            return new ResultDTO(true, "Member removed", 0);
+            return new ResultDTO(true, meSalgo ? "Saliste del nucleo familiar" : "Member removed", 0);
         } catch (Exception e) {
             log.error("Error removing member: {}", e.getMessage(), e);
             return new ResultDTO(false, "Error removing member", 500);
@@ -190,6 +203,20 @@ public class HouseholdServiceImpl {
             allocationRepository.save(asignacion);
             log.info("Asignacion {} desactivada tras la expulsion de {}", asignacion.getId(), expulsado);
         }
+    }
+
+    /** Respuesta unica cuando no se puede agregar a alguien, sea cual sea el motivo. */
+    private static ResultDTO noSePuedeAgregar() {
+        return new ResultDTO(false, MENSAJE_NO_SE_PUEDE_AGREGAR, 400);
+    }
+
+    static final String MENSAJE_NO_SE_PUEDE_AGREGAR =
+            "No se pudo agregar a esa persona. Revisa el correo; si ya está en un núcleo familiar, primero debe salir de él.";
+
+    /** ¿Ese usuario ya es miembro activo de algun hogar que siga activo? */
+    private boolean perteneceAUnHogarActivo(Long userId) {
+        return memberRepository.findByUserIdAndActiveTrue(userId).stream()
+                .anyMatch(m -> hogarExiste(m.getHouseholdId()));
     }
 
     /** ¿Existe el hogar y sigue activo? */

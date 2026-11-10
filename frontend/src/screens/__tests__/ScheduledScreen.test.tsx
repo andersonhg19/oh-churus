@@ -53,7 +53,7 @@ describe('ScheduledScreen', () => {
       { wrapper: Wrapper },
     );
     /* El titulo lo pone la barra de navegacion; la pantalla ya no lo repite. */
-    await waitFor(() => expect(getByText('Facturas, cuotas, ahorros y bolsas')).toBeTruthy());
+    await waitFor(() => expect(getByText('Facturas, cuotas, ahorros y plata separada')).toBeTruthy());
   });
 
   it('renders scheduled items', async () => {
@@ -72,7 +72,7 @@ describe('ScheduledScreen', () => {
       <ScheduledScreen navigation={mockNavigation} route={mockRoute} />,
       { wrapper: Wrapper },
     );
-    await waitFor(() => expect(getByText('Generar')).toBeTruthy());
+    await waitFor(() => expect(getByText('Crear pendientes')).toBeTruthy());
   });
 
   it('handles generate pending action', async () => {
@@ -84,8 +84,8 @@ describe('ScheduledScreen', () => {
       <ScheduledScreen navigation={mockNavigation} route={mockRoute} />,
       { wrapper: Wrapper },
     );
-    await waitFor(() => expect(getByText('Generar')).toBeTruthy());
-    fireEvent.press(getByText('Generar'));
+    await waitFor(() => expect(getByText('Crear pendientes')).toBeTruthy());
+    fireEvent.press(getByText('Crear pendientes'));
     await waitFor(() => {
       expect(scheduledService.generatePending).toHaveBeenCalledWith('1', 1);
     });
@@ -110,8 +110,8 @@ describe('ScheduledScreen', () => {
       <ScheduledScreen navigation={mockNavigation} route={mockRoute} />,
       { wrapper: Wrapper },
     );
-    await waitFor(() => expect(getByText('Generar')).toBeTruthy());
-    fireEvent.press(getByText('Generar'));
+    await waitFor(() => expect(getByText('Crear pendientes')).toBeTruthy());
+    fireEvent.press(getByText('Crear pendientes'));
 
     await waitFor(() => {
       expect(getByText('40 ocurrencias atrasadas sin registrar')).toBeTruthy();
@@ -138,8 +138,8 @@ describe('ScheduledScreen', () => {
       <ScheduledScreen navigation={mockNavigation} route={mockRoute} />,
       { wrapper: Wrapper },
     );
-    await waitFor(() => expect(getByText('Generar')).toBeTruthy());
-    fireEvent.press(getByText('Generar'));
+    await waitFor(() => expect(getByText('Crear pendientes')).toBeTruthy());
+    fireEvent.press(getByText('Crear pendientes'));
     await waitFor(() => expect(getByText('Registrar 1')).toBeTruthy());
     fireEvent.press(getByText('Registrar 1'));
 

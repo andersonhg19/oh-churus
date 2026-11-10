@@ -32,9 +32,10 @@ export const COLOR_OTROS = '#9AA0A6';
 export const MAX_PORCIONES = 8;
 /** Lo que pesa menos que esto del gasto total se junta en "Otros". */
 export const UMBRAL_OTROS = 0.03;
-/** Distancia minima, en px, entre dos etiquetas del mismo lado. */
-export const SEPARACION = 30;
-const MARGEN = 15;
+/** Distancia minima, en px, entre dos etiquetas del mismo lado: cada una es
+ *  una zona tactil de 44px de alto, asi que no pueden quedar mas juntas. */
+export const SEPARACION = 44;
+const MARGEN = 22;
 const HUECO = 1.2;
 const BARRIDO_MIN = 4;
 const ANCHO_ETIQUETA = 26 + 4 + 32;
@@ -88,6 +89,39 @@ export function repartirEtiquetas(ys: number[], alto: number, separacion = SEPAR
 }
 
 const rad = (g: number) => (g * Math.PI) / 180;
+
+/** Ancho medio de un caracter, en "em", de las cifras en negrita. */
+const ANCHO_CIFRA = 0.62;
+/** Ancho medio de un caracter de texto normal (nombres), en "em". */
+const ANCHO_LETRA = 0.55;
+
+/** El tamano de letra con el que `texto` cabe en `ancho`, sin pasar de `max`. */
+export const tamanoQueCabe = (texto: string, ancho: number, max: number, em = ANCHO_LETRA) =>
+  Math.min(max, ancho / (Math.max(1, texto.length) * em));
+
+/**
+ * La cifra del centro NUNCA se corta con "…": si la cifra completa no cabe a
+ * un tamano legible (min), se usa la corta ($2 M); y la letra se ajusta al
+ * ancho que hay dentro del anillo. adjustsFontSizeToFit no existe en la web,
+ * por eso se calcula.
+ */
+export function cifraQueCabe(monto: number, ancho: number, max = 28, min = 16): { texto: string; tamano: number } {
+  let texto = formatCurrency(monto);
+  if (tamanoQueCabe(texto, ancho, max, ANCHO_CIFRA) < min) texto = formatCompacto(monto);
+  return { texto, tamano: Math.max(11, Math.floor(tamanoQueCabe(texto, ancho, max, ANCHO_CIFRA))) };
+}
+
+/**
+ * El nombre de la etiqueta segun el espacio: completo si cabe, si no la
+ * primera palabra ("Comidas fuera" -> "Comidas"), y si ni eso, nada.
+ */
+export function nombreQueCabe(nombre: string, espacio: number, tamano = 12): string | null {
+  const cabe = (t: string) => t.length * tamano * ANCHO_LETRA <= espacio;
+  if (espacio < 36) return null;
+  if (cabe(nombre)) return nombre;
+  const primera = nombre.split(/\s+/)[0];
+  return primera && primera.length >= 3 && cabe(primera) ? primera : null;
+}
 
 export interface Arco { porcion: Porcion; a0: number; a1: number; medio: number }
 export interface Etiqueta { porcion: Porcion; derecha: boolean; y: number; medio: number }
@@ -244,12 +278,29 @@ const DonaDeCategorias: React.FC<Props> = ({
     `${p.nombre}: ${formatCurrency(p.valor)}, ${porcentaje(p.fraccion)} del gasto`;
 
   const otros = porciones.find((p) => p.id === ID_OTROS);
-  const conNombre = width >= 400;
   const libreTexto = formatCurrency(libre);
-  const libreMostrado = libreTexto.length > 11 ? formatCompacto(libre) : libreTexto;
   const diametroCentro = Math.max(0, 2 * Ri - 8);
+  /* Lo que cabe a lo ancho en el centro (la cuerda a la altura de cada linea). */
+  const radioCentro = diametroCentro / 2;
+  const cuerda = (dy: number) => Math.max(0, 2 * Math.sqrt(Math.max(0, radioCentro * radioCentro - dy * dy)) - 12);
+  const cifra = cifraQueCabe(libre, cuerda(0));
+  const lineaGastado = `Gastado ${formatCompacto(gastado)}`;
+  const lineaDe = `de ${formatCompacto(presupuestado)}`;
+  const tamGastado = Math.max(9, Math.min(12, tamanoQueCabe(lineaGastado, cuerda(cifra.tamano * 0.5 + 10), 12)));
+  const tamDe = Math.max(9, Math.min(12, tamanoQueCabe(lineaDe, cuerda(cifra.tamano * 0.5 + 26), 12)));
+
+  /* Que nombre lleva cada etiqueta; las que no tienen sitio (el celular) van
+     en la leyenda de abajo, para no tener que adivinar que es "🏠 38%". */
+  const nombres: Record<number, string | null> = {};
+  etiquetas.forEach((e) => {
+    const x2 = e.derecha ? cx + Ro + 26 : cx - Ro - 26;
+    const espacio = e.derecha ? W - (x2 + 2 + ANCHO_ETIQUETA) - 4 : x2 - 2 - ANCHO_ETIQUETA - 4;
+    nombres[e.porcion.id] = nombreQueCabe(e.porcion.nombre, Math.min(espacio, 110));
+  });
+  const sinNombre = porciones.filter((p) => !nombres[p.id]);
 
   return (
+    <View style={{ alignSelf: 'center', width: W }}>
     <View style={{ width: W, height: H, alignSelf: 'center' }} {...deslizar.panHandlers}>
       {/* Tocar fuera de la dona suelta la categoria elegida. */}
       <Pressable style={StyleSheet.absoluteFill} onPress={() => setElegidaId(null)} accessible={false} />
@@ -311,16 +362,15 @@ const DonaDeCategorias: React.FC<Props> = ({
         {etiquetas.map((e) => {
           const p = e.porcion;
           const x2 = e.derecha ? cx + Ro + 26 : cx - Ro - 26;
-          const espacio = e.derecha ? W - (x2 + 2 + ANCHO_ETIQUETA) - 4 : x2 - 2 - ANCHO_ETIQUETA - 4;
-          const nombreVisible = conNombre && espacio >= 36;
+          const nombreVisible = nombres[p.id];
           const apagada = !!elegida && elegida.id !== p.id;
           return (
             <TouchableOpacity
               key={`etiqueta-${p.id}`}
-              style={[styles.etiqueta, { top: e.y - 15, flexDirection: e.derecha ? 'row' : 'row-reverse',
+              style={[styles.etiqueta, { top: e.y - 22, flexDirection: e.derecha ? 'row' : 'row-reverse',
                 opacity: apagada ? 0.35 : 1 },
                 e.derecha ? { left: x2 + 2 } : { right: W - (x2 - 2) }]}
-              hitSlop={{ top: 7, bottom: 7, left: 6, right: 6 }}
+              hitSlop={{ left: 6, right: 6 }}
               onPress={() => tocar(p)}
               onLongPress={() => mantener(p)}
               accessibilityRole="button"
@@ -334,9 +384,8 @@ const DonaDeCategorias: React.FC<Props> = ({
                 <Icono nombre={p.icono} color={tintaSobre(p.color)} tamano={15} />
               </View>
               <AppText variant="caption" style={[styles.pct, { color: colors.text }]}>{porcentaje(p.fraccion)}</AppText>
-              {nombreVisible && (
-                <AppText variant="caption" color={colors.textSecondary} numberOfLines={1}
-                  style={{ maxWidth: Math.min(espacio, 110) }}>{p.nombre}</AppText>
+              {!!nombreVisible && (
+                <AppText variant="caption" color={colors.textSecondary} numberOfLines={1}>{nombreVisible}</AppText>
               )}
             </TouchableOpacity>
           );
@@ -361,11 +410,11 @@ const DonaDeCategorias: React.FC<Props> = ({
             {(elegida.presupuesto || 0) > 0 ? `de ${formatCompacto(elegida.presupuesto || 0)} presupuestado` : 'sin presupuesto'}
           </AppText>
           <View style={styles.acciones}>
-            <TouchableOpacity style={[styles.pildora, { borderColor: colors.expense }]} hitSlop={{ top: 9, bottom: 9, left: 4, right: 4 }}
+            <TouchableOpacity style={[styles.pildora, { borderColor: colors.expense }]} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
               onPress={() => onAnotar(elegida)} accessibilityRole="button" accessibilityLabel={`Anotar un gasto en ${elegida.nombre}`}>
               <AppText variant="caption" style={{ color: colors.expense, fontWeight: '800' }}>＋ Anotar</AppText>
             </TouchableOpacity>
-            <TouchableOpacity hitSlop={{ top: 9, bottom: 9, left: 6, right: 6 }} onPress={() => onVerCategoria(elegida)}
+            <TouchableOpacity style={styles.ver} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} onPress={() => onVerCategoria(elegida)}
               accessibilityRole="link" accessibilityLabel={`Ver el presupuesto de ${elegida.nombre}`}>
               <AppText variant="caption" style={{ color: colors.primary, fontWeight: '700' }}>Ver</AppText>
             </TouchableOpacity>
@@ -380,12 +429,15 @@ const DonaDeCategorias: React.FC<Props> = ({
           accessibilityLabel={`Libre para gastar ${libreTexto}. Gastado ${formatCurrency(gastado)} de ${formatCurrency(presupuestado)}. Ver el presupuesto`}
         >
           <AppText variant="caption" color={colors.textSecondary}>Libre para gastar</AppText>
-          <AppText style={{ fontSize: 24, fontWeight: '800', color: libre >= 0 ? colors.income : colors.expense }}
-            numberOfLines={1} adjustsFontSizeToFit>
-            {libreMostrado}
+          <AppText style={{ fontSize: cifra.tamano, lineHeight: Math.round(cifra.tamano * 1.2), fontWeight: '800',
+            color: libre >= 0 ? colors.income : colors.expense }} numberOfLines={1}>
+            {cifra.texto}
           </AppText>
-          <AppText variant="caption" color={colors.textMuted} numberOfLines={1} adjustsFontSizeToFit>
-            Gastado {formatCompacto(gastado)} de {formatCompacto(presupuestado)}
+          <AppText variant="caption" color={colors.textSecondary} numberOfLines={1} style={{ fontSize: tamGastado }}>
+            {lineaGastado}
+          </AppText>
+          <AppText variant="caption" color={colors.textSecondary} numberOfLines={1} style={{ fontSize: tamDe }}>
+            {lineaDe}
           </AppText>
           {total <= 0 && (
             <AppText variant="caption" color={colors.textSecondary} numberOfLines={2} style={styles.pista}>
@@ -421,17 +473,40 @@ const DonaDeCategorias: React.FC<Props> = ({
         </TouchableOpacity>
       </Modal>
     </View>
+
+      {/* En el celular las etiquetas no tienen sitio para el nombre: aqui
+          van todas con su nombre. Es un atajo visual; el lector de pantalla
+          ya tiene cada porcion con su nombre en las etiquetas. */}
+      {sinNombre.length > 0 && (
+        <View style={styles.leyenda} accessible={false} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+          {porciones.map((p) => (
+            <TouchableOpacity key={`ley-${p.id}`} testID={`leyenda-${p.id}`} accessible={false}
+              style={[styles.itemLeyenda, { backgroundColor: elegida?.id === p.id ? colors.surfaceLight : 'transparent',
+                opacity: elegida && elegida.id !== p.id ? 0.5 : 1 }]}
+              onPress={() => tocar(p)} onLongPress={() => mantener(p)}>
+              <View style={[styles.puntoLeyenda, { backgroundColor: p.color }]} />
+              <AppText variant="caption" style={{ color: colors.text, fontWeight: '600' }} numberOfLines={1}>{p.nombre}</AppText>
+              <AppText variant="caption" color={colors.textSecondary}>{porcentaje(p.fraccion)}</AppText>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   centro: { position: 'absolute', alignItems: 'center', justifyContent: 'center', borderRadius: 999, gap: 1, paddingHorizontal: 6 },
   zona: { position: 'absolute', width: 44, height: 44, borderRadius: 22 },
-  etiqueta: { position: 'absolute', height: 30, alignItems: 'center', gap: 4 },
+  etiqueta: { position: 'absolute', height: 44, minWidth: 44, alignItems: 'center', gap: 4 },
   circulo: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
   pct: { fontWeight: '800', fontVariant: ['tabular-nums'] },
   acciones: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
-  pildora: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
+  pildora: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, minHeight: 32, justifyContent: 'center' },
+  ver: { minHeight: 32, paddingHorizontal: 6, justifyContent: 'center' },
+  leyenda: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 4, marginTop: 4 },
+  itemLeyenda: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 10, borderRadius: 22, maxWidth: '100%' },
+  puntoLeyenda: { width: 10, height: 10, borderRadius: 5 },
   pista: { textAlign: 'center', marginTop: 2 },
   filaCentro: { flexDirection: 'row', alignItems: 'center', gap: 4, maxWidth: '100%' },
   fondo: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },

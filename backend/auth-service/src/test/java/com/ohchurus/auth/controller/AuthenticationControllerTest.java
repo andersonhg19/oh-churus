@@ -88,7 +88,39 @@ class AuthenticationControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.correct").value(false))
-                .andExpect(jsonPath("$.errorCode").value(101));
+                .andExpect(jsonPath("$.errorCode").value(101))
+                .andExpect(jsonPath("$.message").value("Correo o contraseña incorrectos"));
+    }
+
+    @Test
+    @DisplayName("POST /v1/auth/login - demasiados intentos: errorCode 429 con mensaje en espanol")
+    void loginBloqueado() throws Exception {
+        when(authenticationService.authenticate(any()))
+                .thenThrow(new com.ohchurus.auth.security.DemasiadosIntentosException());
+
+        mockMvc.perform(post("/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"test@ohchurus.com\",\"password\":\"lo-que-sea\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.correct").value(false))
+                .andExpect(jsonPath("$.errorCode").value(429))
+                .andExpect(jsonPath("$.message").value(
+                        org.hamcrest.Matchers.containsString("Demasiados intentos")));
+    }
+
+    @Test
+    @DisplayName("POST /v1/auth/register - contrasena debil (sin numero o corta) se rechaza")
+    void registerClaveDebil() throws Exception {
+        for (String debil : new String[]{"123456", "abcdefgh", "12345678", "abc1"}) {
+            mockMvc.perform(post("/v1/auth/register")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"name\":\"N\",\"email\":\"n@ohchurus.com\",\"password\":\"" + debil + "\"}"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.correct").value(false))
+                    .andExpect(jsonPath("$.message").value(
+                            org.hamcrest.Matchers.containsString("'password'")));
+        }
+        verify(userService, never()).register(any());
     }
 
     @Test

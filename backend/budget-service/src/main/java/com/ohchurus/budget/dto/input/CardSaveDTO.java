@@ -28,4 +28,8 @@ public class CardSaveDTO {
     @Min(value = 1, message = "debe estar entre 1 y 31")
     @Max(value = 31, message = "debe estar entre 1 y 31")
     private Integer paymentDay;
+
+    @Min(value = 1, message = "debe estar entre 1 y 31")
+    @Max(value = 31, message = "debe estar entre 1 y 31")
+    private Integer cutoffDay;
 }

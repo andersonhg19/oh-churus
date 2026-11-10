@@ -132,7 +132,7 @@ class HouseholdServiceImplTest {
         @Test
         @DisplayName("Should add a new member as MEMBER role")
         void shouldAddMember() {
-            when(memberRepository.existsByHouseholdIdAndUserIdAndActiveTrue(HOUSEHOLD_ID, 2L)).thenReturn(false);
+            when(memberRepository.findByUserIdAndActiveTrue(2L)).thenReturn(List.of());
             when(memberRepository.save(any(HouseholdMember.class))).thenReturn(member(2L));
 
             ResultDTO result = householdService.addMember(HOUSEHOLD_ID, 2L);
@@ -144,7 +144,7 @@ class HouseholdServiceImplTest {
         @Test
         @DisplayName("Should reject when user is already a member")
         void shouldRejectDuplicateMember() {
-            when(memberRepository.existsByHouseholdIdAndUserIdAndActiveTrue(HOUSEHOLD_ID, 2L)).thenReturn(true);
+            when(memberRepository.findByUserIdAndActiveTrue(2L)).thenReturn(List.of(member(2L)));
 
             ResultDTO result = householdService.addMember(HOUSEHOLD_ID, 2L);
 
@@ -156,7 +156,7 @@ class HouseholdServiceImplTest {
         @Test
         @DisplayName("Should return 500 when persistence fails")
         void shouldHandleException() {
-            when(memberRepository.existsByHouseholdIdAndUserIdAndActiveTrue(HOUSEHOLD_ID, 2L)).thenReturn(false);
+            when(memberRepository.findByUserIdAndActiveTrue(2L)).thenReturn(List.of());
             when(memberRepository.save(any(HouseholdMember.class))).thenThrow(new RuntimeException("DB error"));
 
             ResultDTO result = householdService.addMember(HOUSEHOLD_ID, 2L);
@@ -230,7 +230,7 @@ class HouseholdServiceImplTest {
         @DisplayName("Resuelve el correo contra el directorio y mete a ese usuario")
         void invitaAlDuenoDelCorreo() {
             when(directorio.idPorCorreo("bruno@ohchurus.com")).thenReturn(2L);
-            when(memberRepository.existsByHouseholdIdAndUserIdAndActiveTrue(HOUSEHOLD_ID, 2L)).thenReturn(false);
+            when(memberRepository.findByUserIdAndActiveTrue(2L)).thenReturn(List.of());
             when(memberRepository.save(any(HouseholdMember.class))).thenReturn(member(2L));
 
             ResultDTO result = householdService.invitarPorCorreo(HOUSEHOLD_ID, "bruno@ohchurus.com");
@@ -248,7 +248,7 @@ class HouseholdServiceImplTest {
             ResultDTO result = householdService.invitarPorCorreo(HOUSEHOLD_ID, "nadie@ohchurus.com");
 
             assertFalse(result.isCorrect());
-            assertEquals(404, result.getErrorCode());
+            assertEquals(400, result.getErrorCode());
             verify(memberRepository, never()).save(any());
         }
 

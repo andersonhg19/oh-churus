@@ -26,7 +26,10 @@ const CategoryDrillDownScreen: React.FC<Props> = ({ route }) => {
   const { colors } = useTheme();
   const { user } = useAuth();
   const rootNavigation = useNavigation<any>();
-  const { categoryId, categoryName, color, startDate, endDate } = route.params;
+  /* Entrando directo por la URL (o al recargar) pueden faltar parametros: sin
+     fechas se ven todos los movimientos de la categoria, y sin nombre ni
+     color, los de por defecto. */
+  const { categoryId, categoryName = 'Categoría', color = colors.primary, startDate, endDate } = (route.params || {}) as Partial<SummaryStackParamList['CategoryDrillDown']>;
 
   const [movements, setMovements] = useState<Movement[]>([]);
 

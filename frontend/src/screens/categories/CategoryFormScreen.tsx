@@ -25,6 +25,23 @@ type CategoriesStackParamList = {
 
 type Props = NativeStackScreenProps<CategoriesStackParamList, 'CategoryForm'>;
 
+/** Minusculas, sin tildes y sin espacios de sobra: "  Café " y "cafe" son iguales. */
+export const normalizarNombre = (n: string) =>
+  (n || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+
+/** La categoria activa del mismo nivel (mismo padre) que ya tiene ese nombre, si la hay. */
+export const buscarNombreRepetido = (
+  lista: Category[], nombre: string, parentId: string | null | undefined, idPropio: string | null,
+): Category | undefined => {
+  const buscado = normalizarNombre(nombre);
+  if (!buscado) return undefined;
+  const padre = parentId ? String(parentId) : '';
+  return lista.find((c) => c.active !== false
+    && String(c.id) !== String(idPropio ?? '')
+    && (c.parentId ? String(c.parentId) : '') === padre
+    && normalizarNombre(c.name) === buscado);
+};
+
 const CategoryFormScreen: React.FC<Props> = ({ navigation, route }) => {
   const { colors } = useTheme();
   const { showToast } = useToast();
@@ -56,14 +73,14 @@ const CategoryFormScreen: React.FC<Props> = ({ navigation, route }) => {
       try {
         const res = await householdService.getByUser(user.userId);
         if (!res.correct) {
-          showToast('error', 'Error', res.message || 'No se pudo cargar el nucleo familiar');
+          showToast('error', 'Error', res.message || 'No se pudo cargar el hogar');
           return;
         }
         if (res.object && res.object.length > 0) {
           setHouseholdId(res.object[0].householdId);
         }
       } catch (err: any) {
-        showToast('error', 'Error', err.message || 'No se pudo cargar el nucleo familiar');
+        showToast('error', 'Error', err.message || 'No se pudo cargar el hogar');
       }
     };
     cargarHogar();
@@ -71,7 +88,7 @@ const CategoryFormScreen: React.FC<Props> = ({ navigation, route }) => {
 
   // Borrar una categoria arrastra sus movimientos: nunca al primer toque.
   const handleDelete = () =>
-    confirmarBorrado(`la categoria "${existing?.name || ''}"`, () => { borrar(); });
+    confirmarBorrado(`la categoría "${existing?.name || ''}"`, () => { borrar(); });
 
   const borrarCategoria = useCallback(async () => {
     if (!existing) return;
@@ -90,10 +107,25 @@ const CategoryFormScreen: React.FC<Props> = ({ navigation, route }) => {
   const { ejecutando: borrando, ejecutar: borrar } = useAccionUnica(borrarCategoria);
 
   const guardarCategoria = useCallback(async () => {
-    const error = validateRequired(name, 'Nombre de la categoria');
+    const error = validateRequired(name, 'Nombre de la categoría');
     if (error) {
-      showToast('warning', 'Validacion', error);
+      showToast('warning', 'Revisa el dato', error);
       return;
+    }
+    /* "casa" y "Casa" (o "Cafe" y "Café") son la misma categoria para una
+       persona: se avisa antes de crear la segunda. El backend tambien lo
+       valida; si no se puede consultar la lista, decide el. */
+    try {
+      const r = await categoryService.getAll({ userId: user?.userId, page: 0, size: 500 });
+      const lista: Category[] = (r?.correct && r.object?.list) || [];
+      const repetida = buscarNombreRepetido(lista, name, parentId, isEdit ? String(existing.id) : null);
+      if (repetida) {
+        showToast('warning', 'Ese nombre ya existe',
+          `Ya tienes la categoría "${repetida.name}". Usa otro nombre o edita la que ya existe.`);
+        return;
+      }
+    } catch {
+      /* Sin la lista no se puede comparar aqui: lo valida el servidor. */
     }
     try {
       const data: any = {
@@ -282,7 +314,7 @@ const CategoryFormScreen: React.FC<Props> = ({ navigation, route }) => {
             </AppText>
           </TouchableOpacity>
           <AppText variant="caption" color={colors.textSecondary} style={styles.ayudaInterruptor}>
-            Si te pasas en esta categoria, el sobregiro no se descuenta de lo que tienes para
+            Si te pasas en esta categoría, el sobregiro no se descuenta de lo que tienes para
             repartir el mes que viene. Para cosas como la cuenta del almuerzo del equipo, que
             la empresa te reembolsa.
           </AppText>

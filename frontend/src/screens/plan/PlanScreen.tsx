@@ -11,7 +11,7 @@ import CapsuleToggle from '../../components/molecules/CapsuleToggle';
 import { spacing } from '../../theme';
 import { planService, PlanItem, PlanWindow, Quincena, Responsabilidades } from '../../services/planService';
 import { useCarga, exigir } from '../../hooks/useCarga';
-import { formatCurrency, formatDate, formatDateShort, fechaLocalISO, getMonthName } from '../../utils/format';
+import { formatCurrency, fechaLocalISO, getMonthName, fechaHumana, humanizarAviso, plural } from '../../utils/format';
 import CirculoCategoria from '../../components/atoms/CirculoCategoria';
 import { useFocusEffect } from '@react-navigation/native';
 
@@ -30,13 +30,19 @@ import { useFocusEffect } from '@react-navigation/native';
  */
 type Vista = 'quincena' | 'calendario' | 'hogar' | 'proyeccion';
 
-const ESTADOS: Record<PlanItem['status'], { etiqueta: string; icono: string }> = {
+const ESTADOS: Record<string, { etiqueta: string; icono: string }> = {
   PAGADO: { etiqueta: 'Pagado', icono: '✅' },
   PENDIENTE: { etiqueta: 'Pendiente', icono: '⏳' },
   VENCIDO: { etiqueta: 'Vencido', icono: '⚠️' },
   PREVISTO: { etiqueta: 'Previsto', icono: '🗓️' },
-  PROVISION: { etiqueta: 'Separar', icono: '🫙' },
+  PROVISION: { etiqueta: 'Plata separada', icono: '🫙' },
+  /* Se libero para usarlo en otra cosa: ya no hay que pagarlo este periodo. */
+  LIBERADO: { etiqueta: 'Liberado (no se paga)', icono: '↩️' },
 };
+
+/* Un estado que esta pantalla no conozca no puede tumbarla: se muestra como
+   previsto. (Asi se cayo el plan cuando el servidor empezo a mandar LIBERADO.) */
+const estadoDe = (status: string) => ESTADOS[status] || ESTADOS.PREVISTO;
 
 const PlanScreen: React.FC = () => {
   const { colors } = useTheme();
@@ -79,17 +85,19 @@ const PlanScreen: React.FC = () => {
 
   const Item = ({ i, conPagador }: { i: PlanItem; conPagador?: boolean }) => (
     <View style={styles.item} accessible
-      accessibilityLabel={`${i.name}, ${formatDate(i.date)}, ${formatCurrency(i.amount)}, ${ESTADOS[i.status].etiqueta}`}>
+      accessibilityLabel={`${i.name}, ${fechaHumana(i.date)}, ${formatCurrency(i.amount)}, ${estadoDe(i.status).etiqueta}`}>
       <View style={{ marginRight: 10 }}><CirculoCategoria icono={i.categoryIcon} color={i.categoryColor} tamano={30} /></View>
       <View style={{ flex: 1 }}>
         <AppText variant="body" numberOfLines={1}>{i.name}</AppText>
         <AppText variant="caption" color={colors.textSecondary}>
-          {formatDateShort(i.date)} · {ESTADOS[i.status].icono} {ESTADOS[i.status].etiqueta}
+          {fechaHumana(i.date)} · {estadoDe(i.status).icono} {estadoDe(i.status).etiqueta}
           {conPagador && i.payerName ? ` · Paga ${i.payerName}` : ''}
           {i.notes ? ` · ${i.notes}` : ''}
         </AppText>
       </View>
-      <AppText variant="body" color={i.income ? colors.income : i.status === 'VENCIDO' ? colors.expense : colors.text}>
+      <AppText variant="body"
+        color={i.status === 'LIBERADO' ? colors.textSecondary : i.income ? colors.income : i.status === 'VENCIDO' ? colors.expense : colors.text}
+        style={i.status === 'LIBERADO' ? { textDecorationLine: 'line-through' } : undefined}>
         {i.income ? '+' : ''}{formatCurrency(i.amount)}
       </AppText>
     </View>
@@ -99,7 +107,7 @@ const PlanScreen: React.FC = () => {
     items && items.length > 0 ? (
       <View style={styles.lista}>
         <AppText variant="label" style={styles.subtitulo}>{titulo}</AppText>
-        {items.map((i) => <Item key={`${i.scheduledMovementId}-${i.date}`} i={i} />)}
+        {items.map((i, n) => <Item key={`${i.scheduledMovementId}-${i.date}-${n}`} i={i} />)}
       </View>
     ) : null;
 
@@ -107,19 +115,19 @@ const PlanScreen: React.FC = () => {
     <Card style={styles.tarjeta}>
       <AppText variant="subtitle">{titulo}</AppText>
       <AppText variant="caption" color={colors.textSecondary} style={styles.rango}>
-        Del {formatDate(v.start)} al {formatDate(v.end)}
+        Del {fechaHumana(v.start)} al {fechaHumana(v.end)}
       </AppText>
       <Fila etiqueta="Ingreso" valor={v.grossIncome} />
       {v.deductions > 0 && <Fila etiqueta="Descuentos de nómina" valor={v.deductions} signo="-" />}
       <Fila etiqueta="Ingreso efectivo" valor={v.netIncome} fuerte />
       <Fila etiqueta={`Por pagar (pagado ${formatCurrency(v.paymentsPaid)})`} valor={v.payments} signo="-" />
       {v.savings > 0 && <Fila etiqueta="Ahorro" valor={v.savings} signo="-" />}
-      {v.provisions > 0 && <Fila etiqueta="Separar (provisiones)" valor={v.provisions} signo="-" />}
+      {v.provisions > 0 && <Fila etiqueta="Plata separada" valor={v.provisions} signo="-" />}
       <View style={[styles.separador, { borderColor: colors.border }]} />
       <Fila etiqueta={v.leftover < 0 ? 'No alcanza: faltan' : 'Queda (respaldo y gasto libre)'} valor={v.leftover} fuerte />
       {v.tight && (
         <AppText variant="caption" color={colors.expense} style={styles.aviso}>
-          Esta quincena no alcanza. Mira qué provisión se puede mover a la otra quincena sin incumplir un vencimiento.
+          Esta quincena no alcanza. Mira qué plata separada se puede mover a la otra quincena sin incumplir un vencimiento.
         </AppText>
       )}
       {detalle && (
@@ -128,7 +136,7 @@ const PlanScreen: React.FC = () => {
           <Lista titulo="Descuentos de nómina (ya descontados del sueldo)" items={v.deductionItems} />
           <Lista titulo="Qué debo pagar" items={v.paymentItems} />
           <Lista titulo="Ahorro" items={v.savingItems} />
-          <Lista titulo="Qué debo separar" items={v.provisionItems} />
+          <Lista titulo="Plata que debo separar" items={v.provisionItems} />
         </>
       )}
     </Card>
@@ -153,7 +161,7 @@ const PlanScreen: React.FC = () => {
             {quincena.alerts.map((a, n) => (
               <AppText key={n} variant="caption" style={styles.alerta}
                 color={a.type === 'VENCIDO' || a.type === 'QUINCENA_AJUSTADA' ? colors.expense : colors.text}>
-                {a.type === 'VENCIDO' ? 'Vencido · ' : a.type === 'PROXIMO' ? 'Próximo · ' : a.type === 'CUOTA_TERMINA' ? 'Termina · ' : ''}{a.message}
+                {a.type === 'VENCIDO' ? 'Vencido · ' : a.type === 'PROXIMO' ? 'Próximo · ' : a.type === 'CUOTA_TERMINA' ? 'Termina · ' : ''}{humanizarAviso(a.message)}
                 {a.amount ? ` (${formatCurrency(a.amount)})` : ''}
               </AppText>
             ))}
@@ -178,7 +186,7 @@ const PlanScreen: React.FC = () => {
                   <AppText variant="body">{c.name}</AppText>
                   <AppText variant="caption" color={colors.textSecondary}>
                     {c.paidInstallments}/{c.totalInstallments} pagadas · faltan {c.remainingInstallments}
-                    {c.nextDate ? ` · próxima ${formatDateShort(c.nextDate)}` : ''} · termina {formatDate(c.endDate)}
+                    {c.nextDate ? ` · próxima ${fechaHumana(c.nextDate)}` : ''} · termina {fechaHumana(c.endDate)}
                   </AppText>
                   <AppText variant="caption" color={colors.income}>
                     Al terminar se liberan {formatCurrency(c.monthlyFreed)} al mes
@@ -210,11 +218,11 @@ const PlanScreen: React.FC = () => {
             <AppText variant="subtitle">›</AppText>
           </TouchableOpacity>
         </View>
-        {dias.length === 0 && <EmptyState icon="🗓️" title="Nada programado" message="No hay pagos, ingresos ni provisiones este mes." />}
+        {dias.length === 0 && <EmptyState icon="🗓️" title="Nada programado" message="No hay pagos, ingresos ni plata por separar este mes." />}
         {dias.map((dia) => (
           <Card key={dia} style={styles.tarjeta}>
-            <AppText variant="label">{formatDate(dia)}</AppText>
-            {porDia[dia].map((i) => <Item key={`${i.scheduledMovementId}-${i.date}`} i={i} conPagador />)}
+            <AppText variant="label">{fechaHumana(dia)}</AppText>
+            {porDia[dia].map((i, n) => <Item key={`${i.scheduledMovementId}-${i.date}-${n}`} i={i} conPagador />)}
           </Card>
         ))}
       </>
@@ -228,7 +236,7 @@ const PlanScreen: React.FC = () => {
         <Card style={styles.tarjeta}>
           <AppText variant="subtitle">Quién paga qué</AppText>
           <AppText variant="caption" color={colors.textSecondary} style={styles.rango}>
-            Del {formatDate(hogar.periodStart)} al {formatDate(hogar.periodEnd)} · lo común suma {formatCurrency(hogar.sharedTotal)}.
+            Del {fechaHumana(hogar.periodStart)} al {fechaHumana(hogar.periodEnd)} · lo común suma {formatCurrency(hogar.sharedTotal)}.
             Lo privado de cada uno no se cuenta aquí.
           </AppText>
         </Card>
@@ -238,11 +246,11 @@ const PlanScreen: React.FC = () => {
             <Fila etiqueta="Ingresos del periodo" valor={p.income} />
             <Fila etiqueta={`Paga de lo común (${p.sharePct}%)`} valor={p.sharedTotal} fuerte />
             <Fila etiqueta="Ya pagado" valor={p.sharedPaid} />
-            {p.sharedByKind.SAVING > 0 && <Fila etiqueta="  de eso, ahorro" valor={p.sharedByKind.SAVING} />}
-            {p.sharedByKind.PROVISION > 0 && <Fila etiqueta="  de eso, provisiones" valor={p.sharedByKind.PROVISION} />}
-            {p.sharedByKind.DEDUCTION > 0 && <Fila etiqueta="  de eso, descuentos de nómina" valor={p.sharedByKind.DEDUCTION} />}
+            {(p.sharedByKind?.SAVING || 0) > 0 && <Fila etiqueta="  de eso, ahorro" valor={p.sharedByKind.SAVING} />}
+            {(p.sharedByKind?.PROVISION || 0) > 0 && <Fila etiqueta="  de eso, plata separada" valor={p.sharedByKind.PROVISION} />}
+            {(p.sharedByKind?.DEDUCTION || 0) > 0 && <Fila etiqueta="  de eso, descuentos de nómina" valor={p.sharedByKind.DEDUCTION} />}
             <View style={styles.lista}>
-              {p.items.map((i) => <Item key={`${i.scheduledMovementId}-${i.date}`} i={i} />)}
+              {(p.items || []).map((i, n) => <Item key={`${i.scheduledMovementId}-${i.date}-${n}`} i={i} />)}
             </View>
           </Card>
         ))}
@@ -254,14 +262,14 @@ const PlanScreen: React.FC = () => {
     <>
       {proyeccion.map((v, n) => (
         <Card key={v.start} style={styles.tarjeta}>
-          <AppText variant="subtitle">{n === 0 ? 'Este periodo' : `Dentro de ${n} periodo(s)`}</AppText>
+          <AppText variant="subtitle">{n === 0 ? 'Este periodo' : `Dentro de ${plural(n, 'periodo')}`}</AppText>
           <AppText variant="caption" color={colors.textSecondary} style={styles.rango}>
-            Del {formatDate(v.start)} al {formatDate(v.end)}
+            Del {fechaHumana(v.start)} al {fechaHumana(v.end)}
           </AppText>
           <Fila etiqueta="Ingreso efectivo" valor={v.netIncome} />
           <Fila etiqueta="Pagos" valor={v.payments} signo="-" />
           <Fila etiqueta="Ahorro" valor={v.savings} signo="-" />
-          <Fila etiqueta="Provisiones" valor={v.provisions} signo="-" />
+          <Fila etiqueta="Plata separada" valor={v.provisions} signo="-" />
           <Fila etiqueta="Queda" valor={v.leftover} fuerte />
           {v.endingInstallments && v.endingInstallments.length > 0 && (
             <AppText variant="caption" color={colors.income} style={styles.aviso}>

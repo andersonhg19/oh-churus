@@ -12,10 +12,16 @@ import java.time.LocalDateTime;
 
 public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
 
+    /* El CAST de :desde no es decorativo. Hibernate manda cada aparicion del
+       parametro como un "?" distinto y el driver de PostgreSQL envia las
+       fechas sin tipo, asi que el "? IS NULL" suelto acababa en "could not
+       determine data type of parameter" y la pantalla de Auditoria nunca
+       cargaba (QA A2). H2 no se entera; lo prueba
+       LaConsultaDeAuditoriaCorreEnPostgresTest. */
     @Query("SELECT a FROM AuditLog a WHERE "
             + "(:actorUserId IS NULL OR a.actorUserId = :actorUserId) "
             + "AND (:entityType IS NULL OR a.entityType = :entityType) "
-            + "AND (:desde IS NULL OR a.occurredAt >= :desde) "
+            + "AND (CAST(:desde AS LocalDateTime) IS NULL OR a.occurredAt >= :desde) "
             + "ORDER BY a.occurredAt DESC")
     Page<AuditLog> buscar(@Param("actorUserId") Long actorUserId,
                           @Param("entityType") String entityType,

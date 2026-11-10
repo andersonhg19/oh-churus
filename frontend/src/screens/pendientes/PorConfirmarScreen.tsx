@@ -17,6 +17,9 @@ import { useCarga, exigir } from '../../hooks/useCarga';
 import { dashboardService } from '../../services/dashboardService';
 import { movementService } from '../../services/movementService';
 import { fechaLocalISO, formatCurrency, formatDateShort } from '../../utils/format';
+
+/** "1 confirmado", "3 confirmados": el aviso no puede decir "1 confirmados". */
+export const textoConfirmados = (n: number) => `${n} ${n === 1 ? 'confirmado' : 'confirmados'}`;
 import { Movement } from '../../types';
 
 /*
@@ -81,7 +84,7 @@ const PorConfirmarScreen: React.FC<{ navigation: any; route?: any }> = ({ naviga
       const r = await movementService.confirmBatch(items.map((m) => ({
         id: m.id, amount: valores[m.id] !== undefined && valores[m.id] !== m.amount ? valores[m.id] : undefined })));
       if (!r.correct) { showToast('error', 'No se confirmó ninguno', r.message); return; }
-      showToast('success', `${r.object?.confirmed ?? items.length} confirmados`, formatCurrency(r.object?.total ?? total));
+      showToast('success', textoConfirmados(r.object?.confirmed ?? items.length), formatCurrency(r.object?.total ?? total));
       setAbierto(null);
       cargar();
     } catch { showToast('error', 'Error', 'No se pudieron confirmar'); }
@@ -114,8 +117,10 @@ const PorConfirmarScreen: React.FC<{ navigation: any; route?: any }> = ({ naviga
   if (cargando && todos.length === 0) return <View style={[styles.pantalla, { backgroundColor: colors.background }]}>{cabeza}<Spinner fullScreen /></View>;
   if (error) return <View style={[styles.pantalla, { backgroundColor: colors.background }]}>{cabeza}<EstadoError mensaje={error} onReintentar={cargar} /></View>;
 
+  /* La clave va en la fila: estas acciones tambien se pintan dentro de un map
+     (una por persona del hogar) y sin clave React avisa en consola. */
   const accion = (texto: string, icono: string, onPress: () => void, etiqueta: string) => (
-    <TouchableOpacity style={[styles.accion, { borderBottomColor: colors.border }]} onPress={onPress}
+    <TouchableOpacity key={etiqueta} style={[styles.accion, { borderBottomColor: colors.border }]} onPress={onPress}
       accessibilityRole="button" accessibilityLabel={etiqueta}>
       <Icono nombre={icono} color={colors.text} />
       <AppText variant="body">{texto}</AppText>
@@ -206,7 +211,7 @@ const PorConfirmarScreen: React.FC<{ navigation: any; route?: any }> = ({ naviga
         <View style={[styles.pie, { backgroundColor: colors.surface }]}>
           <TouchableOpacity style={[styles.boton, { backgroundColor: colors.income }]} onPress={() => confirmar(elegidos)}
             disabled={confirmando} accessibilityRole="button"
-            accessibilityLabel={`Confirmar ${elegidos.length} pagos por ${formatCurrency(total)}`}>
+            accessibilityLabel={`Confirmar ${elegidos.length} ${elegidos.length === 1 ? 'pago' : 'pagos'} por ${formatCurrency(total)}`}>
             <AppText variant="body" style={{ color: '#FFFFFF', fontWeight: '800' }}>
               {confirmando ? 'Confirmando…' : `Confirmar ${elegidos.length} · ${formatCurrency(total)}`}
             </AppText>

@@ -180,7 +180,8 @@ class ElPlanDeLaQuincenaTest {
         assertThat(c.size()).isEqualTo(2);
         c.forEach(i -> {
             assertThat(i.path("totalInstallments").asInt()).isEqualTo(7);
-            assertThat(i.path("endDate").asText()).isEqualTo("2027-05-31");
+            /* Termina con la ultima cuota que falta (la de mayo de 2027). */
+            assertThat(i.path("endDate").asText()).startsWith("2027-05");
         });
     }
 

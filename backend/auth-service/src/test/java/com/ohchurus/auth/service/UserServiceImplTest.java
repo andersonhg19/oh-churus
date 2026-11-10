@@ -92,8 +92,29 @@ class UserServiceImplTest {
     }
 
     @Nested
-    @DisplayName("saveAndUpdate - Create")
+    @DisplayName("register - Create")
     class CreateTests {
+
+        /* Las altas ya no pasan por saveAndUpdate (QA M3): se prueban por
+           register, que es la puerta publica y comparte la logica de alta. */
+        private ResultDTO registrar() {
+            com.ohchurus.auth.dto.input.UserRegisterDTO alta = new com.ohchurus.auth.dto.input.UserRegisterDTO();
+            alta.setName(testSaveDTO.getName());
+            alta.setEmail(testSaveDTO.getEmail());
+            alta.setPassword(testSaveDTO.getPassword());
+            alta.setBudgetStartDay(testSaveDTO.getBudgetStartDay());
+            return userService.register(alta);
+        }
+
+        @Test
+        @DisplayName("saveAndUpdate sin id ya no crea cuentas")
+        void saveSinIdNoCrea() {
+            ResultDTO result = userService.saveAndUpdate(testSaveDTO);
+
+            assertFalse(result.isCorrect());
+            assertEquals(403, result.getErrorCode());
+            verify(userRepository, never()).save(any(User.class));
+        }
 
         @Test
         @DisplayName("Should create user successfully")
@@ -103,7 +124,7 @@ class UserServiceImplTest {
             when(userRepository.save(any(User.class))).thenReturn(testUser);
             when(userMapper.toResultDTO(any(User.class))).thenReturn(testResultDTO);
 
-            ResultDTO result = userService.saveAndUpdate(testSaveDTO);
+            ResultDTO result = registrar();
 
             assertTrue(result.isCorrect());
             assertNotNull(result.getObject());
@@ -115,7 +136,7 @@ class UserServiceImplTest {
         void shouldFailWhenEmailExists() {
             when(userRepository.existsByEmailAndActiveTrue("test@ohchurus.com")).thenReturn(true);
 
-            ResultDTO result = userService.saveAndUpdate(testSaveDTO);
+            ResultDTO result = registrar();
 
             assertFalse(result.isCorrect());
             assertEquals(102, result.getErrorCode());
@@ -127,7 +148,7 @@ class UserServiceImplTest {
         void shouldFailWhenPasswordMissing() {
             testSaveDTO.setPassword(null);
 
-            ResultDTO result = userService.saveAndUpdate(testSaveDTO);
+            ResultDTO result = registrar();
 
             assertFalse(result.isCorrect());
             assertEquals(101, result.getErrorCode());
@@ -138,7 +159,7 @@ class UserServiceImplTest {
         void shouldFailWhenPasswordBlank() {
             testSaveDTO.setPassword("   ");
 
-            ResultDTO result = userService.saveAndUpdate(testSaveDTO);
+            ResultDTO result = registrar();
 
             assertFalse(result.isCorrect());
             assertEquals(101, result.getErrorCode());
@@ -153,7 +174,7 @@ class UserServiceImplTest {
             when(userRepository.save(any(User.class))).thenReturn(testUser);
             when(userMapper.toResultDTO(any(User.class))).thenReturn(testResultDTO);
 
-            ResultDTO result = userService.saveAndUpdate(testSaveDTO);
+            ResultDTO result = registrar();
 
             assertTrue(result.isCorrect());
             verify(userRepository).save(argThat(user -> user.getBudgetStartDay() == 1));
@@ -168,7 +189,7 @@ class UserServiceImplTest {
             when(userRepository.save(any(User.class))).thenReturn(testUser);
             when(userMapper.toResultDTO(any(User.class))).thenReturn(testResultDTO);
 
-            ResultDTO result = userService.saveAndUpdate(testSaveDTO);
+            ResultDTO result = registrar();
 
             assertTrue(result.isCorrect());
             verify(userRepository).save(argThat(user -> user.getBudgetStartDay() == 31));
@@ -183,7 +204,7 @@ class UserServiceImplTest {
             when(userRepository.save(any(User.class))).thenReturn(testUser);
             when(userMapper.toResultDTO(any(User.class))).thenReturn(testResultDTO);
 
-            ResultDTO result = userService.saveAndUpdate(testSaveDTO);
+            ResultDTO result = registrar();
 
             assertTrue(result.isCorrect());
             verify(userRepository).save(any(User.class));
@@ -202,6 +223,7 @@ class UserServiceImplTest {
         @Test
         @DisplayName("Should update user successfully")
         void shouldUpdateUserSuccessfully() {
+            testSaveDTO.setPassword(null);
             when(userRepository.findByIdAndActiveTrue(1L)).thenReturn(Optional.of(testUser));
             when(userRepository.existsByEmailAndActiveTrueAndIdNot("test@ohchurus.com", 1L)).thenReturn(false);
             when(userRepository.save(any(User.class))).thenReturn(testUser);
@@ -251,9 +273,11 @@ class UserServiceImplTest {
         }
 
         @Test
-        @DisplayName("Should update password when provided")
+        @DisplayName("Should update password when provided with the current one")
         void shouldUpdatePasswordWhenProvided() {
             testSaveDTO.setPassword("NewPass123!");
+            testSaveDTO.setCurrentPassword("Password123!");
+            when(passwordEncoder.matches("Password123!", "encoded-password")).thenReturn(true);
             when(userRepository.findByIdAndActiveTrue(1L)).thenReturn(Optional.of(testUser));
             when(userRepository.existsByEmailAndActiveTrueAndIdNot(anyString(), anyLong())).thenReturn(false);
             when(passwordEncoder.encode("NewPass123!")).thenReturn("new-encoded");
@@ -263,6 +287,35 @@ class UserServiceImplTest {
             userService.saveAndUpdate(testSaveDTO);
 
             verify(passwordEncoder).encode("NewPass123!");
+        }
+
+        @Test
+        @DisplayName("sin la contrasena actual no se cambia la contrasena (QA A3)")
+        void sinClaveActualNoCambia() {
+            testSaveDTO.setPassword("NewPass123!");
+            when(userRepository.findByIdAndActiveTrue(1L)).thenReturn(Optional.of(testUser));
+
+            ResultDTO result = userService.saveAndUpdate(testSaveDTO);
+
+            assertFalse(result.isCorrect());
+            assertEquals(400, result.getErrorCode());
+            verify(passwordEncoder, never()).encode(anyString());
+            verify(userRepository, never()).save(any(User.class));
+        }
+
+        @Test
+        @DisplayName("con la contrasena actual equivocada tampoco")
+        void claveActualEquivocada() {
+            testSaveDTO.setPassword("NewPass123!");
+            testSaveDTO.setCurrentPassword("adivinanza1");
+            when(userRepository.findByIdAndActiveTrue(1L)).thenReturn(Optional.of(testUser));
+            when(passwordEncoder.matches("adivinanza1", "encoded-password")).thenReturn(false);
+
+            ResultDTO result = userService.saveAndUpdate(testSaveDTO);
+
+            assertFalse(result.isCorrect());
+            assertEquals("La contraseña actual no es correcta", result.getMessage());
+            verify(userRepository, never()).save(any(User.class));
         }
 
         @Test
@@ -458,7 +511,11 @@ class UserServiceImplTest {
             when(userRepository.existsByEmailAndActiveTrue(anyString()))
                     .thenThrow(new RuntimeException("DB error"));
 
-            ResultDTO result = userService.saveAndUpdate(testSaveDTO);
+            com.ohchurus.auth.dto.input.UserRegisterDTO alta = new com.ohchurus.auth.dto.input.UserRegisterDTO();
+            alta.setName("Test User");
+            alta.setEmail("test@ohchurus.com");
+            alta.setPassword("Password123!");
+            ResultDTO result = userService.register(alta);
             assertFalse(result.isCorrect());
             assertEquals(500, result.getErrorCode());
         }

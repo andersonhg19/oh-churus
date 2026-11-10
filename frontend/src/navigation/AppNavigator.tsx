@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, CommonActions } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createDrawerNavigator, DrawerContentComponentProps } from '@react-navigation/drawer';
 import { useTheme } from '../contexts/ThemeContext';
@@ -10,6 +10,8 @@ import OnboardingScreen, { isOnboardingDone } from '../screens/onboarding/Onboar
 import Spinner from '../components/atoms/Spinner';
 import AppText from '../components/atoms/Text';
 import Icono from '../components/atoms/Icono';
+import ErrorBoundary from '../components/organisms/ErrorBoundary';
+import { linking, irAlInicio } from './linking';
 
 // Auth
 import LoginScreen from '../screens/auth/LoginScreen';
@@ -49,8 +51,30 @@ import AdminModulesScreen from '../screens/admin/AdminModulesScreen';
 import AdminAuditScreen from '../screens/admin/AdminAuditScreen';
 
 /* Las pantallas de siempre tipan sus props con la pila en la que vivian; aqui
-   todas comparten una sola, asi que se registran sin ese tipo. */
-const pantalla = (c: React.ComponentType<any>) => c as React.ComponentType<any>;
+   todas comparten una sola, asi que se registran sin ese tipo.
+
+   Y cada una va dentro de su propio limite de errores: si una pantalla falla
+   al pintarse, sale una tarjeta con "Volver al inicio" y "Reintentar" en esa
+   pantalla, en vez de dejar la app entera en blanco.
+
+   El envoltorio se crea UNA vez por pantalla (cache): si se creara en cada
+   render, React veria un componente nuevo cada vez y la pantalla se
+   desmontaria y perderia lo escrito. */
+const envueltas = new WeakMap<React.ComponentType<any>, React.ComponentType<any>>();
+const pantalla = (c: React.ComponentType<any>): React.ComponentType<any> => {
+  const ya = envueltas.get(c);
+  if (ya) return ya;
+  const Pantalla = c;
+  const nombre = Pantalla.displayName || Pantalla.name || 'Pantalla';
+  const Envuelta: React.FC<any> = (props) => (
+    <ErrorBoundary nombre={nombre} onVolverAlInicio={() => irAlInicio(props.navigation)}>
+      <Pantalla {...props} />
+    </ErrorBoundary>
+  );
+  Envuelta.displayName = `ConLimite(${nombre})`;
+  envueltas.set(c, Envuelta);
+  return Envuelta;
+};
 
 const AuthStack = createNativeStackNavigator<any>();
 const RootStack = createNativeStackNavigator<any>();
@@ -129,21 +153,36 @@ const MENU: { titulo: string; icono: string; destino: string; detalle?: string }
   ],
   [
     { titulo: 'Plan y quincenas', icono: 'calendar', destino: 'Plan', detalle: 'Calendario y proyección' },
-    { titulo: 'Programados', icono: 'clock', destino: 'ScheduledList', detalle: 'Facturas, cuotas, ahorro, bolsas' },
+    { titulo: 'Programados', icono: 'clock', destino: 'ScheduledList', detalle: 'Facturas, cuotas, ahorro, plata separada' },
     { titulo: 'Movimientos', icono: 'list', destino: 'Movimientos', detalle: 'Por categoría, y para buscar' },
   ],
+  /* "Exportar a Excel" vive solo en Ajustes: se usa de vez en cuando y estaba
+     repetido aqui y alla. El cierre se queda aqui, que es de cada mes. */
   [
-    { titulo: 'Exportar a Excel', icono: 'upload', destino: 'ExportImport' },
-    { titulo: 'Ajustes', icono: 'settings', destino: 'SettingsMain', detalle: 'Categorías, hogar, corte, moneda' },
+    { titulo: 'Ajustes', icono: 'settings', destino: 'SettingsMain', detalle: 'Categorías, hogar, corte, moneda, Excel' },
   ],
 ];
 
-const MenuFinanzas: React.FC<DrawerContentComponentProps> = ({ navigation }) => {
+const MenuFinanzas: React.FC<DrawerContentComponentProps> = ({ navigation, state }) => {
   const { colors } = useTheme();
   const { user } = useAuth();
+  /* Lo que se abre desde el menu queda SOBRE el inicio, no sobre la ultima
+     pantalla visitada: asi la flecha atras de Presupuesto lleva al inicio, y
+     no a Deudas porque fue lo ultimo que se miro. */
   const ir = (destino: string) => {
     navigation.closeDrawer();
-    navigation.navigate('FinanceModule', destino === 'Inicio' ? { screen: 'Inicio' } : { screen: destino });
+    const pila = state?.routes?.find((r) => r.name === 'FinanceModule')?.state as any;
+    if (pila?.key) {
+      navigation.dispatch({
+        ...CommonActions.reset({
+          index: destino === 'Inicio' ? 0 : 1,
+          routes: destino === 'Inicio' ? [{ name: 'Inicio' }] : [{ name: 'Inicio' }, { name: destino }],
+        }),
+        target: pila.key,
+      });
+      return;
+    }
+    navigation.navigate('FinanceModule', { screen: destino });
   };
   return (
     <ScrollView style={{ backgroundColor: colors.surface }} contentContainerStyle={menu.contenido}>
@@ -182,6 +221,14 @@ const ModuleDrawer = () => {
   );
 };
 
+/** El titulo de la pestana del navegador para las pantallas sin cabecera propia. */
+const TITULOS: Record<string, string> = {
+  Inicio: 'Inicio', Presupuesto: 'Presupuesto', Categoria: 'Categoría', Cierre: 'Cierre de cada mes',
+  PorConfirmar: 'Por confirmar', Ingresos: 'Ingresos', Movimientos: 'Movimientos', Ahorros: 'Ahorros',
+  Deudas: 'Deudas', Anotar: 'Anotar', Login: 'Entrar', Register: 'Registro',
+};
+const nombreLegible = (nombre?: string) => (nombre && TITULOS[nombre]) || 'Oh Churus';
+
 const AppNavigator: React.FC = () => {
   const { colors } = useTheme();
   const { isAuthenticated, loading } = useAuth();
@@ -196,6 +243,9 @@ const AppNavigator: React.FC = () => {
 
   return (
     <NavigationContainer
+      linking={linking}
+      documentTitle={{ formatter: (options, route) => `${options?.title || nombreLegible(route?.name)} · Oh Churus` }}
+      fallback={<Spinner fullScreen />}
       theme={{
         dark: true,
         colors: { primary: colors.primary, background: colors.background, card: colors.surface, text: colors.text, border: colors.border, notification: colors.danger },

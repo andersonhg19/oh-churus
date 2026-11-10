@@ -326,7 +326,9 @@ public class PlanFinancieroService {
             c.put("remainingInstallments", faltan.size());
             c.put("remainingTotal", suma(faltan));
             c.put("nextDate", faltan.isEmpty() ? null : faltan.get(0).fecha().toString());
-            c.put("endDate", l.p().getEndDate().toString());
+            /* Termina con la ultima cuota que falta: si se adelanto una, antes
+               que el fin del programado (QA, ola 7.1). */
+            c.put("endDate", faltan.isEmpty() ? l.p().getEndDate().toString() : faltan.get(faltan.size() - 1).fecha().toString());
             c.put("monthlyFreed", mensualizado(l.p()));
             c.put("kind", l.clase().name());
             c.put("payerUserId", l.pagador());

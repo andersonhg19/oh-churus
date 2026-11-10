@@ -42,6 +42,9 @@ class AuthenticationServiceImplTest {
     @Mock
     private org.springframework.context.ApplicationEventPublisher eventos;
 
+    @Mock
+    private com.ohchurus.auth.security.LimiteDeIntentosDeLogin limiteDeIntentos;
+
     @InjectMocks
     private AuthenticationServiceImpl authenticationService;
 
@@ -181,5 +184,27 @@ class AuthenticationServiceImplTest {
             assertThrows(BadCredentialsException.class,
                     () -> authenticationService.authenticate(emptyPassRequest));
         }
+    }
+
+    @Test
+    @DisplayName("con el correo bloqueado no se mira ni la contrasena (QA M7)")
+    void correoBloqueado() {
+        when(limiteDeIntentos.estaBloqueado("test@ohchurus.com")).thenReturn(true);
+
+        assertThrows(com.ohchurus.auth.security.DemasiadosIntentosException.class,
+                () -> authenticationService.authenticate(request));
+        verify(authenticationManager, never()).authenticate(any());
+    }
+
+    @Test
+    @DisplayName("un fallo se anota en el limite; un acierto lo limpia")
+    void falloYAciertoSeAnotan() {
+        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
+                .thenThrow(new org.springframework.security.authentication.BadCredentialsException("x"));
+
+        assertThrows(org.springframework.security.authentication.BadCredentialsException.class,
+                () -> authenticationService.authenticate(request));
+        verify(limiteDeIntentos).registrarFallo("test@ohchurus.com");
+        verify(limiteDeIntentos, never()).registrarExito(any());
     }
 }

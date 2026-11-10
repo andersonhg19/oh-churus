@@ -6,6 +6,7 @@ import Icono from '../atoms/Icono';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAlcance } from '../../contexts/AlcanceContext';
 import { formatDateShort } from '../../utils/format';
+import { volverOInicio } from '../../navigation/linking';
 
 interface Props {
   titulo?: string;
@@ -39,7 +40,7 @@ const Encabezado: React.FC<Props> = ({ titulo, atras, conAlcance = true, conPeri
     <View style={[styles.barra, { backgroundColor: colors.surface }]}>
       <TouchableOpacity
         style={styles.boton}
-        onPress={() => (atras ? navigation.goBack() : navigation.dispatch(DrawerActions.openDrawer()))}
+        onPress={() => (atras ? volverOInicio(navigation) : navigation.dispatch(DrawerActions.openDrawer()))}
         accessibilityRole="button"
         accessibilityLabel={atras ? 'Volver' : 'Abrir el menú'}
       >

@@ -93,7 +93,8 @@ const AhorrosScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         const metido = Number(c.actual || 0);
         const retiros = c.withdrawals || [];
         const usado = c.withdrawn != null ? Number(c.withdrawn) : retiros.reduce((s, w) => s + Number(w.amount || 0), 0);
-        const meta = Number(c.allocated || 0);
+        /* La meta que sigue pidiendo el mes: lo liberado ya no es meta (QA 7.1). */
+        const meta = Number((c as any).currentGoal ?? c.allocated ?? 0);
         const pct = meta > 0 ? Math.round((metido / meta) * 100) : 0;
         const expandido = abierto === c.categoryId;
         const depositos = (c.items || []).filter((i) => i.status === 'PAGADO');

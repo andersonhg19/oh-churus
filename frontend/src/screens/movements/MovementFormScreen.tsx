@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAhorros, useMisTarjetas } from '../../hooks/useAhorros';
-import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Modal } from 'react-native';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -8,11 +8,17 @@ import AppText from '../../components/atoms/Text';
 import Input from '../../components/atoms/Input';
 import Button from '../../components/atoms/Button';
 import CapsuleToggle from '../../components/molecules/CapsuleToggle';
+import Calendario, { fechaLarga, moverDias } from '../../components/molecules/Calendario';
+import ConfirmarDescarte from '../../components/molecules/ConfirmarDescarte';
+import { useTecladoFisico } from '../../components/molecules/Teclado';
+import Icono from '../../components/atoms/Icono';
+import { tintaSobre } from '../../utils/tinta';
+import { nombreTarjeta, conElAhorro } from '../../utils/medioDePago';
 import { spacing } from '../../theme';
 import { movementService } from '../../services/movementService';
 import { categoryService } from '../../services/categoryService';
 import { Movement, Category, CategoryType } from '../../types';
-import { formatCurrency, fechaLocalISO, parseMonto } from '../../utils/format';
+import { formatCurrency, fechaLocalISO, formatDateShort, parseMonto } from '../../utils/format';
 import { confirmarBorrado } from '../../utils/confirmar';
 import { useAccionUnica } from '../../hooks/useAccionUnica';
 import CirculoCategoria from '../../components/atoms/CirculoCategoria';
@@ -26,7 +32,11 @@ type RootStackParamList = {
     parentMovement?: Movement;
     /* Lo que ya se escribio en el teclado rapido ("Mas opciones"): no se
        vuelve a pedir. */
-    prefill?: { amount?: number; categoryId?: string; type?: CategoryType; date?: string; description?: string; confirmed?: boolean };
+    prefill?: {
+      amount?: number; categoryId?: string; type?: CategoryType; date?: string; description?: string; confirmed?: boolean;
+      /* El medio de pago elegido en el teclado rapido: no se pierde al pasar aqui. */
+      fundedFromCategoryId?: string | number; cardId?: string | number; installments?: number;
+    };
   };
 };
 
@@ -50,15 +60,67 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
   const [confirmed, setConfirmed] = useState(existing?.confirmed ?? prefill?.confirmed ?? true);
   /* De donde salio la plata: del mes (null) o de un ahorro. */
   /* De donde salio la plata: null = fondos del mes; 'ahorro:<id>' o 'tarjeta:<id>'. */
-  const [fuente, setFuente] = useState<string | null>(
-    existing?.fundedFromCategoryId ? `ahorro:${existing.fundedFromCategoryId}`
-      : existing?.cardId ? `tarjeta:${existing.cardId}` : null);
-  const [cuotas, setCuotas] = useState(1);
+  const fuenteInicial = existing
+    ? (existing.fundedFromCategoryId ? `ahorro:${existing.fundedFromCategoryId}` : existing.cardId ? `tarjeta:${existing.cardId}` : null)
+    : prefill?.fundedFromCategoryId ? `ahorro:${prefill.fundedFromCategoryId}`
+      : prefill?.cardId ? `tarjeta:${prefill.cardId}` : null;
+  const [fuente, setFuente] = useState<string | null>(fuenteInicial);
+  const [cuotas, setCuotas] = useState(!existing && prefill?.installments && prefill.installments > 0 ? prefill.installments : 1);
+  const [eligiendoFuente, setEligiendoFuente] = useState(false);
+  const [eligiendoFecha, setEligiendoFecha] = useState(false);
+  const [descartando, setDescartando] = useState(false);
+  const salirSinPreguntar = useRef(false);
+  const salidaPendiente = useRef<any>(null);
   const ahorros = useAhorros();
   const tarjetas = useMisTarjetas();
   const [claseFuente, idFuente] = (fuente || '').split(':');
   const delAhorro = claseFuente === 'ahorro' ? idFuente : null;
   const conTarjeta = claseFuente === 'tarjeta' ? idFuente : null;
+
+  /* Lo que habia al abrir: si algo cambio, cerrar pregunta antes de perderlo.
+     Lo que llego escrito desde el teclado rapido ("Mas") tambien cuenta. */
+  const inicial = useRef({
+    amount, description, date, confirmed, fuente: fuenteInicial, cuotas,
+    categoryId: String(existing?.categoryId || parentMovement?.categoryId || prefill?.categoryId || ''),
+  }).current;
+  const trajoAlgo = !existing && !!prefill && (!!prefill.amount || !!prefill.categoryId || !!prefill.description);
+  const hayCambios = trajoAlgo || amount !== inicial.amount || description !== inicial.description
+    || date !== inicial.date || confirmed !== inicial.confirmed || (fuente || null) !== (inicial.fuente || null)
+    || cuotas !== inicial.cuotas
+    || (!!selectedCategory && String(selectedCategory.id) !== inicial.categoryId);
+  const hayCambiosRef = useRef(hayCambios);
+  hayCambiosRef.current = hayCambios;
+
+  useEffect(() => {
+    if (!navigation.addListener) return undefined;
+    return navigation.addListener('beforeRemove', (e: any) => {
+      if (salirSinPreguntar.current || !hayCambiosRef.current) return;
+      e.preventDefault();
+      salidaPendiente.current = e.data?.action || null;
+      setDescartando(true);
+    });
+  }, [navigation]);
+
+  const salir = () => {
+    salirSinPreguntar.current = true;
+    setDescartando(false);
+    const accion = salidaPendiente.current;
+    salidaPendiente.current = null;
+    if (accion && navigation.dispatch) navigation.dispatch(accion);
+    else navigation.goBack();
+  };
+
+  /* Escape en el computador: cerrar, con la misma pregunta. */
+  useTecladoFisico({
+    activo: true,
+    onCerrar: () => {
+      if (descartando) setDescartando(false);
+      else if (eligiendoFuente) setEligiendoFuente(false);
+      else if (eligiendoFecha) setEligiendoFecha(false);
+      else if (hayCambios) setDescartando(true);
+      else salir();
+    },
+  });
 
   useEffect(() => {
     const loadCategories = async () => {
@@ -110,6 +172,7 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
       const res = await movementService.delete(String(existing.id));
       if (res.correct) {
         showToast('success', 'Eliminado');
+        salirSinPreguntar.current = true;
         navigation.goBack();
       } else {
         showToast('error', 'Error', res.message);
@@ -128,7 +191,7 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
       validateDate(date),
     );
     if (error) {
-      showToast('warning', 'Validacion', error);
+      showToast('warning', 'Revisa los datos', error);
       return;
     }
     try {
@@ -150,6 +213,7 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
       const res = await movementService.save(data);
       if (res.correct) {
         showToast('success', isEdit ? 'Actualizado' : parentMovement ? 'Sub-gasto registrado' : 'Guardado');
+        salirSinPreguntar.current = true;
         navigation.goBack();
       } else {
         showToast('error', 'Error', res.message);
@@ -163,7 +227,36 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
 
   const typeColor = movementType === 'INCOME' ? colors.income : colors.expense;
 
+  const hoy = fechaLocalISO();
+  const textoFecha = /^\d{4}-\d{2}-\d{2}$/.test(date)
+    ? `${date === hoy ? 'Hoy · ' : date === moverDias(hoy, -1) ? 'Ayer · ' : ''}${fechaLarga(date)}`
+    : date || 'Elige la fecha';
+  const ahorroElegido = delAhorro ? ahorros.find((a) => a.id === delAhorro) : undefined;
+  const tarjetaElegida = conTarjeta ? tarjetas.find((t) => String(t.id) === conTarjeta) : undefined;
+  /* Una tarjeta que no es mia (la de la pareja) no esta en la lista: se dice "Con tarjeta". */
+  const textoFuente = delAhorro ? (() => { const t = conElAhorro(ahorroElegido?.nombre); return t.charAt(0).toUpperCase() + t.slice(1); })()
+    : conTarjeta ? (tarjetaElegida ? nombreTarjeta(tarjetaElegida.name) : 'Con tarjeta') : 'Fondos del mes';
+
+  const opcionFuente = (clave: string | null, titulo: string, detalle: string, icono: string, tono: string) => {
+    const activa = (fuente || null) === clave;
+    return (
+      <TouchableOpacity key={clave || 'mes'} style={[styles.opcionFuente, { borderBottomColor: colors.border }]}
+        onPress={() => { setFuente(clave); if (!clave || !clave.startsWith('tarjeta')) setCuotas(1); setEligiendoFuente(false); }}
+        accessibilityRole="radio" accessibilityState={{ selected: activa }} accessibilityLabel={`${titulo}. ${detalle}`}>
+        <View style={[styles.puntoFuente, { backgroundColor: tono }]}>
+          <Icono nombre={icono} color={tintaSobre(tono)} tamano={18} />
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <AppText variant="body" style={{ fontWeight: activa ? '800' : '600' }}>{titulo}</AppText>
+          <AppText variant="caption" color={colors.textSecondary}>{detalle}</AppText>
+        </View>
+        {activa && <Icono nombre="check" color={colors.primary} />}
+      </TouchableOpacity>
+    );
+  };
+
   return (
+    <>
     <ScrollView
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={styles.content}
@@ -224,28 +317,17 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
       {movementType === 'EXPENSE' && !parentMovement && (ahorros.length > 0 || tarjetas.length > 0) && (
         <View style={styles.statusSection}>
           <AppText variant="label" style={styles.sectionLabel}>¿Con qué se pagó?</AppText>
-          <View style={[styles.statusRow, { flexWrap: 'wrap' }]}>
-            {[{ id: null as string | null, nombre: 'Fondos del mes', etiqueta: 'La plata salió de los fondos del mes' },
-              ...ahorros.filter((a) => a.id !== String(selectedCategory?.id))
-                .map((a) => ({ id: `ahorro:${a.id}` as string | null, nombre: `Del ${a.nombre}`, etiqueta: `La plata salió del ${a.nombre}` })),
-              ...tarjetas.map((t) => ({ id: `tarjeta:${t.id}` as string | null, nombre: `Tarjeta ${t.name}`, etiqueta: `Se pagó con la tarjeta ${t.name}` })),
-            ].map((o) => {
-              const activo = (fuente || null) === o.id;
-              return (
-                <TouchableOpacity key={o.id || 'mes'}
-                  style={[styles.statusChip, { backgroundColor: activo ? colors.primary + '20' : 'transparent', borderColor: activo ? colors.primary : colors.border }]}
-                  onPress={() => setFuente(o.id)} accessibilityRole="radio" accessibilityState={{ selected: activo }}
-                  accessibilityLabel={o.etiqueta}>
-                  <AppText variant="caption" style={{ color: activo ? colors.primary : colors.textMuted, fontWeight: activo ? '700' : '400' }}>{o.nombre}</AppText>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+          <TouchableOpacity style={[styles.campo, { backgroundColor: colors.surface, borderColor: delAhorro ? VERDE_AHORRO : colors.border }]}
+            onPress={() => setEligiendoFuente(true)} accessibilityRole="button" accessibilityLabel={`Pagado con ${textoFuente}. Cambiar`}>
+            <Icono nombre={delAhorro ? 'piggy-bank' : conTarjeta ? 'credit-card' : 'wallet'} color={delAhorro ? VERDE_AHORRO : colors.textSecondary} />
+            <AppText variant="body" style={{ flex: 1, fontWeight: '700' }} numberOfLines={2}>{textoFuente}</AppText>
+            <AppText variant="body" color={colors.textMuted}>▾</AppText>
+          </TouchableOpacity>
           {!!conTarjeta && !isEdit && (
             <View style={[styles.statusRow, { flexWrap: 'wrap', marginTop: 8 }]}>
               {[1, 3, 6, 12, 24, 36].map((n) => (
                 <TouchableOpacity key={n}
-                  style={[styles.statusChip, { backgroundColor: cuotas === n ? colors.primary + '20' : 'transparent', borderColor: cuotas === n ? colors.primary : colors.border }]}
+                  style={[styles.statusChip, styles.cuota, { backgroundColor: cuotas === n ? colors.primary + '20' : 'transparent', borderColor: cuotas === n ? colors.primary : colors.border }]}
                   onPress={() => setCuotas(n)} accessibilityRole="radio" accessibilityState={{ selected: cuotas === n }}
                   accessibilityLabel={`${n} ${n === 1 ? 'cuota' : 'cuotas'}`}>
                   <AppText variant="caption" style={{ color: cuotas === n ? colors.primary : colors.textMuted, fontWeight: '700' }}>{n}</AppText>
@@ -354,7 +436,14 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
         </AppText>
       )}
 
-      <Input label="Fecha" value={date} onChangeText={setDate} placeholder="YYYY-MM-DD" />
+      <AppText variant="label" style={styles.sectionLabel}>Fecha</AppText>
+      <TouchableOpacity style={[styles.campo, { backgroundColor: colors.surface, borderColor: colors.border }]}
+        onPress={() => setEligiendoFecha(true)} accessibilityRole="button"
+        accessibilityLabel={`Fecha ${textoFecha}. Cambiar la fecha`}>
+        <Icono nombre="calendar" color={colors.textSecondary} />
+        <AppText variant="body" style={{ flex: 1, fontWeight: '700' }}>{textoFecha}</AppText>
+        <AppText variant="body" color={colors.textMuted}>▾</AppText>
+      </TouchableOpacity>
       <Input label="Nota" value={description} onChangeText={setDescription} placeholder="Descripcion (opcional)" multiline />
 
       {/* Acciones */}
@@ -371,8 +460,42 @@ const MovementFormScreen: React.FC<Props> = ({ navigation, route }) => {
         />
       )}
     </ScrollView>
+
+    <Modal visible={eligiendoFuente} transparent animationType="slide" onRequestClose={() => setEligiendoFuente(false)}>
+      <View style={styles.fondo}>
+        <TouchableOpacity style={{ flex: 1 }} onPress={() => setEligiendoFuente(false)} accessibilityRole="button" accessibilityLabel="Cerrar" />
+        <View style={[styles.hoja, { backgroundColor: colors.surface, paddingBottom: 28 }]}>
+          <AppText variant="subtitle">¿Con qué se pagó?</AppText>
+          <ScrollView>
+            {opcionFuente(null, 'Fondos del mes', 'Lo del salario: baja lo libre para gastar', 'wallet', colors.primary)}
+            {ahorros.filter((a) => a.id !== String(selectedCategory?.id)).length > 0 && (
+              <AppText variant="caption" style={[styles.seccion, { color: VERDE_AHORRO }]}>Ahorros</AppText>
+            )}
+            {ahorros.filter((a) => a.id !== String(selectedCategory?.id)).map((a) =>
+              opcionFuente(`ahorro:${a.id}`, a.nombre, `Hay ${formatCurrency(a.saldo)} · no baja lo del mes`, 'piggy-bank', VERDE_AHORRO))}
+            {tarjetas.length > 0 && (
+              <AppText variant="caption" color={colors.textSecondary} style={styles.seccion}>Tarjetas de crédito</AppText>
+            )}
+            {tarjetas.map((t) =>
+              opcionFuente(`tarjeta:${t.id}`, nombreTarjeta(t.name), t.owed > 0 ? `Debes ${formatCurrency(t.owed)}` : 'Al día',
+                'credit-card', t.color || colors.textSecondary))}
+            {!!conTarjeta && !tarjetaElegida && opcionFuente(`tarjeta:${conTarjeta}`, 'Con tarjeta', 'La tarjeta con la que se anotó', 'credit-card', colors.textSecondary)}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+
+    <Calendario visible={eligiendoFecha} fecha={/^\d{4}-\d{2}-\d{2}$/.test(date) ? date : hoy} onElegir={setDate}
+      onCerrar={() => setEligiendoFecha(false)} />
+
+    <ConfirmarDescarte visible={descartando} onSeguir={() => { salidaPendiente.current = null; setDescartando(false); }} onDescartar={salir}
+      mensaje={isEdit ? 'Los cambios no se han guardado. Si sales ahora, se pierden.' : undefined} />
+    </>
   );
 };
+
+/** Verde del ahorro (el mismo de Anotar). */
+const VERDE_AHORRO = '#1FA67A';
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
@@ -417,6 +540,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    minHeight: 44,
     paddingVertical: 10,
     borderRadius: 12,
     borderWidth: 1.5,
@@ -450,6 +574,13 @@ const styles = StyleSheet.create({
   catIcon: {
     fontSize: 16,
   },
+  cuota: { flex: 0, minWidth: 48 },
+  campo: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52, paddingHorizontal: 12, borderRadius: 14, borderWidth: 1 },
+  fondo: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)' },
+  hoja: { maxHeight: '80%', padding: 16, gap: 10, borderTopLeftRadius: 24, borderTopRightRadius: 24, width: '100%', maxWidth: 560, alignSelf: 'center' },
+  opcionFuente: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth },
+  puntoFuente: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  seccion: { marginTop: 12, marginBottom: 4, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
   parentInfo: { borderWidth: 1, borderRadius: 10, padding: spacing.sm, marginBottom: spacing.sm },
   saveBtn: { marginTop: spacing.lg },
   deleteBtn: { marginTop: spacing.sm },

@@ -139,7 +139,7 @@ describe('Por confirmar', () => {
     (movementService.confirmBatch as jest.Mock).mockResolvedValue({ correct: false, message: 'Pago no encontrado: 1' });
     const { findByLabelText, getByLabelText } = render(<Envoltura><PorConfirmarScreen navigation={nav()} /></Envoltura>);
     fireEvent.press(await findByLabelText('Marcar Arriendo'));
-    fireEvent.press(getByLabelText(/Confirmar 1 pagos/));
+    fireEvent.press(getByLabelText(/Confirmar 1 pago por/));
     await waitFor(() => expect(toast).toHaveBeenCalledWith('error', 'No se confirmó ninguno', 'Pago no encontrado: 1'));
   });
 
@@ -152,9 +152,10 @@ describe('Por confirmar', () => {
 });
 
 describe('Por pagar: el recuadro y la lista dicen lo mismo', () => {
-  it('en Hogar cuenta los pagos comunes de los dos y abre esa misma lista', async () => {
+  it('en Hogar dice lo mismo que descuenta lo libre (toPay), cuenta los pagos comunes de la lista y abre esa lista', async () => {
     const { findByLabelText } = render(<Envoltura><InicioScreen navigation={nav()} /></Envoltura>);
-    const recuadro = await findByLabelText(/Por pagar .*2.683.000 en 3 pagos/);
+    /* toPay (10.626.000) = 3 pagos de la lista (2.683.000) + lo programado que aun no se genera. */
+    const recuadro = await findByLabelText(/^Por pagar .*10.626.000: 3 pagos por .*2.683.000 y .*7.943.000 programados/);
     fireEvent.press(recuadro);
     expect(mockNavegar).toHaveBeenCalledWith('PorConfirmar', { quien: 'DOS' });
   });
@@ -319,7 +320,7 @@ describe('Movimientos del periodo, como en Monefy', () => {
     ] } });
     const { findAllByLabelText, getByLabelText, queryByText, getByText } = render(
       <Envoltura><MovimientosScreen navigation={nav()} /></Envoltura>);
-    const filas = await findAllByLabelText(/movimientos\. (Expandir|Contraer)/);
+    const filas = await findAllByLabelText(/\. (Expandir|Contraer)$/);
     expect(filas.map((f) => f.props.accessibilityLabel.split(':')[0])).toEqual(['Delivery', 'Casa', 'Regalo']);
     expect(queryByText('Compra de helado')).toBeNull();
     fireEvent.press(getByLabelText('Expandir todo'));

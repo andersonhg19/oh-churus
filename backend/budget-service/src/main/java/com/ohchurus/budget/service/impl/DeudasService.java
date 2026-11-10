@@ -53,7 +53,7 @@ public class DeudasService {
 
     // ===== TARJETAS =========================================================
 
-    public ResultDTO guardarTarjeta(Long yo, Long id, String nombre, String color, Integer diaDePago) {
+    public ResultDTO guardarTarjeta(Long yo, Long id, String nombre, String color, Integer diaDePago, Integer diaDeCorte) {
         Card t;
         if (id != null) {
             Optional<Card> existente = tarjetas.findByIdAndActiveTrue(id).filter(c -> yo.equals(c.getUserId()));
@@ -66,6 +66,7 @@ public class DeudasService {
         t.setName(nombre.trim());
         t.setColor(color);
         t.setPaymentDay(diaDePago);
+        t.setCutoffDay(diaDeCorte);
         Card guardada = tarjetas.save(t);
         log.info("Card saved: id={} user={}", guardada.getId(), yo);
         return new ResultDTO(resumen(guardada, yo, LocalDate.now()));
@@ -87,7 +88,7 @@ public class DeudasService {
     public ResultDTO pagarTarjeta(Long yo, Long id, LocalDate hasta) {
         Optional<Card> t = tarjetas.findByIdAndActiveTrue(id).filter(c -> yo.equals(c.getUserId()));
         if (t.isEmpty()) return new ResultDTO(false, "Card not found", 404);
-        LocalDate corte = hasta != null ? hasta : LocalDate.now();
+        LocalDate corte = hasta != null ? hasta : ultimoCorte(t.get(), LocalDate.now());
         BigDecimal total = BigDecimal.ZERO;
         int n = 0;
         for (Movement m : movimientos.findByCardIdAndActiveTrueOrderByDateAsc(id)) {
@@ -132,6 +133,9 @@ public class DeudasService {
         for (Map<String, Object> d : plan.cuotas(plan.visibles(yo), hoy)) {
             String clase = String.valueOf(d.get("kind"));
             if (ScheduledKind.SAVING.name().equals(clase) || ScheduledKind.PROVISION.name().equals(clase)) continue;
+            /* Una deuda ya pagada no es deuda: no se lista ni suma en "este mes"
+               (QA, ola 7.1: Exito pagado seguia sumando 580.000). */
+            if (((Number) d.get("remainingInstallments")).intValue() == 0) continue;
             enCuotas = enCuotas.add((BigDecimal) d.get("remainingTotal"));
             cuotaDelMes = cuotaDelMes.add(PlanFinancieroService.nz((BigDecimal) d.get("monthlyFreed")));
             loans.add(d);
@@ -196,6 +200,23 @@ public class DeudasService {
 
     // ===== apoyo ============================================================
 
+    /** El ultimo dia de corte que ya paso (hoy incluido); sin corte, hoy. */
+    static LocalDate ultimoCorte(Card c, LocalDate hoy) {
+        if (c.getCutoffDay() == null) return hoy;
+        LocalDate esteMes = hoy.withDayOfMonth(Math.min(c.getCutoffDay(), hoy.lengthOfMonth()));
+        if (!esteMes.isAfter(hoy)) return esteMes;
+        LocalDate anterior = hoy.minusMonths(1);
+        return anterior.withDayOfMonth(Math.min(c.getCutoffDay(), anterior.lengthOfMonth()));
+    }
+
+    /** El proximo dia N del mes desde hoy (hoy incluido). */
+    static LocalDate proximoDia(int dia, LocalDate hoy) {
+        LocalDate esteMes = hoy.withDayOfMonth(Math.min(dia, hoy.lengthOfMonth()));
+        if (!esteMes.isBefore(hoy)) return esteMes;
+        LocalDate siguiente = hoy.plusMonths(1);
+        return siguiente.withDayOfMonth(Math.min(dia, siguiente.lengthOfMonth()));
+    }
+
     private List<Long> conHogares(Long yo) {
         List<Long> h = hogares.getHouseholdIds(yo);
         return h.isEmpty() ? List.of(-1L) : h;
@@ -208,7 +229,11 @@ public class DeudasService {
      */
     private Map<String, Object> resumen(Card c, Long yo, LocalDate hoy) {
         boolean mia = yo.equals(c.getUserId());
-        BigDecimal debe = BigDecimal.ZERO, yaToca = BigDecimal.ZERO;
+        BigDecimal debe = BigDecimal.ZERO, yaToca = BigDecimal.ZERO, esteCiclo = BigDecimal.ZERO;
+        /* Con dia de corte: lo comprado hasta el ultimo corte es el extracto
+           que toca pagar; lo de despues va en el siguiente. Sin corte, todo lo
+           comprado hasta hoy. */
+        LocalDate corte = ultimoCorte(c, hoy);
         Map<Long, Map<String, Object>> compras = new LinkedHashMap<>();
         Map<Long, Category> cache = new HashMap<>();
         for (Movement m : movimientos.findByCardIdAndActiveTrueOrderByDateAsc(c.getId())) {
@@ -244,7 +269,8 @@ public class DeudasService {
                 compra.put("nextAmount", m.getAmount());
             }
             debe = debe.add(m.getAmount());
-            if (!m.getDate().isAfter(hoy)) yaToca = yaToca.add(m.getAmount());
+            if (!m.getDate().isAfter(corte)) yaToca = yaToca.add(m.getAmount());
+            else if (!m.getDate().isAfter(hoy)) esteCiclo = esteCiclo.add(m.getAmount());
         }
         List<Map<String, Object>> abiertas = new ArrayList<>();
         for (Map<String, Object> x : compras.values()) {
@@ -255,12 +281,16 @@ public class DeudasService {
         r.put("name", c.getName());
         r.put("color", c.getColor());
         r.put("paymentDay", c.getPaymentDay());
+        r.put("cutoffDay", c.getCutoffDay());
+        r.put("lastCutoff", c.getCutoffDay() != null ? corte.toString() : null);
+        r.put("nextPaymentDate", c.getPaymentDay() != null ? proximoDia(c.getPaymentDay(), hoy).toString() : null);
+        r.put("currentCycle", esteCiclo);
         r.put("userId", c.getUserId());
         r.put("ownerName", hogares.apodoDe(c.getUserId()));
         r.put("mine", mia);
         r.put("owed", debe);
         r.put("dueNow", yaToca);
-        r.put("upcoming", debe.subtract(yaToca));
+        r.put("upcoming", debe.subtract(yaToca).subtract(esteCiclo));
         r.put("purchases", abiertas);
         return r;
     }

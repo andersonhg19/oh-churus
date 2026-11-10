@@ -30,7 +30,7 @@ describe('LoginScreen', () => {
       { wrapper: Wrapper },
     );
     expect(getByText('Oh Churus!')).toBeTruthy();
-    expect(getByText('Iniciar Sesion')).toBeTruthy();
+    expect(getByText('Iniciar sesión')).toBeTruthy();
     expect(getByPlaceholderText('tu@correo.com')).toBeTruthy();
     expect(getByPlaceholderText('Tu contraseña')).toBeTruthy();
   });
@@ -48,10 +48,10 @@ describe('LoginScreen', () => {
       <LoginScreen navigation={mockNavigation} route={mockRoute} />,
       { wrapper: Wrapper },
     );
-    fireEvent.press(getByText('Iniciar Sesion'));
+    fireEvent.press(getByText('Iniciar sesión'));
     await waitFor(() => {
-      expect(getByText('El correo electronico es obligatorio')).toBeTruthy();
-      expect(getByText('La contrasena es obligatoria')).toBeTruthy();
+      expect(getByText('El correo electrónico es obligatorio')).toBeTruthy();
+      expect(getByText('La contraseña es obligatoria')).toBeTruthy();
     });
   });
 
@@ -60,7 +60,7 @@ describe('LoginScreen', () => {
       <LoginScreen navigation={mockNavigation} route={mockRoute} />,
       { wrapper: Wrapper },
     );
-    fireEvent.press(getByText('Registrate'));
+    fireEvent.press(getByText('Regístrate'));
     expect(mockNavigation.navigate).toHaveBeenCalledWith('Register');
   });
 

@@ -4,6 +4,7 @@ import com.ohchurus.auth.dto.input.AuthenticationRequest;
 import com.ohchurus.auth.dto.input.AuthenticationResponse;
 import com.ohchurus.auth.dto.input.UserRegisterDTO;
 import com.ohchurus.auth.dto.output.ResultDTO;
+import com.ohchurus.auth.security.DemasiadosIntentosException;
 import com.ohchurus.auth.service.AuthenticationService;
 import com.ohchurus.auth.service.UserService;
 import jakarta.validation.Valid;
@@ -32,9 +33,16 @@ public class AuthenticationController {
             AuthenticationResponse response = authenticationService.authenticate(request);
             return ResponseEntity.ok(new ResultDTO(response));
         } catch (BadCredentialsException e) {
-            return ResponseEntity.ok(new ResultDTO(false, "Invalid email or password", 101));
+            /* El mismo mensaje exista o no el correo: no se confirma quien
+               tiene cuenta. */
+            return ResponseEntity.ok(new ResultDTO(false, CREDENCIALES_INCORRECTAS, 101));
+        } catch (DemasiadosIntentosException e) {
+            return ResponseEntity.ok(new ResultDTO(false, DEMASIADOS_INTENTOS, 429));
         }
     }
+
+    static final String CREDENCIALES_INCORRECTAS = "Correo o contraseña incorrectos";
+    static final String DEMASIADOS_INTENTOS = "Demasiados intentos. Espera unos minutos y vuelve a intentarlo.";
 
     /**
      * Alta publica.
@@ -57,8 +65,16 @@ public class AuthenticationController {
         if (!creado.isCorrect()) {
             return ResponseEntity.ok(creado);
         }
-        AuthenticationResponse sesion = authenticationService.authenticate(
-                new AuthenticationRequest(request.getEmail(), request.getPassword()));
-        return ResponseEntity.ok(new ResultDTO(sesion));
+        try {
+            AuthenticationResponse sesion = authenticationService.authenticate(
+                    new AuthenticationRequest(request.getEmail(), request.getPassword()));
+            return ResponseEntity.ok(new ResultDTO(sesion));
+        } catch (DemasiadosIntentosException e) {
+            /* Raro pero posible: alguien fallo logins con ese correo antes de
+               que existiera la cuenta. La cuenta ya quedo creada. */
+            return ResponseEntity.ok(new ResultDTO(false,
+                    "Tu cuenta quedó creada, pero hubo demasiados intentos con ese correo. "
+                            + "Espera unos minutos e inicia sesión.", 429));
+        }
     }
 }

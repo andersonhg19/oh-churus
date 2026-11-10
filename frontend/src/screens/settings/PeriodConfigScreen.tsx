@@ -21,7 +21,7 @@ const PeriodConfigScreen: React.FC = () => {
   const handleSave = async () => {
     const dayError = validateDayOfMonth(budgetStartDay);
     if (dayError) {
-      showToast('warning', 'Validacion', dayError);
+      showToast('warning', 'Revisa el dato', dayError);
       return;
     }
     const day = parseInt(budgetStartDay, 10);
@@ -38,7 +38,7 @@ const PeriodConfigScreen: React.FC = () => {
       } as any);
       if (res.correct) {
         await updateUser({ budgetStartDay: day });
-        showToast('success', 'Listo', 'Dia de inicio actualizado a ' + day);
+        showToast('success', 'Listo', 'Día de corte actualizado al ' + day);
       } else {
         showToast('error', 'Error', res.message);
       }
@@ -52,19 +52,19 @@ const PeriodConfigScreen: React.FC = () => {
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
       <Card style={styles.section}>
-        <AppText variant="label" style={styles.sectionTitle}>Dia de inicio del periodo</AppText>
+        <AppText variant="label" style={styles.sectionTitle}>Día de corte del periodo</AppText>
         <AppText variant="caption" color={colors.textSecondary} style={styles.hint}>
-          Tu ciclo de presupuesto va del dia que elijas hasta el dia anterior del mes siguiente. Ejemplo: si eliges 28, tu ciclo va del 28 al 27.
+          Tu ciclo de presupuesto va del día que elijas hasta el día anterior del mes siguiente. Ejemplo: si eliges 28, tu ciclo va del 28 al 27.
         </AppText>
         <Input
-          label="Dia (1-31)"
+          label="Día (1-31)"
           value={budgetStartDay}
           onChangeText={setBudgetStartDay}
           placeholder="28"
           keyboardType="numeric"
         />
         <AppText variant="caption" color={colors.textMuted} style={styles.currentLabel}>
-          Valor actual: dia {user?.budgetStartDay || 1}
+          Valor actual: día {user?.budgetStartDay || 1}
         </AppText>
         <Button
           title="Guardar"

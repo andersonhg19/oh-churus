@@ -42,8 +42,11 @@ public class Card {
     @Column(length = 7)
     private String color;
 
-    /** Dia del mes en que se paga, si se sabe. Solo informativo. */
+    /** Dia del mes en que se paga, si se sabe. */
     private Integer paymentDay;
+
+    /** Dia de corte: lo comprado hasta ese dia entra en el extracto que se paga. */
+    private Integer cutoffDay;
 
     @Column(nullable = false)
     @Builder.Default

@@ -14,7 +14,9 @@ import { useCarga, exigir } from '../../hooks/useCarga';
 import { estadoService, EstadoDelPeriodo } from '../../services/estadoService';
 import { dashboardService } from '../../services/dashboardService';
 import { deudaService } from '../../services/deudaService';
+import { deudasDelAlcance } from '../../utils/deudas';
 import { formatCurrency, formatCompacto } from '../../utils/format';
+import { textoLegibleSobre } from '../../theme/contraste';
 
 /*
  * INICIO. Tres zonas, una pregunta cada una:
@@ -28,7 +30,7 @@ import { formatCurrency, formatCompacto } from '../../utils/format';
 const InicioScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { colors } = useTheme();
   const { user } = useAuth();
-  const { alcance, corte, periodo, anterior, siguiente, puedeSeguir } = useAlcance();
+  const { alcance, corte, periodo, anterior, siguiente, puedeSeguir, nombreDe } = useAlcance();
   const [estado, setEstado] = useState<EstadoDelPeriodo | null>(null);
   const [misPendientes, setMisPendientes] = useState({ n: 0, monto: 0 });
   /* Lo por pagar del recuadro sale de la MISMA lista que se abre al tocarlo:
@@ -46,7 +48,11 @@ const InicioScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     setEstado(exigir(e) || null);
     const pendientes = exigir(p) || [];
     const pagos = pendientes.filter((m) => m.categoryType !== 'INCOME');
-    const mios = pagos.filter((m) => String(m.userId) === String(user.userId));
+    /* El aviso sigue al selector: en Hogar, lo mio (soy quien confirma); en
+       una persona, lo de ESA persona. Antes, viendo a Samy, el aviso decia
+       los pagos de Andy. */
+    const deQuien = alcance.tipo === 'HOGAR' ? String(user.userId) : String(alcance.userId);
+    const mios = pagos.filter((m) => String(m.userId) === deQuien);
     setMisPendientes({ n: mios.length, monto: mios.reduce((t, m) => t + (m.amount || 0), 0) });
     /* Hogar: lo comun de los dos. Una persona: lo que le toca a ella. */
     const delAlcance = alcance.tipo === 'HOGAR'
@@ -55,7 +61,9 @@ const InicioScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     setPorPagar({ n: delAlcance.length, monto: delAlcance.reduce((t, m) => t + (m.amount || 0), 0) });
     try {
       const d = await deudaService.todas();
-      setDeudas(d?.correct && d.object ? { total: d.object.totalOwed || 0, mes: d.object.monthlyInstallments || 0 } : null);
+      /* Sigue el selector, igual que la pantalla de Deudas (QA 7.1). */
+      const r = d?.correct && d.object ? deudasDelAlcance(d.object, alcance as any) : null;
+      setDeudas(r ? { total: r.totalOwed, mes: r.monthlyInstallments } : null);
     } catch (err) {
       console.warn('Inicio: no se pudieron traer las deudas', err);
       setDeudas(null);
@@ -76,6 +84,15 @@ const InicioScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   }
   const t = estado?.totals;
   const presupuestoDeGasto = (t?.budgeted || 0) - (t?.savingsGoal || 0);
+  /* "Por pagar" es la MISMA cifra que "Libre para gastar" descuenta (toPay):
+     antes salia de la lista de pendientes y no cuadraba con lo libre, porque
+     toPay tambien cuenta lo programado que aun no se ha generado. */
+  const aPagar = t?.toPay ?? porPagar.monto;
+  const previstos = Math.max(0, aPagar - porPagar.monto);
+  const quienAviso = alcance.tipo === 'HOGAR' || String(alcance.userId) === String(user?.userId)
+    ? null : (nombreDe(alcance.userId) || 'Esta persona');
+  const tintaGasto = textoLegibleSobre(colors.expense);
+  const tintaIngreso = textoLegibleSobre(colors.income);
 
   /* En la dona solo va lo GASTADO: los ahorros no se dibujan, y la dona misma
      deja fuera lo que no tiene gasto y junta lo chico en "Otros". */
@@ -99,7 +116,7 @@ const InicioScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       <AppText variant="body" style={{ fontWeight: '800', color: o.colorValor || colors.text }} numberOfLines={1} adjustsFontSizeToFit>
         {o.valor}
       </AppText>
-      <AppText variant="caption" color={colors.textMuted} numberOfLines={1}>{o.detalle}</AppText>
+      <AppText variant="caption" color={colors.textSecondary} numberOfLines={1}>{o.detalle}</AppText>
     </TouchableOpacity>
   );
 
@@ -132,10 +149,11 @@ const InicioScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             etiqueta: `Ingresos recibidos ${formatCurrency(t?.incomeReceived || 0)} de ${formatCurrency(t?.incomeExpected || 0)}. Ver el detalle`,
           })}
           {recuadro({
-            titulo: 'Por pagar', valor: formatCompacto(porPagar.monto),
-            detalle: `${porPagar.n} ${porPagar.n === 1 ? 'pago' : 'pagos'}`,
+            titulo: 'Por pagar', valor: formatCompacto(aPagar),
+            detalle: `${porPagar.n} ${porPagar.n === 1 ? 'pago' : 'pagos'}${previstos > 0 ? ' + previstos' : ''}`,
             destino: () => navigation.navigate('PorConfirmar', { quien: alcance.tipo === 'HOGAR' ? 'DOS' : alcance.userId }),
-            etiqueta: `Por pagar ${formatCurrency(porPagar.monto)} en ${porPagar.n} pagos. Ver cuáles son`,
+            etiqueta: `Por pagar ${formatCurrency(aPagar)}: ${porPagar.n} ${porPagar.n === 1 ? 'pago' : 'pagos'} por ${formatCurrency(porPagar.monto)}`
+              + `${previstos > 0 ? ` y ${formatCurrency(previstos)} programados que aún no se generan` : ''}. Ver cuáles son`,
           })}
         </View>
         <View style={styles.kpis}>
@@ -157,11 +175,11 @@ const InicioScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
         {misPendientes.n > 0 && (
           <TouchableOpacity style={[styles.aviso, { backgroundColor: colors.surfaceLight }]}
-            onPress={() => navigation.navigate('PorConfirmar', { quien: 'MIOS' })} accessibilityRole="button"
-            accessibilityLabel={`Tienes ${misPendientes.n} pagos por confirmar. Confirmarlos`}>
+            onPress={() => navigation.navigate('PorConfirmar', { quien: quienAviso && alcance.tipo !== 'HOGAR' ? alcance.userId : 'MIOS' })} accessibilityRole="button"
+            accessibilityLabel={`${quienAviso ? `${quienAviso} tiene` : 'Tienes'} ${misPendientes.n} ${misPendientes.n === 1 ? 'pago' : 'pagos'} por confirmar. Ver cuáles son`}>
             <View style={[styles.punto, { backgroundColor: colors.primary }]} />
             <AppText variant="body" style={{ flex: 1, fontWeight: '700' }}>
-              Tienes {misPendientes.n} {misPendientes.n === 1 ? 'pago' : 'pagos'} por confirmar
+              {quienAviso ? `${quienAviso} tiene` : 'Tienes'} {misPendientes.n} {misPendientes.n === 1 ? 'pago' : 'pagos'} por confirmar
             </AppText>
             <AppText variant="caption" color={colors.textSecondary}>{formatCurrency(misPendientes.monto)}</AppText>
             <Icono nombre="right" color={colors.textSecondary} tamano={18} />
@@ -172,13 +190,13 @@ const InicioScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       <View style={styles.botones}>
         <TouchableOpacity style={[styles.grande, { backgroundColor: colors.expense }]}
           onPress={() => navigation.navigate('Anotar', { tipo: 'EXPENSE' })} accessibilityRole="button" accessibilityLabel="Anotar un gasto">
-          <Icono nombre="minus" color="#FFFFFF" />
-          <AppText variant="subtitle" style={styles.textoGrande}>Gasto</AppText>
+          <Icono nombre="minus" color={tintaGasto} />
+          <AppText variant="subtitle" style={[styles.textoGrande, { color: tintaGasto }]}>Gasto</AppText>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.grande, { backgroundColor: colors.income }]}
           onPress={() => navigation.navigate('Anotar', { tipo: 'INCOME' })} accessibilityRole="button" accessibilityLabel="Anotar un ingreso">
-          <Icono nombre="plus" color="#FFFFFF" />
-          <AppText variant="subtitle" style={styles.textoGrande}>Ingreso</AppText>
+          <Icono nombre="plus" color={tintaIngreso} />
+          <AppText variant="subtitle" style={[styles.textoGrande, { color: tintaIngreso }]}>Ingreso</AppText>
         </TouchableOpacity>
       </View>
     </View>
@@ -193,9 +211,9 @@ const styles = StyleSheet.create({
   tituloKpi: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   aviso: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: 14, minHeight: 52 },
   punto: { width: 10, height: 10, borderRadius: 5 },
-  botones: { flexDirection: 'row', gap: 12, padding: 16, paddingTop: 8 },
+  botones: { flexDirection: 'row', gap: 12, padding: 16, paddingTop: 8, width: '100%', maxWidth: 560, alignSelf: 'center' },
   grande: { flex: 1, height: 60, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  textoGrande: { color: '#FFFFFF', fontWeight: '800' },
+  textoGrande: { fontWeight: '800' },
 });
 
 export default InicioScreen;

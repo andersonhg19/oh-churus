@@ -16,6 +16,8 @@ import { movementService } from '../../services/movementService';
 import { categoryService } from '../../services/categoryService';
 import { estadoService, ElementoDelPlan } from '../../services/estadoService';
 import { formatCurrency, formatDateShort } from '../../utils/format';
+import { comoSePago } from '../../utils/medioDePago';
+import { useAhorros, useMisTarjetas } from '../../hooks/useAhorros';
 import { Category, Movement } from '../../types';
 
 type Tipo = 'EXPENSE' | 'INCOME';
@@ -29,7 +31,10 @@ interface Grupo {
   nombre: string;
   icono?: string;
   color: string;
+  /** Lo pagado (o recibido): lo que suma. */
   total: number;
+  /** Lo que aun esta por pagar: se cuenta y se dice aparte, no suma. */
+  porPagar: number;
   movimientos: Movement[];
   /** Pagos del plan liberados del todo: no son movimientos, pero no deben desaparecer. */
   liberados: ElementoDelPlan[];
@@ -58,6 +63,9 @@ const MovimientosScreen: React.FC<{ navigation: any; route?: any }> = ({ navigat
   const [abiertas, setAbiertas] = useState<Record<string, boolean>>(pedida ? { [pedida]: true } : {});
   const [busqueda, setBusqueda] = useState('');
   const buscado = normalizar(busqueda);
+  /* Para decir con que se pago cada movimiento (solo lectura). */
+  const ahorros = useAhorros();
+  const tarjetas = useMisTarjetas();
 
   const traer = useCallback(async () => {
     if (!user) return;
@@ -88,16 +96,17 @@ const MovimientosScreen: React.FC<{ navigation: any; route?: any }> = ({ navigat
       && (alcance.tipo === 'HOGAR' ? !!c.householdId : true));
     const mapa: Record<string, Grupo> = {};
     visibles.forEach((c, i) => {
-      mapa[String(c.id)] = { id: String(c.id), nombre: c.name, icono: c.icon, color: c.color || PALETA[i % PALETA.length], total: 0, movimientos: [], liberados: [] };
+      mapa[String(c.id)] = { id: String(c.id), nombre: c.name, icono: c.icon, color: c.color || PALETA[i % PALETA.length], total: 0, porPagar: 0, movimientos: [], liberados: [] };
     });
     const coincide = (m: Movement) => !buscado
       || normalizar(m.description).includes(buscado)
       || normalizar(m.categoryName || mapa[String(m.categoryId)]?.nombre).includes(buscado);
     delAlcance.filter((m) => m.categoryType === tipo || (!m.categoryType && mapa[String(m.categoryId)])).filter(coincide).forEach((m) => {
       const k = String(m.categoryId);
-      if (!mapa[k]) mapa[k] = { id: k, nombre: m.categoryName || 'Sin categoría', icono: m.categoryIcon, color: m.categoryColor || PALETA[0], total: 0, movimientos: [], liberados: [] };
+      if (!mapa[k]) mapa[k] = { id: k, nombre: m.categoryName || 'Sin categoría', icono: m.categoryIcon, color: m.categoryColor || PALETA[0], total: 0, porPagar: 0, movimientos: [], liberados: [] };
       mapa[k].movimientos.push(m);
       if (m.confirmed) mapa[k].total += m.amount || 0;
+      else mapa[k].porPagar += m.amount || 0;
     });
     liberados.forEach((it) => {
       const g = mapa[String(it.categoryId)];
@@ -183,40 +192,59 @@ const MovimientosScreen: React.FC<{ navigation: any; route?: any }> = ({ navigat
           const abierta = !!buscado || !!abiertas[g.id];
           const vacia = g.movimientos.length + g.liberados.length === 0;
           const pct = total > 0 ? Math.round((g.total / total) * 100) : 0;
+          /* "Casa · 5 movimientos · $2.388.000" mezclaba: el monto era de 3
+             pagados y los otros 2 estaban por pagar. Ahora se dice cada cosa. */
+          const pagados = g.movimientos.filter((m) => m.confirmed).length;
+          const pendientes = g.movimientos.length - pagados;
+          const esGasto = tipo === 'EXPENSE';
+          const txtPagados = `${pagados} ${esGasto ? (pagados === 1 ? 'pagado' : 'pagados') : (pagados === 1 ? 'recibido' : 'recibidos')}`;
+          const txtPendientes = pendientes > 0 ? `${pendientes} ${esGasto ? 'por pagar' : 'por recibir'}` : '';
+          const resumen = vacia ? 'Sin movimientos'
+            : [txtPagados, txtPendientes, `${pct}%`, g.liberados.length ? `${g.liberados.length} liberado${g.liberados.length === 1 ? '' : 's'}` : '']
+              .filter(Boolean).join(' · ');
           return (
             <View key={g.id} style={[styles.grupo, { borderBottomColor: colors.border }]}>
               <TouchableOpacity style={[styles.fila, vacia && { opacity: 0.5 }]} disabled={vacia}
                 onPress={() => setAbiertas({ ...abiertas, [g.id]: !abierta })}
                 accessibilityRole="button" accessibilityState={{ expanded: abierta, disabled: vacia }}
-                accessibilityLabel={`${g.nombre}: ${formatCurrency(g.total)}, ${g.movimientos.length} movimientos. ${abierta ? 'Contraer' : 'Expandir'}`}>
+                accessibilityLabel={`${g.nombre}: ${formatCurrency(g.total)} ${esGasto ? 'pagado' : 'recibido'}${vacia ? ', sin movimientos'
+                  : `, ${txtPagados}${txtPendientes ? `, ${txtPendientes} por ${formatCurrency(g.porPagar)}` : ''}`}. ${abierta ? 'Contraer' : 'Expandir'}`}>
                 <CirculoCategoria icono={g.icono} color={g.color} tamano={38} />
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <AppText variant="body" style={{ fontWeight: '700' }} numberOfLines={1}>{g.nombre}</AppText>
-                  <AppText variant="caption" color={colors.textSecondary}>
-                    {vacia ? 'Sin movimientos' : `${g.movimientos.length} ${g.movimientos.length === 1 ? 'movimiento' : 'movimientos'} · ${pct}%`
-                      + (g.liberados.length ? ` · ${g.liberados.length} liberado${g.liberados.length === 1 ? '' : 's'}` : '')}
-                  </AppText>
+                  <AppText variant="caption" color={colors.textSecondary}>{resumen}</AppText>
                 </View>
-                <AppText variant="body" style={{ fontWeight: '800' }}>{formatCurrency(g.total)}</AppText>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <AppText variant="body" style={{ fontWeight: '800' }}>{formatCurrency(g.total)}</AppText>
+                  {g.porPagar > 0 && (
+                    <AppText variant="caption" color={colors.pending}>{`+ ${formatCurrency(g.porPagar)} ${esGasto ? 'por pagar' : 'por recibir'}`}</AppText>
+                  )}
+                </View>
                 {!vacia && <Icono nombre={abierta ? 'down' : 'right'} color={colors.textSecondary} tamano={18} />}
               </TouchableOpacity>
-              {abierta && g.movimientos.map((m) => (
+              {abierta && g.movimientos.map((m) => {
+                /* Como se pago: "Tarjeta Nu · cuota 1/6", "Con el Ahorro", "Fondos del mes". */
+                const medio = comoSePago({ ...m, categoryType: m.categoryType || tipo }, ahorros, tarjetas);
+                const quien = alcance.tipo === 'HOGAR' ? (m.payerName || nombreDe(m.userId)) : '';
+                const pendiente = !m.confirmed ? (esGasto ? 'por pagar' : 'por recibir') : '';
+                const detalle = [formatDateShort(m.date), pendiente, medio, quien].filter(Boolean).join(' · ');
+                return (
                 <TouchableOpacity key={m.id} style={[styles.movimiento, { borderTopColor: colors.border }]}
                   onPress={() => navigation.navigate('MovementFormModal', { movement: m })}
                   accessibilityRole="button"
-                  accessibilityLabel={`${m.description || g.nombre}, ${formatDateShort(m.date)}, ${formatCurrency(m.amount)}${m.confirmed ? '' : ', por pagar'}. Editar`}>
+                  accessibilityLabel={`${m.description || g.nombre}, ${detalle}, ${formatCurrency(m.amount)}. Editar`}>
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <AppText variant="body" numberOfLines={1}>{m.description || g.nombre}</AppText>
-                    <AppText variant="caption" color={m.confirmed ? colors.textSecondary : colors.pending} numberOfLines={1}>
-                      {formatDateShort(m.date)}{m.confirmed ? '' : ' · por pagar'}{m.fundedFromCategoryId ? ' · con el ahorro' : ''}{m.cardId ? ((m.installmentTotal || 1) > 1 ? ` · tarjeta, cuota ${m.installmentNumber}/${m.installmentTotal}` : ' · con tarjeta') : ''}
-                      {alcance.tipo === 'HOGAR' ? ` · ${m.payerName || nombreDe(m.userId)}` : ''}
+                    <AppText variant="caption" color={m.confirmed ? colors.textSecondary : colors.pending} numberOfLines={2}>
+                      {detalle}
                     </AppText>
                   </View>
                   <AppText variant="body" style={{ fontWeight: '700', color: m.confirmed ? colors.text : colors.textMuted }}>
                     {formatCurrency(m.amount)}
                   </AppText>
                 </TouchableOpacity>
-              ))}
+                );
+              })}
               {abierta && g.liberados.map((it) => (
                 <TouchableOpacity key={`lib-${it.movementId}`} style={[styles.movimiento, { borderTopColor: colors.border }]}
                   onPress={() => navigation.navigate('Categoria', { categoryId: Number(g.id) })}

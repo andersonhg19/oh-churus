@@ -26,7 +26,7 @@ public class CardController {
     @PostMapping(value = "/save", produces = "application/json")
     public ResponseEntity<ResultDTO> save(@Valid @RequestBody CardSaveDTO body) {
         return ResponseEntity.ok(deudas.guardarTarjeta(SecurityUtils.getAuthenticatedUserId(),
-                body.getId(), body.getName(), body.getColor(), body.getPaymentDay()));
+                body.getId(), body.getName(), body.getColor(), body.getPaymentDay(), body.getCutoffDay()));
     }
 
     /** Mis tarjetas, con lo que debo en cada una. */

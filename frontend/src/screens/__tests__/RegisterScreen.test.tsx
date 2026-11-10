@@ -27,10 +27,10 @@ describe('RegisterScreen', () => {
       { wrapper: Wrapper },
     );
     expect(getByText('Oh Churus!')).toBeTruthy();
-    expect(getByText('Crear Cuenta')).toBeTruthy();
+    expect(getByText('Crear cuenta')).toBeTruthy();
     expect(getByPlaceholderText('Tu nombre')).toBeTruthy();
     expect(getByPlaceholderText('tu@correo.com')).toBeTruthy();
-    expect(getByPlaceholderText('Minimo 6 caracteres')).toBeTruthy();
+    expect(getByPlaceholderText('Mínimo 8, con letras y números')).toBeTruthy();
   });
 
   it('shows validation errors when fields are empty', async () => {
@@ -38,12 +38,12 @@ describe('RegisterScreen', () => {
       <RegisterScreen navigation={mockNavigation} route={mockRoute} />,
       { wrapper: Wrapper },
     );
-    fireEvent.press(getByText('Crear Cuenta'));
+    fireEvent.press(getByText('Crear cuenta'));
     await waitFor(() => {
       // Al menos uno de los mensajes de validacion debe aparecer
       const hasNameError = queryByText(/Nombre.*obligatorio/);
       const hasEmailError = queryByText(/correo.*obligatorio/i);
-      const hasPassError = queryByText(/contrasena.*obligatoria/i);
+      const hasPassError = queryByText(/contraseña.*obligatoria/i);
       expect(hasNameError || hasEmailError || hasPassError).toBeTruthy();
     });
   });
@@ -55,10 +55,10 @@ describe('RegisterScreen', () => {
     );
     fireEvent.changeText(getByPlaceholderText('Tu nombre'), 'Test');
     fireEvent.changeText(getByPlaceholderText('tu@correo.com'), 'a@b.com');
-    fireEvent.changeText(getByPlaceholderText('Minimo 6 caracteres'), '123');
-    fireEvent.press(getByText('Crear Cuenta'));
+    fireEvent.changeText(getByPlaceholderText('Mínimo 8, con letras y números'), '123');
+    fireEvent.press(getByText('Crear cuenta'));
     await waitFor(() => {
-      expect(getByText(/al menos 6 caracteres/)).toBeTruthy();
+      expect(getByText('Mínimo 8 caracteres, con al menos una letra y un número')).toBeTruthy();
     });
   });
 
@@ -67,7 +67,7 @@ describe('RegisterScreen', () => {
       <RegisterScreen navigation={mockNavigation} route={mockRoute} />,
       { wrapper: Wrapper },
     );
-    fireEvent.press(getByText('Inicia sesion'));
+    fireEvent.press(getByText('Inicia sesión'));
     expect(mockNavigation.goBack).toHaveBeenCalled();
   });
 

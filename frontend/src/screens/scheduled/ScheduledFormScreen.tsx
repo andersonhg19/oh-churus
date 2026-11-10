@@ -53,24 +53,24 @@ const SEMANAS = [
   { valor: 2, etiqueta: '2a', seOye: 'segunda semana del mes' },
   { valor: 3, etiqueta: '3a', seOye: 'tercera semana del mes' },
   { valor: 4, etiqueta: '4a', seOye: 'cuarta semana del mes' },
-  { valor: 5, etiqueta: 'Ultima', seOye: 'última semana del mes' },
+  { valor: 5, etiqueta: 'Última', seOye: 'última semana del mes' },
 ];
 
 // ISO: 1 es lunes y 7 es domingo, igual que en el backend.
 const DIAS_DE_LA_SEMANA = [
   { valor: 1, etiqueta: 'Lun', seOye: 'lunes' },
   { valor: 2, etiqueta: 'Mar', seOye: 'martes' },
-  { valor: 3, etiqueta: 'Mie', seOye: 'miércoles' },
+  { valor: 3, etiqueta: 'Mié', seOye: 'miércoles' },
   { valor: 4, etiqueta: 'Jue', seOye: 'jueves' },
   { valor: 5, etiqueta: 'Vie', seOye: 'viernes' },
-  { valor: 6, etiqueta: 'Sab', seOye: 'sábado' },
+  { valor: 6, etiqueta: 'Sáb', seOye: 'sábado' },
   { valor: 7, etiqueta: 'Dom', seOye: 'domingo' },
 ];
 
 const POLITICAS_FIN_DE_SEMANA: Array<{ valor: WeekendPolicy; etiqueta: string; seOye: string }> = [
   { valor: 'KEEP', etiqueta: 'Dejarla', seOye: 'Dejarla en el fin de semana' },
   { valor: 'PREVIOUS_BUSINESS_DAY', etiqueta: 'Viernes antes', seOye: 'Adelantarla al viernes anterior' },
-  { valor: 'NEXT_BUSINESS_DAY', etiqueta: 'Lunes despues', seOye: 'Aplazarla al lunes siguiente' },
+  { valor: 'NEXT_BUSINESS_DAY', etiqueta: 'Lunes después', seOye: 'Aplazarla al lunes siguiente' },
 ];
 
 /* Las cuatro clases de salida de plata (ver la V10 del backend). Lo que
@@ -80,7 +80,7 @@ const CLASES: Array<{ valor: ScheduledKind; etiqueta: string; ayuda: string }> =
   { valor: 'PAYMENT', etiqueta: 'Pago', ayuda: 'Un pago con fecha: arriendo, cuota, servicio. Genera su pendiente.' },
   { valor: 'DEDUCTION', etiqueta: 'Descuento de nómina', ayuda: 'Te lo descuentan del sueldo: resta del ingreso y no se paga aparte.' },
   { valor: 'SAVING', etiqueta: 'Ahorro', ayuda: 'Sale de la cuenta pero no es consumo: se muestra aparte.' },
-  { valor: 'PROVISION', etiqueta: 'Provisión', ayuda: 'Plata que se separa (mercado, mascotas). No genera pendiente: anota la compra real cuando ocurra.' },
+  { valor: 'PROVISION', etiqueta: 'Plata separada', ayuda: 'Plata que se aparta (mercado, mascotas). No crea un pago por confirmar: anota la compra real cuando ocurra.' },
 ];
 
 /** Cuantas veces cae un programado en N meses, para decirlo en cuotas. */
@@ -198,15 +198,15 @@ const ScheduledFormScreen: React.FC<Props> = ({ navigation, route }) => {
       validateDuration(durationMonths),
     );
     if (error) {
-      showToast('warning', 'Validacion', error);
+      showToast('warning', 'Revisa el dato', error);
       return;
     }
     /* "El tercer viernes" son dos datos y ninguno vale solo: "el tercero" no
        dice de que y "un viernes" no dice cual. Se avisa aqui para no gastar un
        viaje al servidor, que tambien lo rechaza. */
     if ((weekOfMonth === null) !== (dayOfWeek === null)) {
-      showToast('warning', 'Validacion',
-        'El patron "el tercer viernes" necesita la semana y el dia de la semana juntos');
+      showToast('warning', 'Revisa el dato',
+        'El patrón "el tercer viernes" necesita la semana y el día de la semana juntos');
       return;
     }
     try {
@@ -409,7 +409,7 @@ const ScheduledFormScreen: React.FC<Props> = ({ navigation, route }) => {
           con la cuenta hecha para que nadie tenga que adivinarla. */}
       {terminaEl && (
         <AppText variant="caption" color={colors.textSecondary} style={styles.ayuda} testID="resumen-cuotas">
-          {cuotas ? `${cuotas} cuota(s). ` : ''}Termina el {terminaEl}.
+          {cuotas ? `${cuotas} ${Number(cuotas) === 1 ? 'cuota' : 'cuotas'}. ` : ''}Termina el {terminaEl}.
           {isEdit && existing?.remainingOccurrences != null ? ` Quedan ${existing.remainingOccurrences}.` : ''}
         </AppText>
       )}
@@ -418,7 +418,7 @@ const ScheduledFormScreen: React.FC<Props> = ({ navigation, route }) => {
           Cada 14 días se va corriendo. Para cobrar el 1 y el 15, crea dos programados mensuales.
         </AppText>
       )}
-      <Input label="Dia del mes" value={dayOfMonth} onChangeText={setDayOfMonth} placeholder="1-31 (opcional)" keyboardType="numeric" />
+      <Input label="Día del mes" value={dayOfMonth} onChangeText={setDayOfMonth} placeholder="1-31 (opcional)" keyboardType="numeric" />
 
       {/* "El tercer viernes" es como se paga la nomina, y no hay dia del mes
           que lo diga: en agosto es el 21 y en septiembre el 18. */}
@@ -447,7 +447,7 @@ const ScheduledFormScreen: React.FC<Props> = ({ navigation, route }) => {
         ))}
       </View>
 
-      <AppText variant="label" style={styles.pickerLabel}>Dia de la semana (opcional)</AppText>
+      <AppText variant="label" style={styles.pickerLabel}>Día de la semana (opcional)</AppText>
       <View style={styles.freqGrid}>
         {DIAS_DE_LA_SEMANA.map((d) => (
           <TouchableOpacity

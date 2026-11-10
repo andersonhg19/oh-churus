@@ -104,3 +104,8 @@ export function useAlcance(): Valor {
   if (!v) throw new Error('useAlcance fuera de AlcanceProvider');
   return v;
 }
+
+/** Igual que useAlcance, pero sin lanzar fuera del proveedor (pantallas que tambien se prueban solas). */
+export function useAlcanceOpcional(): Valor | null {
+  return useContext(Contexto);
+}

@@ -77,7 +77,7 @@ describe('CategoryFormScreen', () => {
       { wrapper: Wrapper },
     );
     fireEvent.press(getByText('Guardar'));
-    expect((globalThis as any).__mockShowToast).toHaveBeenCalledWith('warning', 'Validacion', expect.any(String));
+    expect((globalThis as any).__mockShowToast).toHaveBeenCalledWith('warning', 'Revisa el dato', expect.any(String));
   });
 
   it('renders edit mode with existing data', () => {

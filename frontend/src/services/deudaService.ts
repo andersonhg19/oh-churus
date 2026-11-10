@@ -27,6 +27,12 @@ export interface Tarjeta {
   name: string;
   color?: string | null;
   paymentDay?: number | null;
+  /** Dia de corte y lo que se deriva de el. */
+  cutoffDay?: number | null;
+  lastCutoff?: string | null;
+  nextPaymentDate?: string | null;
+  /** Lo comprado despues del ultimo corte: va en el siguiente extracto. */
+  currentCycle?: number;
   userId: number;
   ownerName?: string | null;
   mine: boolean;
@@ -87,7 +93,7 @@ export const deudaService = {
     return r.data;
   },
 
-  guardarTarjeta: async (t: { id?: number; name: string; color?: string | null; paymentDay?: number | null }) => {
+  guardarTarjeta: async (t: { id?: number; name: string; color?: string | null; paymentDay?: number | null; cutoffDay?: number | null }) => {
     const r = await api.post<ResultDTO<Tarjeta>>(`${CARDS}/save`, t);
     return r.data;
   },

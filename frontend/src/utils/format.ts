@@ -181,3 +181,37 @@ export const formatDateShort = (date: string): string => {
   const month = String(d.getMonth() + 1).padStart(2, '0');
   return `${day}/${month}`;
 };
+
+/**
+ * Fecha como la dice una persona: "1 nov", y con el año solo si no es el
+ * actual ("3 ene 2027"). Para avisos y textos corridos, donde "2026-11-01"
+ * se lee como un codigo y no como una fecha.
+ */
+export const fechaHumana = (date: string, hoy: Date = new Date()): string => {
+  const d = desdeISO(date);
+  if (Number.isNaN(d.getTime())) return date;
+  const base = `${d.getDate()} ${MONTHS_SHORT[d.getMonth()].toLowerCase()}`;
+  return d.getFullYear() === hoy.getFullYear() ? base : `${base} ${d.getFullYear()}`;
+};
+
+/**
+ * Pasa a lenguaje de persona un aviso que viene del servidor: las fechas
+ * "2026-11-01" a "1 nov", las cifras "190000.00" a "$190.000", "cuota(s)"
+ * al singular o plural que toque, y algunas tildes que el servidor no pone.
+ */
+export const humanizarAviso = (texto: string, hoy: Date = new Date()): string => {
+  if (!texto) return texto;
+  return texto
+    .replace(/\b(\d{4}-\d{2}-\d{2})\b/g, (_m, f) => fechaHumana(f, hoy))
+    .replace(/(^|[^\d.,$])(\d+\.\d{1,2})(?!\d|[.,]\d)/g, (_m, antes, n) => `${antes}${formatCurrency(Number(n))}`)
+    .replace(/\b(liberan|faltan|libera|falta)\s+(\d{4,})(?!\d|[.,]\d)/gi, (_m, verbo, n) => `${verbo} ${formatCurrency(Number(n))}`)
+    .replace(/\b(\d+) cuota\(s\)/g, (_m, n) => `${n} ${Number(n) === 1 ? 'cuota' : 'cuotas'}`)
+    .replace(/\b(\d+) periodo\(s\)/g, (_m, n) => `${n} ${Number(n) === 1 ? 'periodo' : 'periodos'}`)
+    .replace(/\bvencio\b/g, 'venció')
+    .replace(/\bRevisa que provision\b/g, 'Revisa qué plata separada')
+    .replace(/\bprovision\b/g, 'plata separada');
+};
+
+/** "1 pago", "3 pagos": el plural que toca, sin "(s)". */
+export const plural = (n: number, singular: string, pluralTexto = `${singular}s`): string =>
+  `${n} ${n === 1 ? singular : pluralTexto}`;

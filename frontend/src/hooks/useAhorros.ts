@@ -13,8 +13,8 @@ export interface Ahorro {
 }
 
 /**
- * Las categorias de ahorro del hogar (las que tienen una meta de ahorro en el
- * plan), con su saldo: de ahi puede salir la plata de un gasto que no se pago
+ * Las categorias de ahorro (las que tienen una meta de ahorro en el plan), con
+ * su saldo en la vista actual: de ahi puede salir la plata de un gasto que no se pago
  * con lo del mes, como la reparacion del carro.
  */
 export function useAhorros(): Ahorro[] {
@@ -23,11 +23,15 @@ export function useAhorros(): Ahorro[] {
   try { alc = useAlcance(); } catch { alc = null; }
   const corte = alc?.corte;
   const inicio = alc?.periodo.inicio;
+  /* El saldo sigue la vista que se esta mirando (Hogar, o una persona): antes
+     era siempre el del hogar y no cuadraba con Inicio ni Ahorros (QA 7.1). */
+  const alcance = alc?.alcance || { tipo: 'HOGAR' as const };
+  const claveAlcance = JSON.stringify(alcance);
   const [ahorros, setAhorros] = useState<Ahorro[]>([]);
   useEffect(() => {
     if (!corte || !inicio) return undefined;
     let vivo = true;
-    estadoService.periodo(corte, inicio, { tipo: 'HOGAR' })
+    estadoService.periodo(corte, inicio, alcance as any)
       .then((r) => {
         if (!vivo || !r?.correct) return;
         setAhorros((r.object?.categories || []).filter((c) => c.kind === 'SAVING')
@@ -38,7 +42,8 @@ export function useAhorros(): Ahorro[] {
       })
       .catch(() => { /* sin ahorros no se ofrece la opcion */ });
     return () => { vivo = false; };
-  }, [corte, inicio]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [corte, inicio, claveAlcance]);
   return ahorros;
 }
 

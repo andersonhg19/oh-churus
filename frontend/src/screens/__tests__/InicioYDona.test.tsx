@@ -125,7 +125,10 @@ beforeEach(() => {
   (estadoService.periodo as jest.Mock).mockResolvedValue({ correct: true, object: normal });
   (dashboardService.getPending as jest.Mock).mockResolvedValue({ correct: true, object: [] });
   (deudaService.todas as jest.Mock).mockResolvedValue({ correct: true, object: {
-    totalOwed: 1500000, owedOnCards: 900000, owedInInstallments: 600000, monthlyInstallments: 250000, cards: [], loans: [] } });
+    totalOwed: 1500000, owedOnCards: 900000, owedInInstallments: 600000, monthlyInstallments: 250000,
+    cards: [{ id: 1, name: 'Nu', userId: 3, mine: true, owed: 900000, dueNow: 0, upcoming: 900000, purchases: [] }],
+    loans: [{ scheduledMovementId: 7, name: 'Crédito', installmentAmount: 250000, totalInstallments: 4, paidInstallments: 2,
+      remainingInstallments: 2, remainingTotal: 600000, endDate: '2027-01-10', monthlyFreed: 250000, kind: 'PAYMENT', payerUserId: 3, categoryId: 28 }] } });
 });
 
 const pintar = () => render(<Envoltura><InicioScreen navigation={nav()} /></Envoltura>);

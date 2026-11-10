@@ -35,6 +35,23 @@ public class ExcelExportService {
     private final CategoryRepository categoryRepository;
     private final HouseholdMemberRepository householdMemberRepository;
 
+    /* Para saber que categorias son de ahorro (las que tienen un programado de
+       ahorro): lo metido al ahorro no es un egreso (QA, ola 7.1). Opcional para
+       no romper a quien construye el servicio a mano. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.ohchurus.budget.repository.ScheduledMovementRepository programados;
+
+    private java.util.Set<Long> categoriasDeAhorro() {
+        java.util.Set<Long> ids = new java.util.HashSet<>();
+        if (programados == null) return ids;
+        for (com.ohchurus.budget.entity.ScheduledMovement p : programados.findAll()) {
+            if (Boolean.TRUE.equals(p.getActive()) && p.getKind() == com.ohchurus.budget.enums.ScheduledKind.SAVING) {
+                ids.add(p.getCategoryId());
+            }
+        }
+        return ids;
+    }
+
     public ExcelExportService(MovementRepository movementRepository, CategoryRepository categoryRepository,
                                HouseholdMemberRepository householdMemberRepository) {
         this.movementRepository = movementRepository;
@@ -151,7 +168,7 @@ public class ExcelExportService {
         XSSFCellStyle[] summaryLabelStyles = new XSSFCellStyle[6];
         XSSFCellStyle[] summaryValueStyles = new XSSFCellStyle[6];
         byte[][] summaryColors = {GREEN, ORANGE, PURPLE, RED, BLUE, YELLOW};
-        String[] summaryLabels = {"TOTAL INGRESOS", "PRESUPUESTO GASTOS", "PENDIENTE POR PAGAR", "TOTAL GASTOS", "BALANCE", "DISPONIBLE (TRAS PRESUP.)"};
+        String[] summaryLabels = {"TOTAL INGRESOS", "GASTOS (PAGADOS + POR PAGAR)", "PENDIENTE POR PAGAR", "TOTAL GASTOS PAGADOS", "BALANCE (SIN AHORROS)", "DISPONIBLE (TRAS LO POR PAGAR)"};
 
         for (int i = 0; i < 6; i++) {
             XSSFFont f = wb.createFont();
@@ -227,6 +244,7 @@ public class ExcelExportService {
         allMovements.addAll(confirmed);
         allMovements.addAll(pending);
 
+        java.util.Set<Long> deAhorro = categoriasDeAhorro();
         for (Movement m : allMovements) {
             XSSFRow row = ws.createRow(rowIdx);
             /* findById, no findByIdAndActiveTrue: un movimiento vivo puede
@@ -235,7 +253,8 @@ public class ExcelExportService {
                SUMIFS del resumen lo sumaban del lado equivocado. */
             Category cat = m.getCategoryId() == null ? null : catCache.computeIfAbsent(m.getCategoryId(),
                     id -> categoryRepository.findById(id).orElse(null));
-            String tipo = cat != null && cat.getType() == CategoryType.INCOME ? "Ingreso" : "Egreso";
+            String tipo = cat != null && cat.getType() == CategoryType.INCOME ? "Ingreso"
+                    : cat != null && deAhorro.contains(cat.getId()) ? "Ahorro" : "Egreso";
             String catName = cat != null ? cat.getName() : "";
             String estado = Boolean.TRUE.equals(m.getConfirmed()) ? "Ejecutado" : "Presupuestado";
 

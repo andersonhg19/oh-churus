@@ -7,7 +7,8 @@ import AppText from '../../components/atoms/Text';
 import Input from '../../components/atoms/Input';
 import Button from '../../components/atoms/Button';
 import { spacing } from '../../theme';
-import { validateRequired, validateEmail, validatePassword } from '../../utils/validators';
+import { validateRequired, validateEmail, validatePasswordSegura } from '../../utils/validators';
+import { mensajeDelServidor } from '../../utils/mensajes';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 type AuthStackParamList = {
@@ -31,7 +32,7 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
     const newErrors: { name?: string; email?: string; password?: string } = {};
     const nameErr = validateRequired(name, 'Nombre');
     const emailErr = validateEmail(email);
-    const passErr = validatePassword(password, 6);
+    const passErr = validatePasswordSegura(password);
     if (nameErr) newErrors.name = nameErr;
     if (emailErr) newErrors.email = emailErr;
     if (passErr) newErrors.password = passErr;
@@ -45,7 +46,7 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
     try {
       await register(name.trim(), email.trim(), password);
     } catch (err: any) {
-      showToast('error', 'Error', err.message || 'No se pudo crear la cuenta');
+      showToast('error', 'Error', mensajeDelServidor(err, 'No se pudo crear la cuenta'));
     } finally {
       setLoading(false);
     }
@@ -78,7 +79,7 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
             error={errors.name}
           />
           <Input
-            label="Correo electronico"
+            label="Correo electrónico"
             value={email}
             onChangeText={setEmail}
             placeholder="tu@correo.com"
@@ -89,12 +90,12 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
             label="Contraseña"
             value={password}
             onChangeText={setPassword}
-            placeholder="Minimo 6 caracteres"
+            placeholder="Mínimo 8, con letras y números"
             secureTextEntry
             error={errors.password}
           />
           <Button
-            title="Crear Cuenta"
+            title="Crear cuenta"
             onPress={handleRegister}
             loading={loading}
             size="large"
@@ -109,10 +110,10 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
           accessibilityLabel="¿Ya tienes cuenta? Inicia sesión"
         >
           <AppText variant="body" color={colors.textSecondary}>
-            Ya tienes cuenta?{' '}
+            ¿Ya tienes cuenta?{' '}
           </AppText>
           <AppText variant="body" color={colors.primary}>
-            Inicia sesion
+            Inicia sesión
           </AppText>
         </TouchableOpacity>
       </ScrollView>

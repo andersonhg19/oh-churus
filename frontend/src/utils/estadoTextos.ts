@@ -17,7 +17,7 @@ export const ESTADOS_ELEMENTO: Record<ElementoDelPlan['status'], { texto: string
   PENDIENTE: { texto: 'Por pagar', tono: 'aviso' },
   VENCIDO: { texto: 'Vencido', tono: 'mal' },
   PREVISTO: { texto: 'Previsto', tono: 'neutro' },
-  PROVISION: { texto: 'Bolsa', tono: 'neutro' },
+  PROVISION: { texto: 'Plata separada', tono: 'neutro' },
   LIBERADO: { texto: 'Liberado', tono: 'aviso' },
 };
 

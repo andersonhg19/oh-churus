@@ -10,7 +10,7 @@ export interface PlanItem {
   name: string;
   date: string;
   amount: number;
-  status: 'PAGADO' | 'PENDIENTE' | 'VENCIDO' | 'PREVISTO' | 'PROVISION';
+  status: 'PAGADO' | 'PENDIENTE' | 'VENCIDO' | 'PREVISTO' | 'PROVISION' | 'LIBERADO';
   kind: 'PAYMENT' | 'DEDUCTION' | 'SAVING' | 'PROVISION';
   income: boolean;
   categoryId: number;

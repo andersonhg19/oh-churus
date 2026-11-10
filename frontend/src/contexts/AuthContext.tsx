@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authService } from '../services/authService';
 import { preferenciasService } from '../services/adminService';
@@ -39,7 +39,15 @@ interface AuthContextType {
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   updateUser: (updates: Partial<UserInfo>) => Promise<void>;
+  /**
+   * Por que se cerro la sesion sin que nadie tocara "Cerrar sesion" (el token
+   * caduco). Lo pinta la pantalla de entrada; null si no hay nada que decir.
+   */
+  avisoDeSesion?: string | null;
+  limpiarAvisoDeSesion?: () => void;
 }
+
+export const AVISO_SESION_EXPIRADA = 'Tu sesión expiró. Vuelve a iniciar sesión para seguir.';
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
@@ -51,6 +59,8 @@ const AuthContext = createContext<AuthContextType>({
   register: async () => {},
   logout: async () => {},
   updateUser: async () => {},
+  avisoDeSesion: null,
+  limpiarAvisoDeSesion: () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -63,6 +73,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<UserInfo | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [avisoDeSesion, setAvisoDeSesion] = useState<string | null>(null);
+  /* El interceptor de api.ts vive fuera de React: lee la sesion por aqui. */
+  const tokenRef = useRef<string | null>(null);
+  useEffect(() => { tokenRef.current = token; }, [token]);
 
   useEffect(() => {
     const loadStoredAuth = async () => {
@@ -72,6 +86,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           AsyncStorage.getItem(USER_KEY),
         ]);
         if (storedToken && storedUser) {
+          tokenRef.current = storedToken;
           setToken(storedToken);
           const parsed = JSON.parse(storedUser);
           /* Una sesion guardada antes de la ola 4 no tiene roles. Se restaura
@@ -97,6 +112,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 AsyncStorage.removeItem(TOKEN_KEY),
                 AsyncStorage.removeItem(USER_KEY),
               ]);
+              setAvisoDeSesion(AVISO_SESION_EXPIRADA);
               setToken(null);
               setUser(null);
             }
@@ -134,13 +150,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
      pantalla que venga. Sin esto habia que acordarse en las 23 pantallas. */
   useEffect(() => {
     registrarCierreDeSesion(() => {
-      AsyncStorage.removeItem(TOKEN_KEY);
-      AsyncStorage.removeItem(USER_KEY);
+      /* Sin sesion abierta no hay nada que cerrar (p. ej. una peticion que
+         termino despues de salir): no se pinta el aviso en la entrada. */
+      if (!tokenRef.current) return;
+      tokenRef.current = null;
+      AsyncStorage.removeItem(TOKEN_KEY).catch(() => {});
+      AsyncStorage.removeItem(USER_KEY).catch(() => {});
+      setAvisoDeSesion(AVISO_SESION_EXPIRADA);
       setToken(null);
       setUser(null);
     });
     return () => registrarCierreDeSesion(null);
   }, []);
+
+  const limpiarAvisoDeSesion = useCallback(() => setAvisoDeSesion(null), []);
 
   const login = useCallback(async (email: string, password: string) => {
     const result = await authService.login(email, password);
@@ -150,6 +173,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const authData = result.object;
     // Guardar token primero para que el interceptor lo use
     await AsyncStorage.setItem(TOKEN_KEY, authData.token);
+    tokenRef.current = authData.token;
+    setAvisoDeSesion(null);
     setToken(authData.token);
 
     // Consultar datos completos del usuario (incluye budgetStartDay)
@@ -191,6 +216,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       AsyncStorage.setItem(TOKEN_KEY, authData.token),
       AsyncStorage.setItem(USER_KEY, JSON.stringify(userInfo)),
     ]);
+    tokenRef.current = authData.token;
+    setAvisoDeSesion(null);
     setToken(authData.token);
     setUser(userInfo);
   }, []);
@@ -200,6 +227,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       AsyncStorage.removeItem(TOKEN_KEY),
       AsyncStorage.removeItem(USER_KEY),
     ]);
+    tokenRef.current = null;
     setToken(null);
     setUser(null);
   }, []);
@@ -225,6 +253,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         register,
         logout,
         updateUser,
+        avisoDeSesion,
+        limpiarAvisoDeSesion,
       }}
     >
       {children}

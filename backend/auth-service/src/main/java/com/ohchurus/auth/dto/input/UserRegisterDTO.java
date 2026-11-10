@@ -4,6 +4,7 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -28,6 +29,12 @@ import lombok.Setter;
 @AllArgsConstructor
 public class UserRegisterDTO {
 
+    /**
+     * Al menos una letra y un numero. Junto con el minimo de 8 caracteres es
+     * la politica de contrasenas para altas y cambios; antes valia "123456".
+     */
+    public static final String CLAVE_CON_LETRA_Y_NUMERO = "^(?=.*\\p{L})(?=.*\\d).*$";
+
     @NotBlank(message = "es obligatorio")
     @Size(max = 100, message = "no puede superar los 100 caracteres")
     private String name;
@@ -38,7 +45,8 @@ public class UserRegisterDTO {
     private String email;
 
     @NotBlank(message = "es obligatorio")
-    @Size(min = 6, max = 100, message = "debe tener entre 6 y 100 caracteres")
+    @Size(min = 8, max = 100, message = "debe tener entre 8 y 100 caracteres")
+    @Pattern(regexp = CLAVE_CON_LETRA_Y_NUMERO, message = "debe tener al menos una letra y un numero")
     private String password;
 
     @Min(value = 1, message = "debe estar entre 1 y 31")

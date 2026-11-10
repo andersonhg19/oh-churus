@@ -86,7 +86,7 @@ describe('CategoriesScreen', () => {
       <CategoriesScreen navigation={mockNavigation} route={mockRoute} />,
       { wrapper: Wrapper },
     );
-    await waitFor(() => expect(getByText('Sin categorias')).toBeTruthy());
+    await waitFor(() => expect(getByText('Sin categorías')).toBeTruthy());
   });
 
   it('renders FAB', async () => {
@@ -106,7 +106,7 @@ describe('CategoriesScreen', () => {
       { wrapper: Wrapper },
     );
     await waitFor(() => expect(getByText('El arbol de categorias no esta disponible')).toBeTruthy());
-    expect(queryByText('Sin categorias')).toBeNull();
+    expect(queryByText('Sin categorías')).toBeNull();
   });
 
   it('shows error on fetch failure', async () => {

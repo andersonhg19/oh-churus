@@ -17,7 +17,7 @@ import { configurarFormatoDeMoneda, formatCurrency } from '../../utils/format';
 
 const MONEDAS = [
   { codigo: 'COP', nombre: 'Peso colombiano' },
-  { codigo: 'USD', nombre: 'Dolar' },
+  { codigo: 'USD', nombre: 'Dólar' },
   { codigo: 'EUR', nombre: 'Euro' },
   { codigo: 'MXN', nombre: 'Peso mexicano' },
   { codigo: 'ARS', nombre: 'Peso argentino' },

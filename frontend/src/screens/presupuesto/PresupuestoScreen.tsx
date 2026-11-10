@@ -54,18 +54,52 @@ const PresupuestoScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     try {
       const r = await budgetAllocationService.copyPrevious(corte, periodo.inicio);
       if (!r.correct) { showToast('error', 'No se pudo copiar', r.message); return; }
-      showToast('success', 'Presupuesto copiado', 'Del periodo anterior, sin pisar lo que ya estaba');
+      const copiadas = r.object?.copied;
+      /* Si no se copio nada, decirlo: un "copiado" sin cambios hace creer que
+         algo paso. */
+      if (copiadas === 0) {
+        showToast('info', 'No había nada nuevo para copiar', 'Las categorías del periodo anterior ya tienen presupuesto en este');
+        return;
+      }
+      showToast('success', 'Presupuesto copiado',
+        typeof copiadas === 'number'
+          ? `${copiadas} ${copiadas === 1 ? 'categoría' : 'categorías'} del periodo anterior, sin pisar lo que ya estaba`
+          : 'Del periodo anterior, sin pisar lo que ya estaba');
       cargar();
     } catch { showToast('error', 'Error', 'No se pudo copiar el presupuesto'); }
   };
 
+  /*
+   * Que se puede presupuestar: TODA categoria de gasto que aun no tenga
+   * presupuesto en este periodo, tenga gastos o no.
+   *
+   * Antes se miraba "allocated > 0" del estado, y en la vista de una persona
+   * solo se ofrecian sus categorias privadas: Delivery, Mascota o Regalo (las
+   * comunes, justo donde mas se desborda la plata) nunca aparecian, y la hoja
+   * decia "Todas las categorias ya tienen presupuesto", que era falso. Ahora
+   * se pregunta al servidor que asignaciones existen en el periodo.
+   *   Hogar:   las comunes.
+   *   Persona: las comunes y las privadas propias (lo comun se presupuesta
+   *            para el hogar, y asi se avisa al guardar).
+   */
   const abrirNueva = async () => {
     if (!user) return;
     try {
-      const r = await categoryService.getAll({ userId: user.userId, page: 0, size: 200 });
-      const ya = new Set((estado?.categories || []).filter((c) => c.allocated > 0).map((c) => String(c.categoryId)));
+      const [r, asignadas] = await Promise.all([
+        categoryService.getAll({ userId: user.userId, page: 0, size: 200 }),
+        budgetAllocationService.list(user.userId, corte, periodo.inicio).catch(() => null),
+      ]);
+      const obj: any = asignadas?.object;
+      const listaAsignadas: any[] = (asignadas?.correct && (Array.isArray(obj) ? obj : obj?.list)) || [];
+      const ya = new Set<string>([
+        ...listaAsignadas.map((a) => String(a.categoryId)),
+        ...(estado?.categories || []).filter((c) => c.hasAllocation).map((c) => String(c.categoryId)),
+      ]);
+      const esMia = (c: Category) => String(c.userId) === String(user.userId);
       const lista = ((r.correct && r.object?.list) || []).filter((c: Category) => c.type === 'EXPENSE' && c.active !== false
-        && !ya.has(String(c.id)) && (alcance.tipo === 'HOGAR' ? !!c.householdId : !c.householdId));
+        && !ya.has(String(c.id))
+        && (alcance.tipo === 'HOGAR' ? !!c.householdId : (!!c.householdId || esMia(c))))
+        .sort((a: Category, b: Category) => a.name.localeCompare(b.name, 'es'));
       setEligiendoNueva(lista);
     } catch { showToast('error', 'Error', 'No se pudieron cargar las categorías'); }
   };
@@ -76,7 +110,10 @@ const PresupuestoScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       const r = await budgetAllocationService.save({ userId: user.userId, categoryId: Number(nueva.id), amount: monto,
         budgetStartDay: corte, referenceDate: periodo.inicio });
       if (!r.correct) { showToast('error', 'No se pudo guardar', r.message); return; }
-      showToast('success', 'Presupuesto guardado', `${nueva.name}: ${formatCurrency(monto)}`);
+      showToast('success', 'Presupuesto guardado',
+        alcance.tipo === 'PERSONA' && nueva.householdId
+          ? `${nueva.name}: ${formatCurrency(monto)}, para el hogar (es una categoría común)`
+          : `${nueva.name}: ${formatCurrency(monto)}`);
       setNueva(null);
       cargar();
     } catch { showToast('error', 'Error', 'No se pudo guardar el presupuesto'); }
@@ -103,7 +140,7 @@ const PresupuestoScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const cats = estado!.categories;
 
   const fila = (c: CategoriaDelPeriodo, i: number) => {
-    const est = ESTADOS[c.status];
+    const est = ESTADOS[c.status] || { texto: '', tono: 'neutro' as const };
     const tono = colorDeTono(est.tono, colors);
     const color = c.categoryColor || PALETA[i % PALETA.length];
     const pct = c.allocated > 0 ? Math.min(100, (c.actual / c.allocated) * 100) : c.actual > 0 ? 100 : 0;
@@ -123,7 +160,7 @@ const PresupuestoScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           </View>
           {vista === 'PLAN' && (
             <AppText variant="caption" color={colors.textSecondary} numberOfLines={1}>
-              {c.kind === 'SAVING' ? 'Meta de ahorro' : c.provision > 0 ? `Bolsa de ${formatCurrency(c.provision)}` : c.hasAllocation ? 'Asignado' : 'Lo planeado en sus elementos'}
+              {c.kind === 'SAVING' ? 'Meta de ahorro' : c.provision > 0 ? `Plata separada: ${formatCurrency(c.provision)}` : c.hasAllocation ? 'Asignado' : 'Según lo programado'}
               {c.committed > 0 ? ` · por pagar ${formatCurrency(c.committed)}` : ''}
             </AppText>
           )}
@@ -215,10 +252,17 @@ const PresupuestoScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                 <TouchableOpacity key={c.id} style={[styles.fila, { borderBottomColor: colors.border }]}
                   onPress={() => { setEligiendoNueva(null); setNueva(c); }} accessibilityRole="button" accessibilityLabel={`Presupuestar ${c.name}`}>
                   <Icono nombre={c.icon} color={colors.text} />
-                  <AppText variant="body">{c.name}</AppText>
+                  <AppText variant="body" style={{ flex: 1 }}>{c.name}</AppText>
+                  {alcance.tipo === 'PERSONA' && (
+                    <AppText variant="caption" color={colors.textSecondary}>{c.householdId ? 'del hogar' : 'personal'}</AppText>
+                  )}
                 </TouchableOpacity>
               ))}
-              {eligiendoNueva?.length === 0 && <AppText variant="body" color={colors.textSecondary}>Todas las categorías ya tienen presupuesto.</AppText>}
+              {eligiendoNueva?.length === 0 && (
+                <AppText variant="body" color={colors.textSecondary}>
+                  Todas las categorías de gasto ya tienen presupuesto en este periodo.
+                </AppText>
+              )}
             </ScrollView>
           </View>
         </TouchableOpacity>

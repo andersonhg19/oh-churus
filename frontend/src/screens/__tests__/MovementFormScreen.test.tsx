@@ -72,7 +72,7 @@ describe('MovementFormScreen', () => {
       { wrapper: Wrapper },
     );
     fireEvent.press(getByText('Guardar'));
-    expect(showToastSpy).toHaveBeenCalledWith('warning', 'Validacion', expect.any(String));
+    expect(showToastSpy).toHaveBeenCalledWith('warning', 'Revisa los datos', expect.any(String));
     expect(movementService.save).not.toHaveBeenCalled();
   });
 

@@ -31,7 +31,7 @@ import { textoLegibleSobre } from '../../theme/contraste';
  *   · abajo, lo libre para gastar: tocarlo abre la lista de movimientos;
  *   · dos botones: anotar un gasto o un ingreso.
  * Y con gestos, en cualquier parte: deslizar a la derecha anota un gasto, a
- * la izquierda un ingreso, y hacia arriba abre los ingresos. El periodo se
+ * la izquierda un ingreso, y desde abajo hacia arriba abre los movimientos. El periodo se
  * cambia con las flechas de arriba.
  * Todo sale de /v1/estado/periodo, la misma fuente que Presupuesto: las
  * cifras no pueden decir cosas distintas. Las deudas salen de /v1/debts.
@@ -56,7 +56,7 @@ const InicioScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   acciones.current = {
     gasto: () => navigation.navigate('Anotar', { tipo: 'EXPENSE' }),
     ingreso: () => navigation.navigate('Anotar', { tipo: 'INCOME' }),
-    arriba: () => navigation.navigate('Ingresos'),
+    arriba: () => navigation.navigate('Movimientos'),
   };
   const gestos = useMemo(() => PanResponder.create({
     onMoveShouldSetPanResponderCapture: (_e, g) =>
@@ -204,9 +204,6 @@ const InicioScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             + ` de ${formatCurrency(presupuestoDeGasto)} presupuestado. Ver el presupuesto`}
           onMas={() => navigation.navigate('Anotar', { tipo: 'EXPENSE' })}
         />
-        <AppText variant="caption" color={colors.textMuted} style={{ textAlign: 'center' }}>
-          Desliza → para un gasto, ← para un ingreso, y desde abajo ↑ para ver los ingresos
-        </AppText>
 
         <View style={styles.kpis}>
           {recuadro({

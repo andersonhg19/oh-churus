@@ -114,7 +114,8 @@ const DonaDeCategorias: React.FC<Props> = ({
 }) => {
   const { colors } = useTheme();
   const { width } = useWindowDimensions();
-  const S = Math.min(width - 32, 360);
+  /* Casi todo el ancho: los iconos con su % necesitan aire. */
+  const S = Math.min(width - 12, 400);
   const { ubicadas, porciones, mas, lugares } = useMemo(() => ubicarCategorias(categorias), [categorias]);
   const icono = lugares > 12 ? 40 : 46;
   const radioIconos = S / 2 - icono / 2 - 2;
@@ -145,7 +146,9 @@ const DonaDeCategorias: React.FC<Props> = ({
   const corta = tamano <= 14 && largo * 0.62 * 14 > centroAncho;
 
   return (
-    <View style={{ width: S, height: S, alignSelf: 'center' }} {...deslizar.panHandlers}>
+    /* La pantalla tiene 16px de margen a cada lado: la dona se sale un poco
+       de el (hasta 6px del borde) para que los iconos respiren. */
+    <View style={{ width: S, height: S, alignSelf: 'center', marginHorizontal: Math.min(0, (width - 32 - S) / 2) }} {...deslizar.panHandlers}>
       <Svg width={S} height={S} style={StyleSheet.absoluteFill} accessible={false} pointerEvents="none">
         <Circle cx={c} cy={c} r={r} stroke={colors.border} strokeWidth={grosor} fill="none" />
         {porciones.length === 1 && (

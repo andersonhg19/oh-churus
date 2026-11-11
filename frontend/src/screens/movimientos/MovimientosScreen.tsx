@@ -153,8 +153,10 @@ const MovimientosScreen: React.FC<{ navigation: any; route?: any }> = ({ navigat
   }, [grupos]);
   const entradas = grupos.flatMap((g) => g.movimientos).filter((m) => m.confirmed && m.categoryType === 'INCOME')
     .reduce((t, m) => t + (m.amount || 0), 0);
-  const salidas = grupos.flatMap((g) => g.movimientos).filter((m) => m.confirmed && m.categoryType !== 'INCOME')
-    .reduce((t, m) => t + (m.amount || 0), 0);
+  /* Lo pagado con el ahorro no salio de lo del periodo: se dice aparte. */
+  const gastados = grupos.flatMap((g) => g.movimientos).filter((m) => m.confirmed && m.categoryType !== 'INCOME');
+  const salidas = gastados.filter((m: any) => !m.fundedFromCategoryId).reduce((t, m) => t + (m.amount || 0), 0);
+  const conAhorros = gastados.filter((m: any) => !!m.fundedFromCategoryId).reduce((t, m) => t + (m.amount || 0), 0);
 
   const filaMovimiento = (m: Movement, conCategoria: boolean) => {
     const g = colorDe[String(m.categoryId)];
@@ -258,7 +260,11 @@ const MovimientosScreen: React.FC<{ navigation: any; route?: any }> = ({ navigat
                 {'  '}
                 <AppText variant="subtitle" style={{ fontWeight: '800', color: colors.expense }}>{`−${formatCurrency(salidas)}`}</AppText>
               </AppText>
-            ) : (
+            ) : null}
+            {tipo === 'TODOS' && conAhorros > 0 && (
+              <AppText variant="caption" color={colors.textSecondary}>{`y ${formatCurrency(conAhorros)} pagados con ahorros`}</AppText>
+            )}
+            {tipo !== 'TODOS' && (
               <AppText variant="subtitle" style={{ fontWeight: '800', color: tipo === 'EXPENSE' ? colors.expense : colors.income }}>
                 {formatCurrency(total)}
               </AppText>

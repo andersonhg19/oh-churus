@@ -90,7 +90,10 @@ export const porcentaje = (f: number) => (f > 0 && f < 0.01 ? '<1%' : `${Math.ro
 interface Props {
   categorias: CategoriaEnDona[];
   ingresos: number;
+  /** Lo gastado con plata del periodo (sin lo pagado con el ahorro). */
   gastos: number;
+  /** Lo pagado con el ahorro: esta en las porciones, pero no salio de lo del mes. */
+  conAhorros?: number;
   onCategoria: (c: CategoriaEnDona) => void;
   onCentro?: () => void;
   etiquetaCentro?: string;
@@ -110,7 +113,7 @@ const rad = (g: number) => ((g - 90) * Math.PI) / 180;
  * categorias sin gasto se ven apagadas, pero se pueden tocar igual.
  */
 const DonaDeCategorias: React.FC<Props> = ({
-  categorias, ingresos, gastos, onCategoria, onCentro, etiquetaCentro, onMas, onAnterior, onSiguiente,
+  categorias, ingresos, gastos, conAhorros = 0, onCategoria, onCentro, etiquetaCentro, onMas, onAnterior, onSiguiente,
 }) => {
   const { colors } = useTheme();
   const { width } = useWindowDimensions();
@@ -195,6 +198,9 @@ const DonaDeCategorias: React.FC<Props> = ({
           {corta ? formatCompacto(gastos) : gas}
         </AppText>
         <AppText variant="caption" color={colors.textSecondary}>ingresos · gastos</AppText>
+        {conAhorros > 0 && (
+          <AppText variant="caption" color={colors.textSecondary} numberOfLines={1}>{`+ ${formatCompacto(conAhorros)} con ahorros`}</AppText>
+        )}
       </TouchableOpacity>
 
       {ubicadas.map((u) => {

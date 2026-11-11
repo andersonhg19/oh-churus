@@ -145,6 +145,9 @@ const InicioScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   }
   const t = estado?.totals;
   const presupuestoDeGasto = (t?.budgeted || 0) - (t?.savingsGoal || 0);
+  /* Lo pagado con el ahorro (la reparacion del carro) es gasto del carro y
+     sale en su porcion, pero no salio del sueldo: no va en el rojo del centro. */
+  const gastosDelMes = Math.max(0, (t?.spent || 0) - (t?.fromSavings || 0));
   /* "Por pagar" es la MISMA cifra que "Libre para gastar" descuenta (toPay):
      antes salia de la lista de pendientes y no cuadraba con lo libre, porque
      toPay tambien cuenta lo programado que aun no se ha generado. */
@@ -197,11 +200,13 @@ const InicioScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         <DonaDeCategorias
           categorias={enDona}
           ingresos={t?.incomeReceived || 0}
-          gastos={t?.spent || 0}
+          gastos={gastosDelMes}
+          conAhorros={t?.fromSavings || 0}
           onCategoria={setElegida}
           onCentro={() => navigation.navigate('Presupuesto')}
-          etiquetaCentro={`Ingresos ${formatCurrency(t?.incomeReceived || 0)}, gastos ${formatCurrency(t?.spent || 0)}`
-            + ` de ${formatCurrency(presupuestoDeGasto)} presupuestado. Ver el presupuesto`}
+          etiquetaCentro={`Ingresos ${formatCurrency(t?.incomeReceived || 0)}, gastos ${formatCurrency(gastosDelMes)}`
+            + ` de ${formatCurrency(presupuestoDeGasto)} presupuestado`
+            + `${(t?.fromSavings || 0) > 0 ? ` y ${formatCurrency(t?.fromSavings || 0)} pagados con ahorros` : ''}. Ver el presupuesto`}
           onMas={() => navigation.navigate('Anotar', { tipo: 'EXPENSE' })}
         />
 

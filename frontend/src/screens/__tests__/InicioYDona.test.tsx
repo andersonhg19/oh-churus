@@ -130,6 +130,14 @@ describe('Inicio al estilo Monefy', () => {
     expect(getByLabelText(/^Ingresos .*2.000.000, gastos .*1.000.000 de .*3.000.000 presupuestado/)).toBeTruthy();
   });
 
+  it('lo pagado con el ahorro sale en su porción pero no en lo gastado del sueldo', async () => {
+    (estadoService.periodo as jest.Mock).mockResolvedValue({ correct: true, object: estadoCon(
+      [categoria({ actual: 1000000 })], { spent: 1000000, fromSavings: 300000 }) });
+    const { findByLabelText, getByText } = pintar();
+    expect(await findByLabelText(/gastos .*700.000 de .*3.000.000 presupuestado y .*300.000 pagados con ahorros/)).toBeTruthy();
+    expect(getByText(/con ahorros$/)).toBeTruthy();
+  });
+
   it('el centro abre el presupuesto', async () => {
     fireEvent.press(await pintar().findByLabelText(/^Ingresos .*presupuestado/));
     expect(mockNavegar).toHaveBeenCalledWith('Presupuesto');

@@ -161,6 +161,25 @@ class ElPlanDeLaQuincenaTest {
     }
 
     @Test
+    @DisplayName("ola 7.3 · lo que queda resta lo gastado por fuera del plan; el mercado ya gastado no se resta dos veces")
+    void loQueQuedaRestaLoGastadoDeVerdad() throws Exception {
+        String gasto = "{\"categoryId\":%d,\"amount\":%s,\"date\":\"%s\",\"description\":\"%s\"}";
+        // Mercado: 250.000 de los 600.000 separados. Delivery (Salud aqui) 80.000 sin plan.
+        assertThat(pedir(SAMY, "/v1/movements/save", String.format(gasto, mercado, "250000", "2026-11-03", "Exito")).path("correct").asBoolean()).isTrue();
+        assertThat(pedir(SAMY, "/v1/movements/save", String.format(gasto, salud, "80000", "2026-11-04", "Drogueria")).path("correct").asBoolean()).isTrue();
+        // Un ingreso suelto suma; lo de despues de hoy todavia no cuenta.
+        pedir(SAMY, "/v1/movements/save", String.format(gasto, salario, "40000", "2026-11-02", "Venta"));
+        pedir(SAMY, "/v1/movements/save", String.format(gasto, salud, "1000", "2026-11-10", "Futuro"));
+        JsonNode v = pedir(SAMY, "/v1/plan/quincena", "{\"referenceDate\":\"" + HOY + "\"}").path("object").path("current");
+        assertThat(num(v.path("otherSpending"))).isEqualByComparingTo("330000");
+        assertThat(num(v.path("otherIncome"))).isEqualByComparingTo("40000");
+        assertThat(num(v.path("provisionsLeft"))).as("600.000 - 250.000 ya gastados").isEqualByComparingTo("350000");
+        // 2.800.000 + 40.000 - 190.000 - 350.000 - 330.000
+        assertThat(num(v.path("leftover"))).isEqualByComparingTo("1970000");
+        assertThat(v.path("otherSpendingItems").get(0).path("categoryName").asText()).isEqualTo("Mercado");
+    }
+
+    @Test
     @DisplayName("la quincena del 15 lleva la seguridad social del 25")
     void segundaQuincenaDeSamy() throws Exception {
         JsonNode v = pedir(SAMY, "/v1/plan/quincena", "{\"referenceDate\":\"" + HOY + "\"}")

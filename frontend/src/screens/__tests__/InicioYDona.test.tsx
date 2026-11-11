@@ -5,11 +5,12 @@ import * as AuthContext from '../../contexts/AuthContext';
 import * as AlcanceContext from '../../contexts/AlcanceContext';
 import InicioScreen from '../inicio/InicioScreen';
 import {
-  agruparPorciones, repartirEtiquetas, geometria, CategoriaEnDona, ID_OTROS, MAX_PORCIONES, SEPARACION,
+  ubicarCategorias, ordenarPorGasto, porcentaje, CategoriaEnDona, MAXIMO_ICONOS,
 } from '../../components/molecules/DonaDeCategorias';
 import { estadoService } from '../../services/estadoService';
 import { dashboardService } from '../../services/dashboardService';
 import { deudaService } from '../../services/deudaService';
+import { categoryService } from '../../services/categoryService';
 
 const mockNavegar = jest.fn();
 jest.mock('@react-navigation/native', () => ({
@@ -24,6 +25,7 @@ jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({
 jest.mock('../../services/estadoService', () => ({ estadoService: { periodo: jest.fn(), historial: jest.fn() } }));
 jest.mock('../../services/dashboardService', () => ({ dashboardService: { getPending: jest.fn() } }));
 jest.mock('../../services/deudaService', () => ({ deudaService: { todas: jest.fn() } }));
+jest.mock('../../services/categoryService', () => ({ categoryService: { getAll: jest.fn() } }));
 
 jest.spyOn(AuthContext, 'useAuth').mockReturnValue({
   user: { userId: '3', name: 'Andy', email: 'a@b.com', budgetStartDay: 28 },
@@ -39,61 +41,38 @@ jest.spyOn(AlcanceContext, 'useAlcance').mockReturnValue({
 const Envoltura: React.FC<{ children: React.ReactNode }> = ({ children }) => <ThemeProvider>{children}</ThemeProvider>;
 const nav = () => ({ navigate: mockNavegar, goBack: jest.fn() });
 
-const cat = (id: number, valor: number): CategoriaEnDona => ({ id, nombre: `C${id}`, color: '#123456', valor });
+const cat = (id: number, valor: number, nombre = `C${id}`): CategoriaEnDona => ({ id, nombre, color: '#123456', valor });
+const dist = (a: number, b: number) => { const d = Math.abs(a - b) % 360; return Math.min(d, 360 - d); };
 
-describe('La dona: qué se dibuja', () => {
-  it('junta en "Otros" lo que pesa menos del 3%', () => {
-    const { porciones, total } = agruparPorciones([cat(1, 500), cat(2, 400), cat(3, 70), cat(4, 15), cat(5, 15)]);
-    expect(total).toBe(1000);
-    expect(porciones.map((p) => p.id)).toEqual([1, 2, 3, ID_OTROS]);
-    const otros = porciones[3];
-    expect(otros.valor).toBe(30);
-    expect(otros.agrupadas!.map((c) => c.id).sort()).toEqual([4, 5]);
+describe('La dona: dónde va cada categoría', () => {
+  it('ordena por lo gastado y, sin gasto o empatadas, por nombre', () => {
+    const o = ordenarPorGasto([cat(1, 0, 'Zapatos'), cat(2, 50, 'Mercado'), cat(3, 0, 'Aseo'), cat(4, 50, 'Casa'), cat(5, 90, 'Luz')]);
+    expect(o.map((c) => c.nombre)).toEqual(['Luz', 'Casa', 'Mercado', 'Aseo', 'Zapatos']);
   });
 
-  it('una sola categoría chica conserva su nombre', () => {
-    const { porciones } = agruparPorciones([cat(1, 980), cat(2, 20)]);
-    expect(porciones.map((p) => p.id)).toEqual([1, 2]);
+  it('todas las categorías van alrededor, las de gasto con su %, cerca de su porción', () => {
+    const cs = [cat(1, 600), cat(2, 300), cat(3, 100), cat(4, 0), cat(5, 0)];
+    const { ubicadas, porciones } = ubicarCategorias(cs);
+    expect(ubicadas).toHaveLength(5);
+    porciones.forEach((p) => {
+      const u = ubicadas.find((x) => x.categoria.id === p.c.id)!;
+      expect(dist(u.angulo, p.medio)).toBeLessThanOrEqual(45);
+    });
+    expect(ubicadas.find((u) => u.categoria.id === 1)!.fraccion).toBeCloseTo(0.6);
+    expect(new Set(ubicadas.map((u) => u.angulo)).size).toBe(5);
   });
 
-  it('no pasa de 8 porciones: las más chicas van a "Otros"', () => {
-    const muchas = Array.from({ length: 12 }, (_, i) => cat(i + 1, 1000 - i * 10));
-    const { porciones } = agruparPorciones(muchas);
-    expect(porciones).toHaveLength(MAX_PORCIONES);
-    expect(porciones[MAX_PORCIONES - 1].id).toBe(ID_OTROS);
-    expect(porciones[MAX_PORCIONES - 1].agrupadas).toHaveLength(5);
-    /* De la mas grande a la mas chica. */
-    expect(porciones.slice(0, 7).map((p) => p.id)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+  it('con más de 16, las de gasto siempre se ven y el último lugar es "Más"', () => {
+    const cs = Array.from({ length: 20 }, (_, i) => cat(i + 1, i >= 17 ? 100 : 0));
+    const r = ubicarCategorias(cs);
+    expect(r.ubicadas).toHaveLength(MAXIMO_ICONOS - 1);
+    [18, 19, 20].forEach((id) => expect(r.ubicadas.some((u) => u.categoria.id === id)).toBe(true));
+    expect(r.mas).toEqual({ angulo: expect.any(Number), cuantas: 5 });
   });
 
-  it('lo que no tiene gasto no se dibuja', () => {
-    expect(agruparPorciones([cat(1, 0), cat(2, 0)]).porciones).toEqual([]);
-    expect(agruparPorciones([cat(1, 100), cat(2, 0)]).porciones.map((p) => p.id)).toEqual([1]);
-  });
-});
-
-describe('La dona: las etiquetas no se montan', () => {
-  const separadas = (ys: number[]) => ys.slice(1).every((y, i) => y - ys[i] >= SEPARACION - 1e-9);
-
-  it('separa las que caen juntas al menos 30px y no se salen', () => {
-    const ys = repartirEtiquetas([100, 101, 102, 103], 267);
-    expect(separadas(ys)).toBe(true);
-    ys.forEach((y) => { expect(y).toBeGreaterThanOrEqual(15); expect(y).toBeLessThanOrEqual(252); });
-  });
-
-  it('las amontonadas abajo suben en vez de salirse', () => {
-    const ys = repartirEtiquetas([250, 251, 260], 267);
-    expect(separadas(ys)).toBe(true);
-    expect(ys[2]).toBeLessThanOrEqual(252);
-  });
-
-  it('con muchas en un lado la dona se hace más alta para que quepan', () => {
-    const { porciones } = agruparPorciones(Array.from({ length: 8 }, (_, i) => cat(i + 1, 100)));
-    const { alto, lados } = geometria(porciones, 100);
-    const lado = Math.max(lados.derecha.length, lados.izquierda.length);
-    expect(alto).toBeGreaterThanOrEqual(lado * SEPARACION);
-    const ys = repartirEtiquetas(lados.derecha.map(() => alto / 2), alto);
-    expect(separadas(ys)).toBe(true);
+  it('el porcentaje no dice 0% de algo que sí tiene gasto', () => {
+    expect(porcentaje(0.004)).toBe('<1%');
+    expect(porcentaje(0.345)).toBe('35%');
   });
 });
 
@@ -122,6 +101,11 @@ const normal = estadoCon([
 
 beforeEach(() => {
   jest.clearAllMocks();
+  (categoryService.getAll as jest.Mock).mockResolvedValue({ correct: true, object: { list: [
+    { id: 1, name: 'Mercado', type: 'EXPENSE', active: true, householdId: 1 },
+    { id: 9, name: 'Mascotas', type: 'EXPENSE', active: true, householdId: 1 },
+    { id: 10, name: 'Salario', type: 'INCOME', active: true, householdId: 1 },
+  ] } });
   (estadoService.periodo as jest.Mock).mockResolvedValue({ correct: true, object: normal });
   (dashboardService.getPending as jest.Mock).mockResolvedValue({ correct: true, object: [] });
   (deudaService.todas as jest.Mock).mockResolvedValue({ correct: true, object: {
@@ -133,63 +117,37 @@ beforeEach(() => {
 
 const pintar = () => render(<Envoltura><InicioScreen navigation={nav()} /></Envoltura>);
 
-describe('Inicio con la dona nueva', () => {
-  it('dibuja lo gastado; no los ahorros ni lo que no tiene gasto, y junta lo chico en Otros', async () => {
-    const { findByLabelText, getByLabelText, queryByLabelText, queryByText } = pintar();
-    expect(await findByLabelText(/^Mercado: .*600.000, 60% del gasto/)).toBeTruthy();
-    expect(getByLabelText(/^Transporte: .*380.000, 38% del gasto/)).toBeTruthy();
-    expect(getByLabelText(/^Otros: .*20.000, 2% del gasto/)).toBeTruthy();
-    expect(queryByLabelText(/^Regalo:/)).toBeNull();
-    expect(queryByLabelText(/^Ahorro viaje:/)).toBeNull();
-    expect(queryByLabelText(/^Café:/)).toBeNull();
-    /* El "Libre" ya no va en una fila aparte: esta en el centro de la dona. */
-    expect(getByLabelText(/^Libre para gastar .*2.000.000\. Gastado .*1.000.000 de .*3.000.000/)).toBeTruthy();
-    expect(queryByText('Anota tu primer gasto con − Gasto')).toBeNull();
+describe('Inicio al estilo Monefy', () => {
+  it('todas las categorías alrededor con su %, y adentro lo que entró y lo que salió', async () => {
+    const { findByLabelText, getByLabelText } = pintar();
+    expect(await findByLabelText(/^Mercado: .*600.000, 60% de lo gastado/)).toBeTruthy();
+    expect(getByLabelText(/^Transporte: .*380.000, 38% de lo gastado/)).toBeTruthy();
+    expect(getByLabelText(/^Café: .*10.000, 1% de lo gastado/)).toBeTruthy();
+    expect(getByLabelText('Regalo, sin gasto')).toBeTruthy();
+    expect(getByLabelText('Ahorro viaje, sin gasto')).toBeTruthy();
+    /* La que no tiene fila en el estado igual sale, para anotar en ella. */
+    expect(getByLabelText('Mascotas, sin gasto')).toBeTruthy();
+    expect(getByLabelText(/^Ingresos .*2.000.000, gastos .*1.000.000 de .*3.000.000 presupuestado/)).toBeTruthy();
   });
 
   it('el centro abre el presupuesto', async () => {
-    fireEvent.press(await pintar().findByLabelText(/^Libre para gastar/));
+    fireEvent.press(await pintar().findByLabelText(/^Ingresos .*presupuestado/));
     expect(mockNavegar).toHaveBeenCalledWith('Presupuesto');
   });
 
-  it('tocar una categoría la elige; "Anotar" lleva al teclado con ella; otro toque la suelta', async () => {
-    const { findByLabelText, getByLabelText, queryByLabelText, getByText } = pintar();
-    const mercado = await findByLabelText(/^Mercado:/);
-    fireEvent.press(mercado);
-    expect(queryByLabelText(/^Libre para gastar/)).toBeNull();
-    expect(getByText(/de .*1 M presupuestado/)).toBeTruthy();
-    fireEvent.press(getByLabelText('Anotar un gasto en Mercado'));
+  it('tocar una categoría ofrece anotar, ver sus movimientos o su presupuesto', async () => {
+    const { findByLabelText, getByLabelText } = pintar();
+    fireEvent.press(await findByLabelText(/^Mercado:/));
+    fireEvent.press(getByLabelText('Anotar en Mercado'));
     expect(mockNavegar).toHaveBeenCalledWith('Anotar', { tipo: 'EXPENSE', categoriaId: 1 });
-    fireEvent.press(getByLabelText(/^Mercado:/));
-    expect(getByLabelText(/^Libre para gastar/)).toBeTruthy();
-  });
-
-  it('tocar la porción en el anillo también la elige', async () => {
-    const { findByTestId, getByLabelText } = pintar();
-    fireEvent.press(await findByTestId('porcion-2'));
-    expect(getByLabelText('Anotar un gasto en Transporte')).toBeTruthy();
-  });
-
-  it('mantener presionado abre sus movimientos', async () => {
-    fireEvent(await pintar().findByLabelText(/^Transporte:/), 'longPress');
+    fireEvent.press(getByLabelText(/^Transporte:/));
+    fireEvent.press(getByLabelText('Ver los movimientos de Transporte'));
     expect(mockNavegar).toHaveBeenCalledWith('Movimientos', { categoriaId: 2 });
   });
 
-  it('"Otros" abre la lista de lo que se juntó, con monto y porcentaje', async () => {
-    const { findByLabelText, getByLabelText } = pintar();
-    fireEvent.press(await findByLabelText(/^Otros:/));
-    expect(getByLabelText(/^Café: .*10.000, 1% del gasto\. Ver sus movimientos/)).toBeTruthy();
-    fireEvent.press(getByLabelText(/^Dulces: .*10.000, 1% del gasto\. Ver sus movimientos/));
-    expect(mockNavegar).toHaveBeenCalledWith('Movimientos', { categoriaId: 4 });
-  });
-
-  it('sin gastos: anillo gris, lo libre en el centro y la pista para empezar', async () => {
-    (estadoService.periodo as jest.Mock).mockResolvedValue({ correct: true, object: estadoCon(
-      [categoria({ actual: 0 })], { spent: 0, freeToSpend: -50000 }) });
-    const { findByText, getByLabelText, queryByLabelText } = pintar();
-    expect(await findByText('Anota tu primer gasto con − Gasto')).toBeTruthy();
-    expect(getByLabelText(/^Libre para gastar -?.*50.000/)).toBeTruthy();
-    expect(queryByLabelText(/^Mercado:/)).toBeNull();
+  it('lo libre para gastar abre la lista de todos los movimientos', async () => {
+    fireEvent.press(await pintar().findByLabelText(/^Libre para gastar .*2.000.000\. Ver todos los movimientos/));
+    expect(mockNavegar).toHaveBeenCalledWith('Movimientos');
   });
 });
 

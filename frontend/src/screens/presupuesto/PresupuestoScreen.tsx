@@ -137,7 +137,13 @@ const PresupuestoScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   if (error) return <View style={[styles.pantalla, { backgroundColor: colors.background }]}>{encabezado}<EstadoError mensaje={error} onReintentar={cargar} /></View>;
 
   const t = estado!.totals;
-  const cats = estado!.categories;
+  /* De la que mas gasto (o mas tiene planeado, en Planeado) a la que menos; las
+     que no tienen o empatan, por orden alfabetico. */
+  const cats = [...estado!.categories].sort((a, b) => {
+    const va = vista === 'PLAN' ? a.allocated : a.actual;
+    const vb = vista === 'PLAN' ? b.allocated : b.actual;
+    return (vb || 0) - (va || 0) || a.categoryName.localeCompare(b.categoryName, 'es');
+  });
 
   const fila = (c: CategoriaDelPeriodo, i: number) => {
     const est = ESTADOS[c.status] || { texto: '', tono: 'neutro' as const };

@@ -120,11 +120,17 @@ const PlanScreen: React.FC = () => {
       <Fila etiqueta="Ingreso" valor={v.grossIncome} />
       {v.deductions > 0 && <Fila etiqueta="Descuentos de nómina" valor={v.deductions} signo="-" />}
       <Fila etiqueta="Ingreso efectivo" valor={v.netIncome} fuerte />
-      <Fila etiqueta={`Por pagar (pagado ${formatCurrency(v.paymentsPaid)})`} valor={v.payments} signo="-" />
-      {v.savings > 0 && <Fila etiqueta="Ahorro" valor={v.savings} signo="-" />}
-      {v.provisions > 0 && <Fila etiqueta="Plata separada" valor={v.provisions} signo="-" />}
+      {(v.otherIncome || 0) > 0 && <Fila etiqueta="Otros ingresos que entraron" valor={v.otherIncome || 0} signo="+" />}
+      <Fila etiqueta={`Pagos programados (ya pagado ${formatCurrency(v.paymentsPaid)})`} valor={v.payments} signo="-" />
+      {v.savings > 0 && <Fila etiqueta="Ahorro programado" valor={v.savings} signo="-" />}
+      {(v.otherSpending || 0) > 0 && <Fila etiqueta="Otros gastos ya hechos" valor={v.otherSpending || 0} signo="-" />}
+      {v.provisions > 0 && (
+        <Fila etiqueta={v.provisionsLeft != null && v.provisionsLeft !== v.provisions
+          ? `Plata separada que falta (de ${formatCurrency(v.provisions)})` : 'Plata separada'}
+          valor={v.provisionsLeft ?? v.provisions} signo="-" />
+      )}
       <View style={[styles.separador, { borderColor: colors.border }]} />
-      <Fila etiqueta={v.leftover < 0 ? 'No alcanza: faltan' : 'Queda (respaldo y gasto libre)'} valor={v.leftover} fuerte />
+      <Fila etiqueta={v.leftover < 0 ? 'No alcanza: faltan' : 'Queda libre'} valor={v.leftover} fuerte />
       {v.tight && (
         <AppText variant="caption" color={colors.expense} style={styles.aviso}>
           Esta quincena no alcanza. Mira qué plata separada se puede mover a la otra quincena sin incumplir un vencimiento.
@@ -137,10 +143,27 @@ const PlanScreen: React.FC = () => {
           <Lista titulo="Qué debo pagar" items={v.paymentItems} />
           <Lista titulo="Ahorro" items={v.savingItems} />
           <Lista titulo="Plata que debo separar" items={v.provisionItems} />
+          {(v.otherSpendingItems || []).length > 0 && (
+            <View style={{ marginTop: 8 }}>
+              <AppText variant="label" style={styles.subtitulo}>Otros gastos ya hechos</AppText>
+              {(v.otherSpendingItems || []).map((o) => (
+                <View key={o.categoryId} style={styles.filaOtros}>
+                  <AppText variant="caption" color={colors.textSecondary}>{o.categoryName || 'Sin categoría'}</AppText>
+                  <AppText variant="caption">{formatCurrency(o.amount)}</AppText>
+                </View>
+              ))}
+            </View>
+          )}
         </>
       )}
     </Card>
   );
+
+  /* Con un solo pago al mes la "quincena" es el mes entero: se dice asi. */
+  const tituloVentana = (v: PlanWindow, cual: 'Esta' | 'Mi próxima') => {
+    const dias = (new Date(v.end).getTime() - new Date(v.start).getTime()) / 86400000;
+    return dias > 20 ? (cual === 'Esta' ? 'Este mes de salario' : 'Mi próximo mes de salario') : `${cual} quincena`;
+  };
 
   const renderQuincena = () => {
     if (!quincena) return null;
@@ -168,13 +191,13 @@ const PlanScreen: React.FC = () => {
           </Card>
         )}
 
-        <Ventana v={quincena.current} titulo="Esta quincena" detalle />
+        <Ventana v={quincena.current} titulo={tituloVentana(quincena.current, 'Esta')} detalle />
         {quincena.overdueFromBefore.length > 0 && (
           <Card style={styles.tarjeta}>
             <Lista titulo="Pendiente de antes" items={quincena.overdueFromBefore} />
           </Card>
         )}
-        <Ventana v={quincena.next} titulo="Mi próxima quincena" detalle />
+        <Ventana v={quincena.next} titulo={tituloVentana(quincena.next, 'Mi próxima')} detalle />
 
         {quincena.installments.length > 0 && (
           <Card style={styles.tarjeta}>
@@ -269,7 +292,8 @@ const PlanScreen: React.FC = () => {
           <Fila etiqueta="Ingreso efectivo" valor={v.netIncome} />
           <Fila etiqueta="Pagos" valor={v.payments} signo="-" />
           <Fila etiqueta="Ahorro" valor={v.savings} signo="-" />
-          <Fila etiqueta="Plata separada" valor={v.provisions} signo="-" />
+          {(v.otherSpending || 0) > 0 && <Fila etiqueta="Otros gastos ya hechos" valor={v.otherSpending || 0} signo="-" />}
+          <Fila etiqueta="Plata separada" valor={v.provisionsLeft ?? v.provisions} signo="-" />
           <Fila etiqueta="Queda" valor={v.leftover} fuerte />
           {v.endingInstallments && v.endingInstallments.length > 0 && (
             <AppText variant="caption" color={colors.income} style={styles.aviso}>
@@ -319,6 +343,7 @@ const styles = StyleSheet.create({
   rango: { marginBottom: spacing.sm },
   fila: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 3 },
   separador: { borderTopWidth: 1, marginVertical: spacing.xs },
+  filaOtros: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 },
   aviso: { marginTop: spacing.sm },
   alerta: { marginBottom: 4 },
   lista: { marginTop: spacing.sm },

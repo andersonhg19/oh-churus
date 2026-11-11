@@ -10,7 +10,6 @@ import MovementFormScreen from '../movements/MovementFormScreen';
 import MovimientosScreen from '../movimientos/MovimientosScreen';
 import Teclado, { accionDeTecla, useTecladoFisico } from '../../components/molecules/Teclado';
 import { casillasDelMes, fechaLarga, maximoPorDefecto, moverDias } from '../../components/molecules/Calendario';
-import { cifraQueCabe, nombreQueCabe } from '../../components/molecules/DonaDeCategorias';
 import { comoSePago, nombreTarjeta } from '../../utils/medioDePago';
 import { contraste } from '../../theme/contraste';
 import { darkColors, lightColors } from '../../theme/colors';
@@ -101,7 +100,6 @@ describe('Anotar: "Más" no pierde nada', () => {
     expect(getByLabelText('Pagado con Tarjeta de Crédito Nu. Cambiar')).toBeTruthy();
     fireEvent.press(getByLabelText('6 cuotas'));
     teclear(getByLabelText, ['3', '5', 'tres ceros']);
-    fireEvent.press(getByLabelText('Agregar una nota'));
     fireEvent.changeText(getByLabelText('Nota del movimiento'), 'mercado grande');
     fireEvent.press(getByLabelText(/^Más opciones/));
     expect(navegacion.replace).toHaveBeenCalledWith('MovementFormModal', { prefill: expect.objectContaining({
@@ -338,24 +336,6 @@ describe('Contraste', () => {
   });
 });
 
-describe('La cifra del centro de la dona no se corta', () => {
-  it('usa la cifra completa si cabe y la corta si no, con la letra que quepa', () => {
-    const a = cifraQueCabe(-2000000, 124);
-    expect(a.texto).toBe('-$2.000.000');
-    expect(a.tamano * a.texto.length * 0.62).toBeLessThanOrEqual(124);
-    const b = cifraQueCabe(1077000000, 124);
-    expect(b.texto).toBe('$1.077 M');
-    expect(b.tamano * b.texto.length * 0.62).toBeLessThanOrEqual(124);
-    expect(cifraQueCabe(965000, 300).tamano).toBe(28);
-  });
-
-  it('los nombres de las etiquetas: completo, primera palabra o nada', () => {
-    expect(nombreQueCabe('Mercado', 110)).toBe('Mercado');
-    expect(nombreQueCabe('Comidas fuera de casa', 70)).toBe('Comidas');
-    expect(nombreQueCabe('Mercado', 20)).toBeNull();
-  });
-});
-
 describe('Cómo se pagó', () => {
   it('no repite "Tarjeta" y dice el nombre y la cuota', () => {
     expect(nombreTarjeta('Tarjeta de Crédito Nu')).toBe('Tarjeta de Crédito Nu');
@@ -402,6 +382,41 @@ describe('Movimientos: lo pagado, lo por pagar y cómo se pagó', () => {
     expect(getByText(/01\/11 · Fondos del mes · Andy/)).toBeTruthy();
     expect(getByText(/Con el Ahorro viaje/)).toBeTruthy();
     expect(getByLabelText(/^Energía, 01\/11 · por pagar · Fondos del mes/)).toBeTruthy();
+  });
+
+  it('"Todos" lista todo por fecha, del más nuevo al más viejo, con la nota adelante', async () => {
+    (movementService.getAll as jest.Mock).mockResolvedValue({ correct: true, object: { list: [
+      mov('1', { amount: 2300000, description: 'Arriendo', date: '2026-11-01' }),
+      mov('2', { amount: 51500, description: 'Pizza con Samy', date: '2026-11-07' }),
+      mov('3', { amount: 7960000, description: '', categoryId: '10', categoryName: 'Salario', categoryType: 'INCOME', date: '2026-10-28' }),
+    ] } });
+    (categoryService.getAll as jest.Mock).mockResolvedValue({ correct: true, object: { list: [
+      { id: '27', name: 'Casa', type: 'EXPENSE', householdId: 1, active: true },
+      { id: '10', name: 'Salario', type: 'INCOME', householdId: 1, active: true },
+    ] } });
+    const { findByLabelText, getByLabelText, getAllByLabelText } = render(<Envoltura><MovimientosScreen navigation={nav()} /></Envoltura>);
+    fireEvent.press(await findByLabelText('Ver todos los movimientos'));
+    const filas = getAllByLabelText(/Editar$/).map((f) => f.props.accessibilityLabel as string);
+    expect(filas[0]).toMatch(/^Pizza con Samy, Casa, /);
+    expect(filas[1]).toMatch(/^Arriendo, Casa, /);
+    expect(filas[2]).toMatch(/^Salario, /);
+    expect(getByLabelText(/^Pizza con Samy/)).toBeTruthy();
+  });
+
+  it('las categorías van de la que más gastó a la que menos, y las demás por nombre', async () => {
+    (movementService.getAll as jest.Mock).mockResolvedValue({ correct: true, object: { list: [
+      mov('1', { amount: 100, categoryId: '30', categoryName: 'Zapatos' }),
+      mov('2', { amount: 900, categoryId: '31', categoryName: 'Mercado' }),
+    ] } });
+    (categoryService.getAll as jest.Mock).mockResolvedValue({ correct: true, object: { list: [
+      { id: '30', name: 'Zapatos', type: 'EXPENSE', householdId: 1, active: true },
+      { id: '31', name: 'Mercado', type: 'EXPENSE', householdId: 1, active: true },
+      { id: '32', name: 'Bebé', type: 'EXPENSE', householdId: 1, active: true },
+      { id: '33', name: 'Aseo', type: 'EXPENSE', householdId: 1, active: true },
+    ] } });
+    const { findAllByLabelText } = render(<Envoltura><MovimientosScreen navigation={nav()} /></Envoltura>);
+    const filas = (await findAllByLabelText(/(Expandir|Contraer)$/)).map((f) => String(f.props.accessibilityLabel).split(':')[0]);
+    expect(filas).toEqual(['Mercado', 'Zapatos', 'Aseo', 'Bebé']);
   });
 });
 

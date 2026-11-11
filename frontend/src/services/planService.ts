@@ -34,6 +34,12 @@ export interface PlanWindow {
   paymentsLeft: number;
   savings: number;
   provisions: number;
+  /** Lo que falta de la plata separada (lo ya gastado en su categoria no cuenta dos veces). */
+  provisionsLeft?: number;
+  /** Lo que entro y salio de verdad por fuera del plan, hasta hoy. */
+  otherIncome?: number;
+  otherSpending?: number;
+  otherSpendingItems?: { categoryId: number; categoryName?: string | null; amount: number }[];
   leftover: number;
   tight: boolean;
   incomeItems?: PlanItem[];

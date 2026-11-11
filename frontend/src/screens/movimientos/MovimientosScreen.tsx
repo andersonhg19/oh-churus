@@ -20,7 +20,18 @@ import { comoSePago } from '../../utils/medioDePago';
 import { useAhorros, useMisTarjetas } from '../../hooks/useAhorros';
 import { Category, Movement } from '../../types';
 
-type Tipo = 'EXPENSE' | 'INCOME';
+type Tipo = 'EXPENSE' | 'INCOME' | 'TODOS';
+type Vista = 'CATEGORIA' | 'FECHA';
+
+const DIAS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+/** "lun 10 nov" */
+export const diaLargo = (iso?: string) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || '');
+  if (!m) return '';
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return `${DIAS[d.getDay()]} ${d.getDate()} ${MESES[d.getMonth()]}`;
+};
 
 /** Para buscar sin que importen mayusculas ni tildes: "credito" encuentra "Crédito". */
 const normalizar = (texto?: string) =>
@@ -59,6 +70,9 @@ const MovimientosScreen: React.FC<{ navigation: any; route?: any }> = ({ navigat
   const [liberados, setLiberados] = useState<(ElementoDelPlan & { categoryId: number })[]>([]);
   const [categorias, setCategorias] = useState<Category[]>([]);
   const [tipo, setTipo] = useState<Tipo>(route?.params?.tipo || 'EXPENSE');
+  /* Por categoria (como Monefy) o por fecha: la lista de todo, dia por dia. */
+  const [vista, setVista] = useState<Vista>(route?.params?.vista || 'CATEGORIA');
+  const porFecha = vista === 'FECHA' || tipo === 'TODOS';
   const pedida = route?.params?.categoriaId ? String(route.params.categoriaId) : null;
   const [abiertas, setAbiertas] = useState<Record<string, boolean>>(pedida ? { [pedida]: true } : {});
   const [busqueda, setBusqueda] = useState('');
@@ -92,7 +106,8 @@ const MovimientosScreen: React.FC<{ navigation: any; route?: any }> = ({ navigat
     const delAlcance = validos.filter((m) => alcance.tipo === 'HOGAR'
       ? m.shared !== false
       : String(m.userId) === String(alcance.userId));
-    const visibles = categorias.filter((c) => c.type === tipo && c.active !== false
+    const deTipo = (t?: string) => tipo === 'TODOS' || t === tipo;
+    const visibles = categorias.filter((c) => deTipo(c.type) && c.active !== false
       && (alcance.tipo === 'HOGAR' ? !!c.householdId : true));
     const mapa: Record<string, Grupo> = {};
     visibles.forEach((c, i) => {
@@ -101,7 +116,7 @@ const MovimientosScreen: React.FC<{ navigation: any; route?: any }> = ({ navigat
     const coincide = (m: Movement) => !buscado
       || normalizar(m.description).includes(buscado)
       || normalizar(m.categoryName || mapa[String(m.categoryId)]?.nombre).includes(buscado);
-    delAlcance.filter((m) => m.categoryType === tipo || (!m.categoryType && mapa[String(m.categoryId)])).filter(coincide).forEach((m) => {
+    delAlcance.filter((m) => deTipo(m.categoryType) || (!m.categoryType && mapa[String(m.categoryId)])).filter(coincide).forEach((m) => {
       const k = String(m.categoryId);
       if (!mapa[k]) mapa[k] = { id: k, nombre: m.categoryName || 'Sin categoría', icono: m.categoryIcon, color: m.categoryColor || PALETA[0], total: 0, porPagar: 0, movimientos: [], liberados: [] };
       mapa[k].movimientos.push(m);
@@ -114,11 +129,64 @@ const MovimientosScreen: React.FC<{ navigation: any; route?: any }> = ({ navigat
     });
     Object.values(mapa).forEach((g) => g.movimientos.sort((a, b) => (b.date || '').localeCompare(a.date || '')));
     const cuantos = (g: Grupo) => g.movimientos.length + g.liberados.length;
-    return Object.values(mapa).filter((g) => !buscado || cuantos(g) > 0).sort((a, b) => b.total - a.total || cuantos(b) - cuantos(a)
-      || a.nombre.localeCompare(b.nombre));
+    /* De la que mas movio a la que menos; las que no movieron (o empatan), por nombre. */
+    return Object.values(mapa).filter((g) => !buscado || cuantos(g) > 0)
+      .sort((a, b) => b.total - a.total || a.nombre.localeCompare(b.nombre, 'es'));
   }, [movs, categorias, alcance, tipo, liberados, buscado]);
 
   const total = grupos.reduce((t, g) => t + g.total, 0);
+
+  /* POR FECHA: todos los movimientos del periodo, del mas nuevo al mas viejo,
+     agrupados por dia, con la nota adelante (es lo que dice en que se gasto). */
+  const colorDe = useMemo(() => Object.fromEntries(grupos.map((g) => [g.id, g])), [grupos]);
+  const dias = useMemo(() => {
+    const todos = grupos.flatMap((g) => g.movimientos)
+      .sort((a, b) => (b.date || '').localeCompare(a.date || '') || Number(b.id) - Number(a.id));
+    const out: { dia: string; movs: Movement[]; neto: number }[] = [];
+    todos.forEach((m) => {
+      let d = out[out.length - 1];
+      if (!d || d.dia !== m.date) { d = { dia: m.date, movs: [], neto: 0 }; out.push(d); }
+      d.movs.push(m);
+      if (m.confirmed) d.neto += (m.categoryType === 'INCOME' ? 1 : -1) * (m.amount || 0);
+    });
+    return out;
+  }, [grupos]);
+  const entradas = grupos.flatMap((g) => g.movimientos).filter((m) => m.confirmed && m.categoryType === 'INCOME')
+    .reduce((t, m) => t + (m.amount || 0), 0);
+  const salidas = grupos.flatMap((g) => g.movimientos).filter((m) => m.confirmed && m.categoryType !== 'INCOME')
+    .reduce((t, m) => t + (m.amount || 0), 0);
+
+  const filaMovimiento = (m: Movement, conCategoria: boolean) => {
+    const g = colorDe[String(m.categoryId)];
+    const esIngreso = (m.categoryType || tipo) === 'INCOME';
+    /* Como se pago: "Tarjeta Nu · cuota 1/6", "Con el Ahorro", "Fondos del mes". */
+    const medio = comoSePago({ ...m, categoryType: m.categoryType || (tipo === 'TODOS' ? 'EXPENSE' : tipo) }, ahorros, tarjetas);
+    const quien = alcance.tipo === 'HOGAR' ? (m.payerName || nombreDe(m.userId)) : '';
+    const pendiente = !m.confirmed ? (esIngreso ? 'por recibir' : 'por pagar') : '';
+    const categoria = g?.nombre || m.categoryName || '';
+    const nota = (m.description || '').trim();
+    const detalle = [conCategoria && nota ? categoria : '', conCategoria ? '' : formatDateShort(m.date), pendiente, medio, quien]
+      .filter(Boolean).join(' · ');
+    return (
+      <TouchableOpacity key={m.id} style={[conCategoria ? styles.movFecha : styles.movimiento, { borderTopColor: colors.border }]}
+        onPress={() => navigation.navigate('MovementFormModal', { movement: m })}
+        accessibilityRole="button"
+        accessibilityLabel={`${nota || categoria}, ${conCategoria && nota ? `${categoria}, ` : ''}${detalle}, ${formatCurrency(m.amount)}. Editar`}>
+        {conCategoria && <CirculoCategoria icono={g?.icono || m.categoryIcon} color={g?.color || m.categoryColor || PALETA[0]} tamano={34} />}
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <AppText variant="body" style={{ fontWeight: nota ? '700' : '400' }} color={nota ? colors.text : colors.textSecondary} numberOfLines={2}>
+            {nota || (conCategoria ? categoria : 'Sin nota')}
+          </AppText>
+          {!!detalle && (
+            <AppText variant="caption" color={m.confirmed ? colors.textSecondary : colors.pending} numberOfLines={2}>{detalle}</AppText>
+          )}
+        </View>
+        <AppText variant="body" style={{ fontWeight: '700', color: !m.confirmed ? colors.textMuted : esIngreso && conCategoria ? colors.income : colors.text }}>
+          {`${conCategoria ? (esIngreso ? '+' : '−') : ''}${formatCurrency(m.amount)}`}
+        </AppText>
+      </TouchableOpacity>
+    );
+  };
   const conMovimientos = grupos.filter((g) => g.movimientos.length + g.liberados.length > 0);
   const todasAbiertas = conMovimientos.length > 0 && conMovimientos.every((g) => abiertas[g.id]);
 
@@ -132,16 +200,31 @@ const MovimientosScreen: React.FC<{ navigation: any; route?: any }> = ({ navigat
       <ScrollView contentContainerStyle={styles.contenido}
         refreshControl={<RefreshControl refreshing={refrescando} onRefresh={refrescar} tintColor={colors.primary} />}>
         <View style={[styles.pestanas, { backgroundColor: colors.surfaceLight }]}>
-          {(['EXPENSE', 'INCOME'] as Tipo[]).map((t) => (
-            <TouchableOpacity key={t} style={[styles.pestana, tipo === t && { backgroundColor: t === 'EXPENSE' ? colors.expense : colors.income }]}
+          {(['EXPENSE', 'INCOME', 'TODOS'] as Tipo[]).map((t) => (
+            <TouchableOpacity key={t} style={[styles.pestana, tipo === t && { backgroundColor: t === 'EXPENSE' ? colors.expense : t === 'INCOME' ? colors.income : colors.primary }]}
               onPress={() => setTipo(t)} accessibilityRole="tab" accessibilityState={{ selected: tipo === t }}
-              accessibilityLabel={t === 'EXPENSE' ? 'Ver los gastos' : 'Ver los ingresos'}>
-              <AppText variant="caption" style={{ fontWeight: '700', color: tipo === t ? '#FFFFFF' : colors.textSecondary }}>
-                {t === 'EXPENSE' ? 'Gastos' : 'Ingresos'}
+              accessibilityLabel={t === 'EXPENSE' ? 'Ver los gastos' : t === 'INCOME' ? 'Ver los ingresos' : 'Ver todos los movimientos'}>
+              <AppText variant="caption" style={{ fontWeight: '700', color: tipo === t ? (t === 'TODOS' ? '#1A1405' : '#FFFFFF') : colors.textSecondary }}>
+                {t === 'EXPENSE' ? 'Gastos' : t === 'INCOME' ? 'Ingresos' : 'Todos'}
               </AppText>
             </TouchableOpacity>
           ))}
         </View>
+        {tipo !== 'TODOS' && (
+          <View style={styles.vistas}>
+            {(['CATEGORIA', 'FECHA'] as Vista[]).map((v) => (
+              <TouchableOpacity key={v} onPress={() => setVista(v)}
+                style={[styles.vista, { borderColor: vista === v ? colors.primary : colors.border, backgroundColor: vista === v ? colors.surfaceLight : 'transparent' }]}
+                accessibilityRole="tab" accessibilityState={{ selected: vista === v }}
+                accessibilityLabel={v === 'CATEGORIA' ? 'Agrupar por categoría' : 'Ver la lista por fecha'}>
+                <Icono nombre={v === 'CATEGORIA' ? 'chart' : 'list'} color={vista === v ? colors.primary : colors.textSecondary} tamano={16} />
+                <AppText variant="caption" style={{ fontWeight: '700', color: vista === v ? colors.primary : colors.textSecondary }}>
+                  {v === 'CATEGORIA' ? 'Por categoría' : 'Por fecha'}
+                </AppText>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
 
         <View style={[styles.buscador, { backgroundColor: colors.surfaceLight }]}>
           <Icono nombre="search" color={colors.textSecondary} tamano={18} />
@@ -166,13 +249,22 @@ const MovimientosScreen: React.FC<{ navigation: any; route?: any }> = ({ navigat
         <View style={styles.cabecera}>
           <View style={{ flex: 1 }}>
             <AppText variant="caption" color={colors.textSecondary}>
-              {buscado ? 'Lo que coincide con la búsqueda' : tipo === 'EXPENSE' ? 'Pagado en el periodo (gastos y ahorros)' : 'Recibido en el periodo'}
+              {buscado ? 'Lo que coincide con la búsqueda' : tipo === 'EXPENSE' ? 'Pagado en el periodo (gastos y ahorros)'
+                : tipo === 'INCOME' ? 'Recibido en el periodo' : 'Entró · salió en el periodo'}
             </AppText>
-            <AppText variant="subtitle" style={{ fontWeight: '800', color: tipo === 'EXPENSE' ? colors.expense : colors.income }}>
-              {formatCurrency(total)}
-            </AppText>
+            {tipo === 'TODOS' ? (
+              <AppText variant="subtitle" style={{ fontWeight: '800' }}>
+                <AppText variant="subtitle" style={{ fontWeight: '800', color: colors.income }}>{`+${formatCurrency(entradas)}`}</AppText>
+                {'  '}
+                <AppText variant="subtitle" style={{ fontWeight: '800', color: colors.expense }}>{`−${formatCurrency(salidas)}`}</AppText>
+              </AppText>
+            ) : (
+              <AppText variant="subtitle" style={{ fontWeight: '800', color: tipo === 'EXPENSE' ? colors.expense : colors.income }}>
+                {formatCurrency(total)}
+              </AppText>
+            )}
           </View>
-          {conMovimientos.length > 0 && !buscado && (
+          {!porFecha && conMovimientos.length > 0 && !buscado && (
             <TouchableOpacity style={styles.expandir} onPress={() => setAbiertas(todasAbiertas ? {} : Object.fromEntries(conMovimientos.map((g) => [g.id, true])))}
               accessibilityRole="button" accessibilityLabel={todasAbiertas ? 'Contraer todo' : 'Expandir todo'}>
               <AppText variant="caption" style={{ color: colors.primary, fontWeight: '700' }}>
@@ -182,12 +274,29 @@ const MovimientosScreen: React.FC<{ navigation: any; route?: any }> = ({ navigat
           )}
         </View>
 
-        {buscado && grupos.length === 0 && (
+        {porFecha && dias.length === 0 && (
+          <AppText variant="body" color={colors.textSecondary} style={{ textAlign: 'center', marginTop: 24 }}>
+            {buscado ? `Nada en este periodo coincide con «${busqueda.trim()}».` : 'No hay movimientos en este periodo.'}
+          </AppText>
+        )}
+        {porFecha && dias.map((d) => (
+          <View key={d.dia} style={styles.dia}>
+            <View style={[styles.cabezaDia, { borderBottomColor: colors.border }]}>
+              <AppText variant="label" color={colors.textSecondary} style={{ fontWeight: '700' }}>{diaLargo(d.dia)}</AppText>
+              {d.neto !== 0 && (
+                <AppText variant="caption" color={colors.textSecondary}>{`${d.neto > 0 ? '+' : '−'}${formatCurrency(Math.abs(d.neto))}`}</AppText>
+              )}
+            </View>
+            {d.movs.map((m) => filaMovimiento(m, true))}
+          </View>
+        ))}
+
+        {!porFecha && buscado && grupos.length === 0 && (
           <AppText variant="body" color={colors.textSecondary} style={{ textAlign: 'center', marginTop: 24 }}>
             Nada en este periodo coincide con «{busqueda.trim()}».
           </AppText>
         )}
-        {grupos.map((g) => {
+        {!porFecha && grupos.map((g) => {
           /* Buscando, todo lo que coincide se ve sin tener que desplegarlo. */
           const abierta = !!buscado || !!abiertas[g.id];
           const vacia = g.movimientos.length + g.liberados.length === 0;
@@ -222,29 +331,7 @@ const MovimientosScreen: React.FC<{ navigation: any; route?: any }> = ({ navigat
                 </View>
                 {!vacia && <Icono nombre={abierta ? 'down' : 'right'} color={colors.textSecondary} tamano={18} />}
               </TouchableOpacity>
-              {abierta && g.movimientos.map((m) => {
-                /* Como se pago: "Tarjeta Nu · cuota 1/6", "Con el Ahorro", "Fondos del mes". */
-                const medio = comoSePago({ ...m, categoryType: m.categoryType || tipo }, ahorros, tarjetas);
-                const quien = alcance.tipo === 'HOGAR' ? (m.payerName || nombreDe(m.userId)) : '';
-                const pendiente = !m.confirmed ? (esGasto ? 'por pagar' : 'por recibir') : '';
-                const detalle = [formatDateShort(m.date), pendiente, medio, quien].filter(Boolean).join(' · ');
-                return (
-                <TouchableOpacity key={m.id} style={[styles.movimiento, { borderTopColor: colors.border }]}
-                  onPress={() => navigation.navigate('MovementFormModal', { movement: m })}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${m.description || g.nombre}, ${detalle}, ${formatCurrency(m.amount)}. Editar`}>
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <AppText variant="body" numberOfLines={1}>{m.description || g.nombre}</AppText>
-                    <AppText variant="caption" color={m.confirmed ? colors.textSecondary : colors.pending} numberOfLines={2}>
-                      {detalle}
-                    </AppText>
-                  </View>
-                  <AppText variant="body" style={{ fontWeight: '700', color: m.confirmed ? colors.text : colors.textMuted }}>
-                    {formatCurrency(m.amount)}
-                  </AppText>
-                </TouchableOpacity>
-                );
-              })}
+              {abierta && g.movimientos.map((m) => filaMovimiento(m, false))}
               {abierta && g.liberados.map((it) => (
                 <TouchableOpacity key={`lib-${it.movementId}`} style={[styles.movimiento, { borderTopColor: colors.border }]}
                   onPress={() => navigation.navigate('Categoria', { categoryId: Number(g.id) })}
@@ -276,6 +363,11 @@ const styles = StyleSheet.create({
   pestana: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 9, minHeight: 44, justifyContent: 'center' },
   cabecera: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
   expandir: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 8 },
+  vistas: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  vista: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 40, borderRadius: 10, borderWidth: 1 },
+  dia: { marginTop: 8 },
+  cabezaDia: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1 },
+  movFecha: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, minHeight: 56 },
   buscador: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, paddingLeft: 12, marginBottom: 12, minHeight: 44 },
   campoBusqueda: { flex: 1, fontSize: 16, paddingVertical: 10 },
   limpiar: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },

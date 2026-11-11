@@ -201,6 +201,11 @@ const DeudasScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         {t.mine && (
           <View style={styles.acciones}>
             <TouchableOpacity style={[styles.boton, { borderColor: colors.border, borderWidth: 1 }]}
+              onPress={() => navigation.navigate('Anotar', { tipo: 'EXPENSE', pagadoCon: `tarjeta:${t.id}` })}
+              accessibilityRole="button" accessibilityLabel={`Anotar una compra con ${t.name}`}>
+              <AppText variant="label" color={colors.text} style={{ fontWeight: '700' }}>Anotar compra</AppText>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.boton, { borderColor: colors.border, borderWidth: 1 }]}
               onPress={() => setEditando({ id: t.id, name: t.name, paymentDay: t.paymentDay ?? null, cutoffDay: t.cutoffDay ?? null, color: t.color || '#6C5CE7' })}
               accessibilityRole="button" accessibilityLabel={`Editar ${t.name}`}>
               <AppText variant="label" color={colors.text} style={{ fontWeight: '700' }}>Editar</AppText>
@@ -341,8 +346,8 @@ const styles = StyleSheet.create({
   plastico: { width: 44, height: 32, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
   detalle: { borderTopWidth: 1, paddingTop: 10, gap: 10 },
   compra: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  acciones: { flexDirection: 'row', gap: 10 },
-  boton: { flex: 1, minHeight: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },
+  acciones: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  boton: { flex: 1, minWidth: 110, minHeight: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },
   solo: { flex: 0 },
   agregar: { flex: 0, flexDirection: 'row', gap: 6, borderWidth: 1, borderStyle: 'dashed' },
   barra: { height: 8, borderRadius: 4, overflow: 'hidden' },

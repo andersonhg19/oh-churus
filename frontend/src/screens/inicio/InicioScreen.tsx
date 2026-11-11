@@ -1,8 +1,9 @@
-import React, { useCallback, useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { View, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Modal, PanResponder, useWindowDimensions, Platform } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import AppText from '../../components/atoms/Text';
 import Icono from '../../components/atoms/Icono';
+import CirculoCategoria from '../../components/atoms/CirculoCategoria';
 import Spinner from '../../components/atoms/Spinner';
 import Encabezado from '../../components/molecules/Encabezado';
 import EstadoError from '../../components/molecules/EstadoError';
@@ -14,23 +15,78 @@ import { useCarga, exigir } from '../../hooks/useCarga';
 import { estadoService, EstadoDelPeriodo } from '../../services/estadoService';
 import { dashboardService } from '../../services/dashboardService';
 import { deudaService } from '../../services/deudaService';
+import { categoryService } from '../../services/categoryService';
+import { Category } from '../../types';
 import { deudasDelAlcance } from '../../utils/deudas';
 import { formatCurrency, formatCompacto } from '../../utils/format';
 import { textoLegibleSobre } from '../../theme/contraste';
 
 /*
- * INICIO. Tres zonas, una pregunta cada una:
- *   · la dona: cuanto queda libre y en que se fue la plata;
+ * INICIO, como Monefy:
+ *   · la dona: en que se fue la plata, con TODAS las categorias alrededor
+ *     (tocar una: anotar, ver sus movimientos o su presupuesto) y adentro lo
+ *     que entro y lo que salio;
  *   · cuatro recuadros: lo que entro, lo que falta pagar, lo ahorrado y lo
  *     que se debe (y el aviso de lo que me toca confirmar, si hay);
+ *   · abajo, lo libre para gastar: tocarlo abre la lista de movimientos;
  *   · dos botones: anotar un gasto o un ingreso.
+ * Y con gestos, en cualquier parte: deslizar a la derecha anota un gasto, a
+ * la izquierda un ingreso, y hacia arriba abre los ingresos. El periodo se
+ * cambia con las flechas de arriba.
  * Todo sale de /v1/estado/periodo, la misma fuente que Presupuesto: las
  * cifras no pueden decir cosas distintas. Las deudas salen de /v1/debts.
  */
 const InicioScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { colors } = useTheme();
   const { user } = useAuth();
-  const { alcance, corte, periodo, anterior, siguiente, puedeSeguir, nombreDe } = useAlcance();
+  const { alcance, corte, periodo, nombreDe } = useAlcance();
+  const [otras, setOtras] = useState<Category[]>([]);
+  const [elegida, setElegida] = useState<CategoriaEnDona | null>(null);
+
+  /* Los gestos. Hacia arriba solo cuenta cuando la lista ya no puede subir
+     mas (esta abajo del todo o no tiene scroll): si no, se roba el scroll. */
+  const abajoDelTodo = useRef(true);
+  const altoVisible = useRef(0);
+  /* Desde la zona de abajo (lo libre y los botones) el gesto hacia arriba
+     siempre vale: ahi no hay nada que desplazar. */
+  const { height: altoVentana } = useWindowDimensions();
+  const altoPantalla = useRef(altoVentana);
+  altoPantalla.current = altoVentana;
+  const acciones = useRef({ gasto: () => {}, ingreso: () => {}, arriba: () => {} });
+  acciones.current = {
+    gasto: () => navigation.navigate('Anotar', { tipo: 'EXPENSE' }),
+    ingreso: () => navigation.navigate('Anotar', { tipo: 'INCOME' }),
+    arriba: () => navigation.navigate('Ingresos'),
+  };
+  const gestos = useMemo(() => PanResponder.create({
+    onMoveShouldSetPanResponderCapture: (_e, g) =>
+      (Math.abs(g.dx) > 30 && Math.abs(g.dx) > Math.abs(g.dy) * 1.8)
+      || (g.dy < -40 && Math.abs(g.dy) > Math.abs(g.dx) * 2 && (abajoDelTodo.current || g.moveY - g.dy > altoPantalla.current - 200)),
+    onPanResponderTerminationRequest: () => false,
+    onPanResponderRelease: (_e, g) => {
+      if (Math.abs(g.dx) > Math.abs(g.dy)) {
+        if (g.dx > 80) acciones.current.gasto();
+        else if (g.dx < -80) acciones.current.ingreso();
+      } else if (g.dy < -90) acciones.current.arriba();
+    },
+  }), []);
+  /* En el navegador del celular, deslizar a los lados es "volver atras" y
+     arrastrar hacia arriba es mover la pagina: se le dice al navegador que
+     esos gestos son de la app (en la pantalla, los lados; abajo, todo). */
+  const raiz = useRef<any>(null);
+  const zonaAbajo = useRef<any>(null);
+  const zonaSaldo = useRef<any>(null);
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    if (raiz.current?.style) raiz.current.style.touchAction = 'pan-y';
+    /* Sin esto Chrome toma el deslizar a la derecha como "pagina anterior". */
+    [document.documentElement, document.body].forEach((n: any) => { if (n?.style) n.style.overscrollBehaviorX = 'none'; });
+    [zonaAbajo.current, zonaSaldo.current].forEach((n) => { if (n?.style) n.style.touchAction = 'none'; });
+  });
+  const medir = (e: any) => {
+    const { layoutMeasurement: l, contentOffset: o, contentSize: c } = e.nativeEvent;
+    abajoDelTodo.current = l.height + o.y >= c.height - 8;
+  };
   const [estado, setEstado] = useState<EstadoDelPeriodo | null>(null);
   const [misPendientes, setMisPendientes] = useState({ n: 0, monto: 0 });
   /* Lo por pagar del recuadro sale de la MISMA lista que se abre al tocarlo:
@@ -59,6 +115,11 @@ const InicioScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       ? pagos.filter((m) => m.shared !== false)
       : pagos.filter((m) => String(m.userId) === String(alcance.userId));
     setPorPagar({ n: delAlcance.length, monto: delAlcance.reduce((t, m) => t + (m.amount || 0), 0) });
+    try {
+      const c = await categoryService.getAll({ userId: user.userId, page: 0, size: 200 });
+      setOtras(((c.correct && c.object?.list) || []).filter((x: Category) => x.type === 'EXPENSE' && x.active !== false
+        && (alcance.tipo === 'HOGAR' ? !!x.householdId : true)));
+    } catch { setOtras([]); }
     try {
       const d = await deudaService.todas();
       /* Sigue el selector, igual que la pantalla de Deudas (QA 7.1). */
@@ -94,14 +155,18 @@ const InicioScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const tintaGasto = textoLegibleSobre(colors.expense);
   const tintaIngreso = textoLegibleSobre(colors.income);
 
-  /* En la dona solo va lo GASTADO: los ahorros no se dibujan, y la dona misma
-     deja fuera lo que no tiene gasto y junta lo chico en "Otros". */
+  /* La porcion es lo GASTADO de cada categoria. Alrededor van todas las de
+     gasto y las de ahorro (para depositar con un toque), aunque no tengan
+     movimiento: asi se anota en cualquiera sin buscarla. */
   const enDona: CategoriaEnDona[] = (estado?.categories || [])
-    .filter((c) => c.kind === 'EXPENSE')
+    .filter((c) => c.kind === 'EXPENSE' || c.kind === 'SAVING')
     .map((c, i) => ({
       id: c.categoryId, nombre: c.categoryName, icono: c.categoryIcon,
-      color: c.categoryColor || PALETA[i % PALETA.length], valor: c.actual || 0, presupuesto: c.allocated || 0,
+      color: c.categoryColor || PALETA[i % PALETA.length], valor: c.kind === 'EXPENSE' ? (c.actual || 0) : 0,
     }));
+  otras.filter((o) => !enDona.some((d) => String(d.id) === String(o.id)))
+    .forEach((o, i) => enDona.push({ id: Number(o.id), nombre: o.name, icono: o.icon,
+      color: o.color || PALETA[(enDona.length + i) % PALETA.length], valor: 0 }));
 
   const recuadro = (o: {
     titulo: string; icono?: string; valor: string; colorValor?: string; detalle: string;
@@ -123,23 +188,25 @@ const InicioScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const ahorros = t?.savingsBalance || 0;
 
   return (
-    <View style={[styles.pantalla, { backgroundColor: colors.background }]}>
+    <View style={[styles.pantalla, { backgroundColor: colors.background }]} {...gestos.panHandlers} testID="inicio-gestos" ref={raiz}>
       <Encabezado />
-      <ScrollView contentContainerStyle={styles.contenido}
+      <ScrollView contentContainerStyle={styles.contenido} onScroll={medir} scrollEventThrottle={64}
+        onContentSizeChange={(_w, h) => { abajoDelTodo.current = h <= altoVisible.current + 8; }}
+        onLayout={(e) => { altoVisible.current = e.nativeEvent.layout.height; }}
         refreshControl={<RefreshControl refreshing={refrescando} onRefresh={refrescar} tintColor={colors.primary} />}>
         <DonaDeCategorias
           categorias={enDona}
-          libre={t?.freeToSpend || 0}
-          gastado={t?.spent || 0}
-          presupuestado={presupuestoDeGasto}
+          ingresos={t?.incomeReceived || 0}
+          gastos={t?.spent || 0}
+          onCategoria={setElegida}
           onCentro={() => navigation.navigate('Presupuesto')}
-          onAnotar={(c) => navigation.navigate('Anotar', { tipo: 'EXPENSE', categoriaId: c.id })}
-          onVerMovimientos={(c) => navigation.navigate('Movimientos', { categoriaId: c.id })}
-          onVerCategoria={(c) => navigation.navigate('Categoria', { categoryId: c.id })}
-          onAnterior={anterior}
-          onSiguiente={puedeSeguir ? siguiente : undefined}
-          claveAnimacion={`${periodo.inicio}|${alcance.tipo === 'HOGAR' ? 'HOGAR' : alcance.userId}`}
+          etiquetaCentro={`Ingresos ${formatCurrency(t?.incomeReceived || 0)}, gastos ${formatCurrency(t?.spent || 0)}`
+            + ` de ${formatCurrency(presupuestoDeGasto)} presupuestado. Ver el presupuesto`}
+          onMas={() => navigation.navigate('Anotar', { tipo: 'EXPENSE' })}
         />
+        <AppText variant="caption" color={colors.textMuted} style={{ textAlign: 'center' }}>
+          Desliza → para un gasto, ← para un ingreso, y desde abajo ↑ para ver los ingresos
+        </AppText>
 
         <View style={styles.kpis}>
           {recuadro({
@@ -187,7 +254,57 @@ const InicioScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         )}
       </ScrollView>
 
-      <View style={styles.botones}>
+      <TouchableOpacity ref={zonaSaldo} style={[styles.saldo, { backgroundColor: colors.surfaceLight }]} onPress={() => navigation.navigate('Movimientos')}
+        accessibilityRole="button"
+        accessibilityLabel={`Libre para gastar ${formatCurrency(t?.freeToSpend || 0)}. Ver todos los movimientos`}>
+        <View style={{ flex: 1 }}>
+          <AppText variant="caption" color={colors.textSecondary}>Libre para gastar · ver movimientos</AppText>
+          <AppText variant="subtitle" style={{ fontWeight: '800', color: (t?.freeToSpend || 0) >= 0 ? colors.income : colors.expense }}>
+            {formatCurrency(t?.freeToSpend || 0)}
+          </AppText>
+        </View>
+        <Icono nombre="list" color={colors.textSecondary} />
+        <Icono nombre="right" color={colors.textSecondary} tamano={18} />
+      </TouchableOpacity>
+
+      <Modal visible={!!elegida} transparent animationType="slide" onRequestClose={() => setElegida(null)}>
+        <TouchableOpacity style={styles.fondo} activeOpacity={1} onPress={() => setElegida(null)}
+          accessibilityRole="button" accessibilityLabel="Cerrar">
+          {elegida && (
+            <View style={[styles.hoja, { backgroundColor: colors.surface }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 4 }}>
+                <CirculoCategoria icono={elegida.icono} color={elegida.color} tamano={40} />
+                <View style={{ flex: 1 }}>
+                  <AppText variant="subtitle">{elegida.nombre}</AppText>
+                  <AppText variant="caption" color={colors.textSecondary}>
+                    {elegida.valor > 0 ? `Van ${formatCurrency(elegida.valor)} este periodo` : 'Sin gastos este periodo'}
+                  </AppText>
+                </View>
+              </View>
+              <TouchableOpacity style={[styles.opcion, { backgroundColor: colors.expense }]}
+                onPress={() => { const c = elegida; setElegida(null); navigation.navigate('Anotar', { tipo: 'EXPENSE', categoriaId: c.id }); }}
+                accessibilityRole="button" accessibilityLabel={`Anotar en ${elegida.nombre}`}>
+                <Icono nombre="minus" color={tintaGasto} />
+                <AppText variant="body" style={{ color: tintaGasto, fontWeight: '800' }}>Anotar aquí</AppText>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.opcion, { backgroundColor: colors.surfaceLight }]}
+                onPress={() => { const c = elegida; setElegida(null); navigation.navigate('Movimientos', { categoriaId: c.id }); }}
+                accessibilityRole="button" accessibilityLabel={`Ver los movimientos de ${elegida.nombre}`}>
+                <Icono nombre="list" color={colors.text} />
+                <AppText variant="body" style={{ fontWeight: '700' }}>Ver sus movimientos</AppText>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.opcion, { backgroundColor: colors.surfaceLight }]}
+                onPress={() => { const c = elegida; setElegida(null); navigation.navigate('Categoria', { categoryId: c.id }); }}
+                accessibilityRole="button" accessibilityLabel={`Ver el presupuesto de ${elegida.nombre}`}>
+                <Icono nombre="chart" color={colors.text} />
+                <AppText variant="body" style={{ fontWeight: '700' }}>Ver su presupuesto</AppText>
+              </TouchableOpacity>
+            </View>
+          )}
+        </TouchableOpacity>
+      </Modal>
+
+      <View style={styles.botones} ref={zonaAbajo}>
         <TouchableOpacity style={[styles.grande, { backgroundColor: colors.expense }]}
           onPress={() => navigation.navigate('Anotar', { tipo: 'EXPENSE' })} accessibilityRole="button" accessibilityLabel="Anotar un gasto">
           <Icono nombre="minus" color={tintaGasto} />
@@ -212,6 +329,11 @@ const styles = StyleSheet.create({
   aviso: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: 14, minHeight: 52 },
   punto: { width: 10, height: 10, borderRadius: 5 },
   botones: { flexDirection: 'row', gap: 12, padding: 16, paddingTop: 8, width: '100%', maxWidth: 560, alignSelf: 'center' },
+  saldo: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginTop: 4, paddingHorizontal: 14,
+    paddingVertical: 8, borderRadius: 14, minHeight: 52, width: '100%', maxWidth: 528, alignSelf: 'center' },
+  fondo: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  hoja: { padding: 20, gap: 10, borderTopLeftRadius: 24, borderTopRightRadius: 24, width: '100%', maxWidth: 560, alignSelf: 'center' },
+  opcion: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 54, borderRadius: 14, paddingHorizontal: 16 },
   grande: { flex: 1, height: 60, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   textoGrande: { fontWeight: '800' },
 });

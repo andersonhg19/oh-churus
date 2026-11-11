@@ -277,7 +277,51 @@ public class PlanFinancieroService {
         BigDecimal obligaciones = suma(pagos);
         BigDecimal ahorrado = suma(ahorro);
         BigDecimal separado = suma(provisiones);
-        BigDecimal queda = efectivo.subtract(obligaciones).subtract(ahorrado).subtract(separado);
+
+        /* LO QUE DE VERDAD SE MOVIO por fuera de lo programado (ola 7.3): antes
+           la quincena decia "te sobran 4,2 M" sin restar el mercado, el
+           delivery ni nada que no estuviera programado. Ahora resta todo lo que
+           yo pague en la ventana (hasta hoy) que no es una fecha del plan, y
+           suma lo que me entro suelto. Lo pagado con el ahorro no sale del
+           sueldo, y un sub-gasto ya lo cuenta su padre. */
+        LocalDate hastaHoy = hoy.isBefore(fin) ? hoy : fin;
+        BigDecimal otrosGastos = BigDecimal.ZERO, otrosIngresos = BigDecimal.ZERO;
+        Map<Long, BigDecimal> gastoPorCategoria = new LinkedHashMap<>();
+        Map<Long, Category> cache = new HashMap<>();
+        if (!hastaHoy.isBefore(inicio)) {
+            for (Movement m : movimientos.findByUserIdAndDateBetweenAndConfirmedTrueAndActiveTrue(yo, inicio, hastaHoy)) {
+                if (!Computables.suma(m) || m.getScheduledMovementId() != null || m.getFundedFromCategoryId() != null) continue;
+                Category cat = cache.computeIfAbsent(m.getCategoryId(), id -> categorias.findById(id).orElse(null));
+                if (cat == null) continue;
+                BigDecimal monto = Computables.importe(m);
+                if (cat.getType() == CategoryType.INCOME) {
+                    otrosIngresos = otrosIngresos.add(monto);
+                } else {
+                    otrosGastos = otrosGastos.add(monto);
+                    gastoPorCategoria.merge(m.getCategoryId(), monto, BigDecimal::add);
+                }
+            }
+        }
+        /* La plata separada para una categoria (mercado, carro) se va gastando:
+           lo ya gastado en ella no se resta dos veces, solo lo que falta. */
+        Map<Long, BigDecimal> separadoPorCategoria = new LinkedHashMap<>();
+        provisiones.forEach(f -> separadoPorCategoria.merge(f.l().p().getCategoryId(), nz(f.monto()), BigDecimal::add));
+        BigDecimal separadoQueda = BigDecimal.ZERO;
+        for (Map.Entry<Long, BigDecimal> e : separadoPorCategoria.entrySet()) {
+            separadoQueda = separadoQueda.add(e.getValue().subtract(gastoPorCategoria.getOrDefault(e.getKey(), BigDecimal.ZERO)).max(BigDecimal.ZERO));
+        }
+        List<Map<String, Object>> otrosPorCategoria = new ArrayList<>();
+        gastoPorCategoria.entrySet().stream().sorted(Map.Entry.<Long, BigDecimal>comparingByValue().reversed()).forEach(e -> {
+            Category cat = cache.get(e.getKey());
+            Map<String, Object> x = new LinkedHashMap<>();
+            x.put("categoryId", e.getKey());
+            x.put("categoryName", cat != null ? cat.getName() : null);
+            x.put("amount", e.getValue());
+            otrosPorCategoria.add(x);
+        });
+
+        BigDecimal queda = efectivo.add(otrosIngresos).subtract(obligaciones).subtract(ahorrado)
+                .subtract(separadoQueda).subtract(otrosGastos);
         BigDecimal pagado = suma(pagos.stream().filter(f -> "PAGADO".equals(f.estado())).collect(Collectors.toList()));
 
         Map<String, Object> v = new LinkedHashMap<>();
@@ -291,6 +335,10 @@ public class PlanFinancieroService {
         v.put("paymentsLeft", obligaciones.subtract(pagado));
         v.put("savings", ahorrado);
         v.put("provisions", separado);
+        v.put("provisionsLeft", separadoQueda);
+        v.put("otherIncome", otrosIngresos);
+        v.put("otherSpending", otrosGastos);
+        v.put("otherSpendingItems", otrosPorCategoria);
         /* Lo que queda despues de pagar, ahorrar y separar: el respaldo. Si sale
            negativo la quincena no alcanza, y se dice con la cifra: no se ajusta
            nada en silencio. */

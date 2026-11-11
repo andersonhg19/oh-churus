@@ -84,7 +84,6 @@ const AnotarScreen: React.FC<Props> = ({ navigation, route }) => {
   const [fecha, setFecha] = useState(fechaLocalISO());
   const [pagado, setPagado] = useState(true);
   const [nota, setNota] = useState('');
-  const [conNota, setConNota] = useState(false);
   const [eligiendoFecha, setEligiendoFecha] = useState(false);
   const [eligiendoCategoria, setEligiendoCategoria] = useState(false);
   const [eligiendoFuente, setEligiendoFuente] = useState(false);
@@ -402,6 +401,17 @@ const AnotarScreen: React.FC<Props> = ({ navigation, route }) => {
           </>
         )}
 
+        {/* La nota siempre a la vista: es lo que dice en que se gasto. */}
+        <TextInput
+          value={nota}
+          onChangeText={setNota}
+          placeholder="Nota: ¿en qué fue? (ej: almuerzo con Samy)"
+          placeholderTextColor={colors.textMuted}
+          style={[styles.nota, { backgroundColor: colors.surfaceLight, color: colors.text }]}
+          accessibilityLabel="Nota del movimiento"
+          maxLength={255}
+        />
+
         <View style={styles.recientes}>
           {!(tarjetaElegida && fuenteValida) && (
             <View style={[styles.segmento, { backgroundColor: colors.surfaceLight }]}>
@@ -416,20 +426,8 @@ const AnotarScreen: React.FC<Props> = ({ navigation, route }) => {
               ))}
             </View>
           )}
-          {!conNota && chip('Nota', false, () => setConNota(true), 'Agregar una nota', 'edit')}
           {chip('Más', false, abrirFormularioCompleto, 'Más opciones: abrir el formulario completo con lo escrito', 'more')}
         </View>
-        {conNota && (
-          <TextInput
-            value={nota}
-            onChangeText={setNota}
-            autoFocus
-            placeholder="Nota (opcional)"
-            placeholderTextColor={colors.textMuted}
-            style={[styles.nota, { backgroundColor: colors.surfaceLight, color: colors.text }]}
-            accessibilityLabel="Nota del movimiento"
-          />
-        )}
       </ScrollView>
 
       <View style={{ flex: 1 }} />

@@ -98,7 +98,7 @@ describe('Inicio', () => {
   it('muestra lo gastado contra lo presupuestado de gasto, los recuadros y solo MIS pendientes', async () => {
     const { findByText, getByLabelText, queryByLabelText } = render(<Envoltura><InicioScreen navigation={nav()} /></Envoltura>);
     expect(await findByText('Tienes 2 pagos por confirmar')).toBeTruthy();
-    expect(getByLabelText(/Gastado .*85.000 de .*7.945.000/)).toBeTruthy();
+    expect(getByLabelText(/gastos .*85.000 de .*7.945.000 presupuestado/)).toBeTruthy();
     expect(getByLabelText(/Ingresos recibidos .*7.960.000 de .*14.560.000/)).toBeTruthy();
     /* Las cuentas se retiraron: ya no hay recuadro de fondos. */
     expect(queryByLabelText(/Fondos/)).toBeNull();
@@ -109,14 +109,12 @@ describe('Inicio', () => {
     const { findByLabelText, getByLabelText } = render(<Envoltura><InicioScreen navigation={nav()} /></Envoltura>);
     fireEvent.press(await findByLabelText('Anotar un gasto'));
     expect(mockNavegar).toHaveBeenCalledWith('Anotar', { tipo: 'EXPENSE' });
-    /* La etiqueta de la porcion: mantener abre sus movimientos; tocarla la
-       elige, y el centro ofrece anotar en ella o ver su presupuesto. */
-    fireEvent(getByLabelText(/^Mascotas: .*700.000, 100% del gasto/), 'longPress');
-    expect(mockNavegar).toHaveBeenCalledWith('Movimientos', { categoriaId: 1 });
-    fireEvent.press(getByLabelText(/^Mascotas: .*700.000, 100% del gasto/));
+    /* Tocar la categoria ofrece anotar en ella, ver sus movimientos o su presupuesto. */
+    fireEvent.press(getByLabelText(/^Mascotas: .*700.000, 100% de lo gastado/));
     fireEvent.press(getByLabelText('Ver el presupuesto de Mascotas'));
     expect(mockNavegar).toHaveBeenCalledWith('Categoria', { categoryId: 1 });
-    fireEvent.press(getByLabelText('Anotar un gasto en Mascotas'));
+    fireEvent.press(getByLabelText(/^Mascotas: .*700.000, 100% de lo gastado/));
+    fireEvent.press(getByLabelText('Anotar en Mascotas'));
     expect(mockNavegar).toHaveBeenCalledWith('Anotar', { tipo: 'EXPENSE', categoriaId: 1 });
   });
 });

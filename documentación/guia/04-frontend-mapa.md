@@ -106,7 +106,7 @@ pantalla en cada render (si no, se perdería lo escrito). Si registras una panta
 | `Presupuesto` | `/presupuesto` | `screens/presupuesto/PresupuestoScreen.tsx` | Inicio: tocar el **centro de la dona**; menú |
 | `Categoria` | `/presupuesto/categoria/:categoryId` | `screens/presupuesto/CategoriaScreen.tsx` | Fila de Presupuesto; hoja de categoría en Inicio ("Ver su presupuesto"); un "liberado" en Movimientos |
 | `Cierre` | `/cierre` | `screens/presupuesto/CierreScreen.tsx` | Botón en el encabezado de Presupuesto; menú "Cierre de cada mes" |
-| `PorConfirmar` | `/por-confirmar?quien=` | `screens/pendientes/PorConfirmarScreen.tsx` | Inicio: recuadro "Por pagar" (`quien='DOS'` o id de persona) y aviso "Tienes N pagos por confirmar" (`'MIOS'` o id); menú |
+| `PorConfirmar` | `/por-confirmar?quien=` | `screens/pendientes/PorConfirmarScreen.tsx` | Inicio: recuadro "Por pagar" (`quien='DOS'` o id de persona) (con un punto si me toca confirmar algo); menú |
 | `Ingresos` | `/ingresos` | `screens/ingresos/IngresosScreen.tsx` | Inicio: recuadro "Ingresos"; menú |
 | `Ahorros` | `/ahorros` | `screens/ahorros/AhorrosScreen.tsx` | Inicio: recuadro "Ahorros"; menú |
 | `Deudas` | `/deudas` | `screens/deudas/DeudasScreen.tsx` | Inicio: recuadro "Deudas"; menú |
@@ -207,7 +207,7 @@ Convenciones comunes de las pantallas nuevas:
 4. **Cuatro recuadros** (2×2): Ingresos (recibido "de" esperado → `Ingresos`), Por pagar (`totals.toPay`, la misma
    cifra que descuenta "Libre para gastar"; detalle "N pagos + previstos" → `PorConfirmar`), Ahorros
    (`totals.savingsBalance` → `Ahorros`), Deudas (total y cuota del mes → `Deudas`). Valores con `formatCompacto`.
-5. Aviso "Tienes N pagos por confirmar" (solo si hay; en Hogar son los **míos**, en una persona los de **esa** persona).
+5. Ya no hay aviso aparte de "pagos por confirmar" (ola 7.6): el recuadro **Por pagar** dice "N por confirmar" y muestra un punto si hay pagos **míos** (en Hogar) o de **esa** persona por confirmar. **Deudas** dice "cuotas del mes X", "en tarjetas" o "nada anotado".
 6. Barra fija "Libre para gastar · ver movimientos" (`totals.freeToSpend`, verde/rojo) → `Movimientos`.
 7. Dos botones grandes: **Gasto** (rojo) y **Ingreso** (verde) → `Anotar`.
 

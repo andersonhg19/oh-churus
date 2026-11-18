@@ -96,8 +96,8 @@ beforeEach(() => {
 
 describe('Inicio', () => {
   it('muestra lo gastado contra lo presupuestado de gasto, los recuadros y solo MIS pendientes', async () => {
-    const { findByText, getByLabelText, queryByLabelText } = render(<Envoltura><InicioScreen navigation={nav()} /></Envoltura>);
-    expect(await findByText('Tienes 2 pagos por confirmar')).toBeTruthy();
+    const { findByLabelText, getByLabelText, queryByLabelText } = render(<Envoltura><InicioScreen navigation={nav()} /></Envoltura>);
+    expect(await findByLabelText(/^Por pagar .*Tienes 2 por confirmar/)).toBeTruthy();
     expect(getByLabelText(/gastos .*85.000 de .*7.945.000 presupuestado/)).toBeTruthy();
     expect(getByLabelText(/Ingresos recibidos .*7.960.000 de .*14.560.000/)).toBeTruthy();
     /* Las cuentas se retiraron: ya no hay recuadro de fondos. */

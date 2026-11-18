@@ -173,13 +173,14 @@ const InicioScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
   const recuadro = (o: {
     titulo: string; icono?: string; valor: string; colorValor?: string; detalle: string;
-    destino: () => void; etiqueta: string;
+    destino: () => void; etiqueta: string; alerta?: boolean;
   }) => (
     <TouchableOpacity style={[styles.kpi, { backgroundColor: colors.surfaceLight }]} onPress={o.destino}
       accessibilityRole="button" accessibilityLabel={o.etiqueta}>
       <View style={styles.tituloKpi}>
         {o.icono && <Icono nombre={o.icono} color={colors.textSecondary} tamano={16} />}
         <AppText variant="caption" color={colors.textSecondary} numberOfLines={1}>{o.titulo}</AppText>
+        {o.alerta && <View style={[styles.punto, { backgroundColor: colors.primary }]} testID="aviso-por-confirmar" />}
       </View>
       <AppText variant="body" style={{ fontWeight: '800', color: o.colorValor || colors.text }} numberOfLines={1} adjustsFontSizeToFit>
         {o.valor}
@@ -217,12 +218,18 @@ const InicioScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             destino: () => navigation.navigate('Ingresos'),
             etiqueta: `Ingresos recibidos ${formatCurrency(t?.incomeReceived || 0)} de ${formatCurrency(t?.incomeExpected || 0)}. Ver el detalle`,
           })}
+          {/* Los pagos por confirmar viven DENTRO de este recuadro (ola 7.6):
+              el aviso aparte saturaba el inicio. El punto avisa que hay algo
+              que me toca confirmar. */}
           {recuadro({
-            titulo: 'Por pagar', valor: formatCompacto(aPagar),
-            detalle: `${porPagar.n} ${porPagar.n === 1 ? 'pago' : 'pagos'}${previstos > 0 ? ' + previstos' : ''}`,
+            titulo: 'Por pagar', valor: formatCompacto(aPagar), alerta: misPendientes.n > 0,
+            detalle: porPagar.n > 0
+              ? `${porPagar.n} por confirmar${previstos > 0 ? ' + previstos' : ''}`
+              : previstos > 0 ? 'programados' : 'nada pendiente',
             destino: () => navigation.navigate('PorConfirmar', { quien: alcance.tipo === 'HOGAR' ? 'DOS' : alcance.userId }),
-            etiqueta: `Por pagar ${formatCurrency(aPagar)}: ${porPagar.n} ${porPagar.n === 1 ? 'pago' : 'pagos'} por ${formatCurrency(porPagar.monto)}`
-              + `${previstos > 0 ? ` y ${formatCurrency(previstos)} programados que aún no se generan` : ''}. Ver cuáles son`,
+            etiqueta: `Por pagar ${formatCurrency(aPagar)}: ${porPagar.n} ${porPagar.n === 1 ? 'pago' : 'pagos'} por confirmar por ${formatCurrency(porPagar.monto)}`
+              + `${previstos > 0 ? ` y ${formatCurrency(previstos)} programados que aún no se generan` : ''}`
+              + `${misPendientes.n > 0 ? `. ${quienAviso ? `${quienAviso} tiene` : 'Tienes'} ${misPendientes.n} por confirmar` : ''}. Ver cuáles son`,
           })}
         </View>
         <View style={styles.kpis}>
@@ -234,26 +241,16 @@ const InicioScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           })}
           {recuadro({
             titulo: 'Deudas', icono: 'credit-card', valor: deudas ? formatCompacto(deudas.total) : '—',
-            detalle: deudas ? `este mes ${formatCompacto(deudas.mes)}` : 'No se pudieron cargar',
+            /* "$0 · este mes $0" confundia: se dice que no hay nada anotado. */
+            detalle: !deudas ? 'No se pudieron cargar'
+              : deudas.mes > 0 ? `cuotas del mes ${formatCompacto(deudas.mes)}`
+              : deudas.total > 0 ? 'en tarjetas' : 'nada anotado',
             destino: () => navigation.navigate('Deudas'),
             etiqueta: deudas
-              ? `Deudas: se deben ${formatCurrency(deudas.total)}, este mes ${formatCurrency(deudas.mes)}. Ver las deudas`
+              ? `Deudas: se deben ${formatCurrency(deudas.total)}, cuotas del mes ${formatCurrency(deudas.mes)}. Ver las deudas`
               : 'Deudas: no se pudieron cargar. Ver las deudas',
           })}
         </View>
-
-        {misPendientes.n > 0 && (
-          <TouchableOpacity style={[styles.aviso, { backgroundColor: colors.surfaceLight }]}
-            onPress={() => navigation.navigate('PorConfirmar', { quien: quienAviso && alcance.tipo !== 'HOGAR' ? alcance.userId : 'MIOS' })} accessibilityRole="button"
-            accessibilityLabel={`${quienAviso ? `${quienAviso} tiene` : 'Tienes'} ${misPendientes.n} ${misPendientes.n === 1 ? 'pago' : 'pagos'} por confirmar. Ver cuáles son`}>
-            <View style={[styles.punto, { backgroundColor: colors.primary }]} />
-            <AppText variant="body" style={{ flex: 1, fontWeight: '700' }}>
-              {quienAviso ? `${quienAviso} tiene` : 'Tienes'} {misPendientes.n} {misPendientes.n === 1 ? 'pago' : 'pagos'} por confirmar
-            </AppText>
-            <AppText variant="caption" color={colors.textSecondary}>{formatCurrency(misPendientes.monto)}</AppText>
-            <Icono nombre="right" color={colors.textSecondary} tamano={18} />
-          </TouchableOpacity>
-        )}
       </ScrollView>
 
       <TouchableOpacity ref={zonaSaldo} style={[styles.saldo, { backgroundColor: colors.surfaceLight }]} onPress={() => navigation.navigate('Movimientos')}
@@ -328,7 +325,6 @@ const styles = StyleSheet.create({
   kpis: { flexDirection: 'row', gap: 8 },
   kpi: { flex: 1, minWidth: 0, borderRadius: 14, padding: 10, gap: 2, minHeight: 64 },
   tituloKpi: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  aviso: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: 14, minHeight: 52 },
   punto: { width: 10, height: 10, borderRadius: 5 },
   botones: { flexDirection: 'row', gap: 12, padding: 16, paddingTop: 8, width: '100%', maxWidth: 560, alignSelf: 'center' },
   saldo: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginTop: 4, paddingHorizontal: 14,

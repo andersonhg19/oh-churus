@@ -427,16 +427,18 @@ describe('Inicio: las cifras cuadran y siguen al selector', () => {
     expect(getByText('$642 mil')).toBeTruthy();
   });
 
-  it('viendo a Samy, el aviso dice los pagos de Samy y abre los suyos', async () => {
+  it('viendo a Samy, "Por pagar" dice los pagos de Samy y abre los suyos', async () => {
     espiaAlcance.mockReturnValue({ ...alcanceBase, alcance: { tipo: 'PERSONA', userId: 4 } } as any);
-    const { findByText, getByLabelText } = render(<Envoltura><InicioScreen navigation={nav()} /></Envoltura>);
-    expect(await findByText('Samy tiene 1 pago por confirmar')).toBeTruthy();
-    fireEvent.press(getByLabelText(/^Samy tiene 1 pago por confirmar/));
+    const { findByLabelText, getByTestId } = render(<Envoltura><InicioScreen navigation={nav()} /></Envoltura>);
+    const recuadro = await findByLabelText(/^Por pagar .*Samy tiene 1 por confirmar/);
+    expect(getByTestId('aviso-por-confirmar')).toBeTruthy();
+    fireEvent.press(recuadro);
     expect(mockNavegar).toHaveBeenCalledWith('PorConfirmar', { quien: 4 });
   });
 
-  it('en Hogar, el aviso es lo mío', async () => {
-    const { findByText } = render(<Envoltura><InicioScreen navigation={nav()} /></Envoltura>);
-    expect(await findByText('Tienes 2 pagos por confirmar')).toBeTruthy();
+  it('en Hogar, lo por confirmar es lo mío y ya no hay aviso aparte (ola 7.6)', async () => {
+    const { findByLabelText, queryByText } = render(<Envoltura><InicioScreen navigation={nav()} /></Envoltura>);
+    expect(await findByLabelText(/^Por pagar .*Tienes 2 por confirmar/)).toBeTruthy();
+    expect(queryByText(/pagos? por confirmar$/)).toBeNull();
   });
 });

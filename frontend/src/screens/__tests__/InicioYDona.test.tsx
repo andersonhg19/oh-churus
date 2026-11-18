@@ -169,9 +169,16 @@ describe('Los recuadros de Inicio', () => {
 
   it('Deudas dice lo que se debe y la cuota del mes, y abre Deudas', async () => {
     const { findByLabelText } = pintar();
-    const deudas = await findByLabelText(/^Deudas: se deben .*1.500.000, este mes .*250.000/);
+    const deudas = await findByLabelText(/^Deudas: se deben .*1.500.000, cuotas del mes .*250.000/);
     fireEvent.press(deudas);
     expect(mockNavegar).toHaveBeenCalledWith('Deudas');
+  });
+
+  it('sin deudas anotadas, Deudas dice "nada anotado" y no "este mes $0" (ola 7.6)', async () => {
+    (deudaService.todas as jest.Mock).mockResolvedValue({ correct: true, object: { cards: [], loans: [] } });
+    const { findByText, queryByText } = pintar();
+    expect(await findByText('nada anotado')).toBeTruthy();
+    expect(queryByText(/este mes/)).toBeNull();
   });
 
   it('si las deudas fallan, el Inicio igual carga', async () => {
@@ -184,9 +191,9 @@ describe('Los recuadros de Inicio', () => {
     aviso.mockRestore();
   });
 
-  it('sin pagos míos por confirmar no sale el aviso', async () => {
-    const { findByLabelText, queryByText } = pintar();
+  it('sin pagos míos por confirmar no sale el punto de aviso', async () => {
+    const { findByLabelText, queryByTestId } = pintar();
     await findByLabelText(/^Ahorros:/);
-    expect(queryByText(/por confirmar/)).toBeNull();
+    expect(queryByTestId('aviso-por-confirmar')).toBeNull();
   });
 });

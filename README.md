@@ -1,5 +1,11 @@
 # Oh Churus!
 
+> **¿Vas a trabajar en el código (persona o asistente)?** Empieza por
+> [`documentación/guia/00-LEEME-PRIMERO.md`](documentación/guia/00-LEEME-PRIMERO.md).
+> Este README está desactualizado en partes: el módulo de ayuno, las cuentas,
+> los repartos y las transferencias ya no existen. Si algo de aquí contradice
+> la guía, manda la guía.
+
 Finanzas personales para una pareja que quiere ver la misma cifra, mas un modulo
 de ayuno intermitente. Backend en microservicios con Spring Boot, aplicacion en
 React Native (Expo) que corre en web y en movil.

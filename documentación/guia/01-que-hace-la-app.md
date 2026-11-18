@@ -42,9 +42,10 @@ pantallas comparten el periodo elegido en la barra de arriba.
 
 ### Inicio: lo primero que se ve (estilo de la app Monefy)
 
-- **Una dona con todas las categorías de gasto y de ahorro** alrededor, cada
-  una con su ícono, su línea y su porcentaje. Primero las que más se gastaron;
-  las que no tienen gasto ocupan los espacios libres en orden alfabético.
+- **Una dona con las categorías que tienen gasto** alrededor, cada una con su
+  ícono, su línea y su porcentaje.
+- **Dejar presionado el centro** abre la lista de todas las categorías (también
+  las sin gasto y los ahorros) para anotar en cualquiera.
 - **En el centro:** los ingresos en verde y lo gastado en rojo. Lo pagado con
   ahorros **no** entra en el rojo: aparece aparte como "+ X con ahorros", pero
   sí se ve en la porción de su categoría.

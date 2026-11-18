@@ -207,7 +207,8 @@ Convenciones comunes de las pantallas nuevas:
 4. **Cuatro recuadros** (2×2): Ingresos (recibido "de" esperado → `Ingresos`), Por pagar (`totals.toPay`, la misma
    cifra que descuenta "Libre para gastar"; detalle "N pagos + previstos" → `PorConfirmar`), Ahorros
    (`totals.savingsBalance` → `Ahorros`), Deudas (total y cuota del mes → `Deudas`). Valores con `formatCompacto`.
-5. Ya no hay aviso aparte de "pagos por confirmar" (ola 7.6): el recuadro **Por pagar** dice "N por confirmar" y muestra un punto si hay pagos **míos** (en Hogar) o de **esa** persona por confirmar. **Deudas** dice "cuotas del mes X", "en tarjetas" o "nada anotado".
+5. **Dona (ola 7.6):** alrededor solo van las categorías **con gasto**. **Dejar presionado el centro** abre la lista de todas (gasto y ahorro; lo más gastado primero, luego por nombre) y tocar una abre Anotar en ella. La lista se abre al soltar y descarta los toques de su primer medio segundo, porque en el navegador del celular el "click fantasma" anotaba sin querer. Un toque corto en el centro sigue abriendo Presupuesto. El botón "Más" solo aparece si hay más de 16 categorías con gasto, y abre la misma lista.
+6. Ya no hay aviso aparte de "pagos por confirmar" (ola 7.6): el recuadro **Por pagar** dice "N por confirmar" y muestra un punto si hay pagos **míos** (en Hogar) o de **esa** persona por confirmar. **Deudas** dice "cuotas del mes X", "en tarjetas" o "nada anotado".
 6. Barra fija "Libre para gastar · ver movimientos" (`totals.freeToSpend`, verde/rojo) → `Movimientos`.
 7. Dos botones grandes: **Gasto** (rojo) y **Ingreso** (verde) → `Anotar`.
 

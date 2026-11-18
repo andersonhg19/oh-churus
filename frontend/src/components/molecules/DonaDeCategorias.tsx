@@ -1,5 +1,5 @@
 import React, { useMemo, useRef } from 'react';
-import { View, StyleSheet, TouchableOpacity, useWindowDimensions, PanResponder } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, useWindowDimensions, PanResponder, Platform } from 'react-native';
 import Svg, { Path, Circle } from 'react-native-svg';
 import AppText from '../atoms/Text';
 import Icono from '../atoms/Icono';
@@ -98,6 +98,8 @@ interface Props {
   onCentro?: () => void;
   etiquetaCentro?: string;
   onMas?: () => void;
+  /** Dejar presionado el centro: la lista de TODAS las categorias (ola 7.6). */
+  onCentroLargo?: () => void;
   /** Deslizar a los lados cambia de periodo. */
   onAnterior?: () => void;
   onSiguiente?: () => void;
@@ -113,9 +115,10 @@ const rad = (g: number) => ((g - 90) * Math.PI) / 180;
  * categorias sin gasto se ven apagadas, pero se pueden tocar igual.
  */
 const DonaDeCategorias: React.FC<Props> = ({
-  categorias, ingresos, gastos, conAhorros = 0, onCategoria, onCentro, etiquetaCentro, onMas, onAnterior, onSiguiente,
+  categorias, ingresos, gastos, conAhorros = 0, onCategoria, onCentro, etiquetaCentro, onMas, onCentroLargo, onAnterior, onSiguiente,
 }) => {
   const { colors } = useTheme();
+  const presionLarga = useRef(false);
   const { width } = useWindowDimensions();
   /* Casi todo el ancho: los iconos con su % necesitan aire. */
   const S = Math.min(width - 12, 400);
@@ -188,8 +191,16 @@ const DonaDeCategorias: React.FC<Props> = ({
       </Svg>
 
       <TouchableOpacity
-        style={[styles.centro, { left: c - centroAncho / 2, top: c - centroAncho / 2, width: centroAncho, height: centroAncho }]}
-        onPress={onCentro} disabled={!onCentro} accessibilityRole="button"
+        style={[styles.centro, Platform.OS === 'web' && styles.sinSeleccion, { left: c - centroAncho / 2, top: c - centroAncho / 2, width: centroAncho, height: centroAncho }]}
+        onPress={onCentro} disabled={!onCentro && !onCentroLargo} accessibilityRole="button"
+        /* La lista se abre al SOLTAR: si se abria mientras el dedo seguia
+           abajo, al soltar el toque caia en la categoria de debajo y anotaba
+           sin querer. En el navegador se le quita al centro la seleccion de
+           texto y el menu de mantener presionado. */
+        onLongPress={() => { presionLarga.current = true; }} delayLongPress={450}
+        onPressOut={() => { if (presionLarga.current) { presionLarga.current = false; onCentroLargo?.(); } }}
+        accessibilityActions={onCentroLargo ? [{ name: 'longpress', label: 'Ver todas las categorías' }] : undefined}
+        onAccessibilityAction={(e) => { if (e.nativeEvent.actionName === 'longpress') onCentroLargo?.(); }}
         accessibilityLabel={etiquetaCentro || `Ingresos ${ing}, gastos ${gas}`}>
         <AppText style={{ color: colors.income, fontWeight: '800', fontSize: tamano }} numberOfLines={1}>
           {corta ? formatCompacto(ingresos) : ing}
@@ -239,6 +250,7 @@ const DonaDeCategorias: React.FC<Props> = ({
 
 const styles = StyleSheet.create({
   centro: { position: 'absolute', alignItems: 'center', justifyContent: 'center', borderRadius: 999 },
+  sinSeleccion: { userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' } as any,
   icono: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
   pct: { position: 'absolute', bottom: -10, minWidth: 34, paddingHorizontal: 3, borderRadius: 8, borderWidth: 1, alignItems: 'center' },
   pctTexto: { fontSize: 14, fontWeight: '800', lineHeight: 16 },

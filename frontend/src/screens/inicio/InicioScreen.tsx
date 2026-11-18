@@ -7,7 +7,7 @@ import CirculoCategoria from '../../components/atoms/CirculoCategoria';
 import Spinner from '../../components/atoms/Spinner';
 import Encabezado from '../../components/molecules/Encabezado';
 import EstadoError from '../../components/molecules/EstadoError';
-import DonaDeCategorias, { CategoriaEnDona, PALETA } from '../../components/molecules/DonaDeCategorias';
+import DonaDeCategorias, { CategoriaEnDona, PALETA, ordenarPorGasto } from '../../components/molecules/DonaDeCategorias';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAlcance } from '../../contexts/AlcanceContext';
@@ -23,9 +23,10 @@ import { textoLegibleSobre } from '../../theme/contraste';
 
 /*
  * INICIO, como Monefy:
- *   · la dona: en que se fue la plata, con TODAS las categorias alrededor
- *     (tocar una: anotar, ver sus movimientos o su presupuesto) y adentro lo
- *     que entro y lo que salio;
+ *   · la dona: en que se fue la plata, con las categorias QUE TIENEN GASTO
+ *     alrededor (tocar una: anotar, ver sus movimientos o su presupuesto) y
+ *     adentro lo que entro y lo que salio. Dejar presionado el centro abre
+ *     la lista de TODAS las categorias para anotar en cualquiera (ola 7.6);
  *   · cuatro recuadros: lo que entro, lo que falta pagar, lo ahorrado y lo
  *     que se debe (y el aviso de lo que me toca confirmar, si hay);
  *   · abajo, lo libre para gastar: tocarlo abre la lista de movimientos;
@@ -42,6 +43,13 @@ const InicioScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { alcance, corte, periodo, nombreDe } = useAlcance();
   const [otras, setOtras] = useState<Category[]>([]);
   const [elegida, setElegida] = useState<CategoriaEnDona | null>(null);
+  const [verTodas, setVerTodas] = useState(false);
+  /* En el navegador del celular, al soltar el dedo llega despues un "click"
+     fantasma en el mismo punto: caia en la fila de la lista recien abierta y
+     anotaba sin querer. Lo que llegue en el primer medio segundo se ignora. */
+  const listaAbiertaEn = useRef(0);
+  const abrirLista = () => { listaAbiertaEn.current = Date.now(); setVerTodas(true); };
+  const recienAbierta = () => Date.now() - listaAbiertaEn.current < 500;
 
   /* Los gestos. Hacia arriba solo cuenta cuando la lista ya no puede subir
      mas (esta abajo del todo o no tiene scroll): si no, se roba el scroll. */
@@ -158,18 +166,21 @@ const InicioScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const tintaGasto = textoLegibleSobre(colors.expense);
   const tintaIngreso = textoLegibleSobre(colors.income);
 
-  /* La porcion es lo GASTADO de cada categoria. Alrededor van todas las de
-     gasto y las de ahorro (para depositar con un toque), aunque no tengan
-     movimiento: asi se anota en cualquiera sin buscarla. */
-  const enDona: CategoriaEnDona[] = (estado?.categories || [])
+  /* La porcion es lo GASTADO de cada categoria. Alrededor solo van las que
+     tienen gasto (ola 7.6: con todas se veia saturado). Las demas, y los
+     ahorros para depositar, estan en la lista que abre el centro al dejarlo
+     presionado, en el mismo orden: lo mas gastado primero y luego por nombre. */
+  const todas: CategoriaEnDona[] = (estado?.categories || [])
     .filter((c) => c.kind === 'EXPENSE' || c.kind === 'SAVING')
     .map((c, i) => ({
       id: c.categoryId, nombre: c.categoryName, icono: c.categoryIcon,
       color: c.categoryColor || PALETA[i % PALETA.length], valor: c.kind === 'EXPENSE' ? (c.actual || 0) : 0,
     }));
-  otras.filter((o) => !enDona.some((d) => String(d.id) === String(o.id)))
-    .forEach((o, i) => enDona.push({ id: Number(o.id), nombre: o.name, icono: o.icon,
-      color: o.color || PALETA[(enDona.length + i) % PALETA.length], valor: 0 }));
+  otras.filter((o) => !todas.some((d) => String(d.id) === String(o.id)))
+    .forEach((o, i) => todas.push({ id: Number(o.id), nombre: o.name, icono: o.icon,
+      color: o.color || PALETA[(todas.length + i) % PALETA.length], valor: 0 }));
+  const enDona = todas.filter((c) => c.valor > 0);
+  const lista = ordenarPorGasto(todas);
 
   const recuadro = (o: {
     titulo: string; icono?: string; valor: string; colorValor?: string; detalle: string;
@@ -208,7 +219,8 @@ const InicioScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           etiquetaCentro={`Ingresos ${formatCurrency(t?.incomeReceived || 0)}, gastos ${formatCurrency(gastosDelMes)}`
             + ` de ${formatCurrency(presupuestoDeGasto)} presupuestado`
             + `${(t?.fromSavings || 0) > 0 ? ` y ${formatCurrency(t?.fromSavings || 0)} pagados con ahorros` : ''}. Ver el presupuesto`}
-          onMas={() => navigation.navigate('Anotar', { tipo: 'EXPENSE' })}
+          onMas={abrirLista}
+          onCentroLargo={abrirLista}
         />
 
         <View style={styles.kpis}>
@@ -303,6 +315,29 @@ const InicioScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         </TouchableOpacity>
       </Modal>
 
+      <Modal visible={verTodas} transparent animationType="slide" onRequestClose={() => setVerTodas(false)}>
+        <TouchableOpacity style={styles.fondo} activeOpacity={1} onPress={() => { if (!recienAbierta()) setVerTodas(false); }}
+          accessibilityRole="button" accessibilityLabel="Cerrar la lista de categorías">
+          <View style={[styles.hoja, styles.hojaLista, { backgroundColor: colors.surface }]}>
+            <AppText variant="subtitle">Anotar un gasto en…</AppText>
+            <ScrollView contentContainerStyle={{ gap: 6 }}>
+              {lista.map((c) => (
+                <TouchableOpacity key={c.id} style={[styles.filaCategoria, { backgroundColor: colors.surfaceLight }]}
+                  onPress={() => { if (recienAbierta()) return; setVerTodas(false); navigation.navigate('Anotar', { tipo: 'EXPENSE', categoriaId: c.id }); }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Anotar en ${c.nombre}${c.valor > 0 ? `, van ${formatCurrency(c.valor)}` : ', sin gastos'}`}>
+                  <CirculoCategoria icono={c.icono} color={c.color} tamano={36} />
+                  <AppText variant="body" style={{ flex: 1, fontWeight: '700' }} numberOfLines={1}>{c.nombre}</AppText>
+                  <AppText variant="caption" color={colors.textSecondary}>
+                    {c.valor > 0 ? formatCompacto(c.valor) : 'sin gastos'}
+                  </AppText>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
       <View style={styles.botones} ref={zonaAbajo}>
         <TouchableOpacity style={[styles.grande, { backgroundColor: colors.expense }]}
           onPress={() => navigation.navigate('Anotar', { tipo: 'EXPENSE' })} accessibilityRole="button" accessibilityLabel="Anotar un gasto">
@@ -331,6 +366,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8, borderRadius: 14, minHeight: 52, width: '100%', maxWidth: 528, alignSelf: 'center' },
   fondo: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   hoja: { padding: 20, gap: 10, borderTopLeftRadius: 24, borderTopRightRadius: 24, width: '100%', maxWidth: 560, alignSelf: 'center' },
+  hojaLista: { maxHeight: '75%' },
+  filaCategoria: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 52, borderRadius: 14, paddingHorizontal: 12 },
   opcion: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 54, borderRadius: 14, paddingHorizontal: 16 },
   grande: { flex: 1, height: 60, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   textoGrande: { fontWeight: '800' },

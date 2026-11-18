@@ -118,16 +118,42 @@ beforeEach(() => {
 const pintar = () => render(<Envoltura><InicioScreen navigation={nav()} /></Envoltura>);
 
 describe('Inicio al estilo Monefy', () => {
-  it('todas las categorías alrededor con su %, y adentro lo que entró y lo que salió', async () => {
-    const { findByLabelText, getByLabelText } = pintar();
+  it('alrededor solo las categorías con gasto y su %, y adentro lo que entró y lo que salió (ola 7.6)', async () => {
+    const { findByLabelText, getByLabelText, queryByLabelText } = pintar();
     expect(await findByLabelText(/^Mercado: .*600.000, 60% de lo gastado/)).toBeTruthy();
     expect(getByLabelText(/^Transporte: .*380.000, 38% de lo gastado/)).toBeTruthy();
     expect(getByLabelText(/^Café: .*10.000, 1% de lo gastado/)).toBeTruthy();
-    expect(getByLabelText('Regalo, sin gasto')).toBeTruthy();
-    expect(getByLabelText('Ahorro viaje, sin gasto')).toBeTruthy();
-    /* La que no tiene fila en el estado igual sale, para anotar en ella. */
-    expect(getByLabelText('Mascotas, sin gasto')).toBeTruthy();
+    /* Las que no tienen gasto ya no saturan la dona. */
+    expect(queryByLabelText('Regalo, sin gasto')).toBeNull();
+    expect(queryByLabelText('Ahorro viaje, sin gasto')).toBeNull();
     expect(getByLabelText(/^Ingresos .*2.000.000, gastos .*1.000.000 de .*3.000.000 presupuestado/)).toBeTruthy();
+  });
+
+  it('dejar presionado el centro abre TODAS las categorías, y tocar una anota en ella', async () => {
+    const { findByLabelText, getByLabelText, getAllByLabelText } = pintar();
+    const centro = await findByLabelText(/^Ingresos .*2.000.000, gastos/);
+    /* Se abre al soltar, no mientras el dedo sigue abajo. */
+    fireEvent(centro, 'longPress');
+    fireEvent(centro, 'pressOut');
+    /* Primero lo más gastado, luego por nombre; incluye ahorros y las que no
+       tienen fila en el estado. */
+    const filas = getAllByLabelText(/^Anotar en /).map((f) => String(f.props.accessibilityLabel).replace(/^Anotar en /, '').split(',')[0]);
+    expect(filas.slice(0, 3)).toEqual(['Mercado', 'Transporte', 'Café']);
+    expect(filas).toEqual(expect.arrayContaining(['Regalo', 'Ahorro viaje', 'Mascotas']));
+    /* Un toque pegado a la apertura (el click fantasma del navegador) no anota. */
+    fireEvent.press(getByLabelText('Anotar en Regalo, sin gastos'));
+    expect(mockNavegar).not.toHaveBeenCalledWith('Anotar', expect.anything());
+    const ahora = Date.now();
+    const reloj = jest.spyOn(Date, 'now').mockReturnValue(ahora + 1000);
+    fireEvent.press(getByLabelText('Anotar en Regalo, sin gastos'));
+    reloj.mockRestore();
+    expect(mockNavegar).toHaveBeenCalledWith('Anotar', expect.objectContaining({ tipo: 'EXPENSE' }));
+  });
+
+  it('un toque en el centro sigue abriendo el presupuesto', async () => {
+    const { findByLabelText } = pintar();
+    fireEvent.press(await findByLabelText(/^Ingresos .*2.000.000, gastos/));
+    expect(mockNavegar).toHaveBeenCalledWith('Presupuesto');
   });
 
   it('lo pagado con el ahorro sale en su porción pero no en lo gastado del sueldo', async () => {
